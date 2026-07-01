@@ -12,3 +12,10 @@ spring:
 springdoc:
   swagger-ui:
     path: /swagger-ui.html
+
+logging:
+  pattern:
+    level: "%5p [traceId=%X{traceId:-}]"   # 모든 로그 줄에 요청별 traceId 표시
+
+slack:
+  webhook-url: ${SLACK_WEBHOOK_URL:}   # 미설정 시 알림 전송 안 함(로컬 등)
