@@ -2,6 +2,8 @@ services:
   db:
     image: imresamu/postgis:16-3.4
     container_name: rodi-postgres
+    labels:
+      org.springframework.boot.service-connection: postgres  # spring-boot-docker-compose 자동 인식
     environment:
       POSTGRES_DB: ${POSTGRES_DB:-rodi}
       POSTGRES_USER: ${POSTGRES_USER:-rodi}

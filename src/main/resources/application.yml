@@ -19,3 +19,12 @@ logging:
 
 slack:
   webhook-url: ${SLACK_WEBHOOK_URL:}   # 미설정 시 알림 전송 안 함(로컬 등)
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health          # 헬스체크만 노출(운영 정보 보호)
+  endpoint:
+    health:
+      show-details: when-authorized   # 상세는 인증 시에만

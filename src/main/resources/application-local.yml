@@ -1,8 +1,6 @@
 spring:
-  datasource:
-    url: jdbc:postgresql://localhost:${POSTGRES_PORT:5432}/${POSTGRES_DB:rodi}
-    username: ${POSTGRES_USER:rodi}
-    password: ${POSTGRES_PASSWORD:rodi}
+  # DB 연결정보(url/username/password)는 명시하지 않는다.
+  # spring-boot-docker-compose가 compose.yaml + .env를 읽어 자동 주입한다.
   jpa:
     hibernate:
       ddl-auto: update

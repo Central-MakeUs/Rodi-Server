@@ -41,6 +41,7 @@ dependencies {
     compileOnly 'org.projectlombok:lombok'
     annotationProcessor 'org.projectlombok:lombok'
     developmentOnly 'org.springframework.boot:spring-boot-devtools'
+    developmentOnly 'org.springframework.boot:spring-boot-docker-compose'  // bootRun 시 compose.yaml DB 자동 기동·연결
 
     // === Test ===
     testImplementation 'org.springframework.boot:spring-boot-starter-test'
