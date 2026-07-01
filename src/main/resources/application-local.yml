@@ -1,0 +1,9 @@
+spring:
+  datasource:
+    url: jdbc:postgresql://localhost:${POSTGRES_PORT:5432}/${POSTGRES_DB:rodi}
+    username: ${POSTGRES_USER:rodi}
+    password: ${POSTGRES_PASSWORD:rodi}
+  jpa:
+    hibernate:
+      ddl-auto: update
+    show-sql: true
