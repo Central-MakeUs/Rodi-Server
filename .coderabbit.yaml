@@ -1,0 +1,16 @@
+# yaml-language-server: $schema=https://coderabbit.ai/integrations/schema.v2.json
+language: "ko-KR"          # 리뷰를 한국어로
+reviews:
+  profile: "chill"          # 과도한 nitpick 줄임
+  request_changes_workflow: false
+  high_level_summary: true  # PR 요약 제공
+  poem: false
+  auto_review:
+    enabled: true
+    drafts: false           # 드래프트 PR은 리뷰 안 함
+    base_branches: ["main", "develop"]
+  path_filters:
+    - "!**/build/**"
+    - "!**/gradle/wrapper/**"
+chat:
+  auto_reply: true
