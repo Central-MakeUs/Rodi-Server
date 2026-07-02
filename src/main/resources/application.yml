@@ -8,6 +8,9 @@ spring:
     properties:
       hibernate:
         format_sql: true
+  flyway:
+    baseline-on-migrate: true   # PostGIS 기본 객체(spatial_ref_sys 등)로 스키마가 비어있지 않아 필요
+    baseline-version: 0         # 기본값 1이면 V1이 스킵됨 → 0으로 낮춰 V1부터 적용
 
 springdoc:
   swagger-ui:
