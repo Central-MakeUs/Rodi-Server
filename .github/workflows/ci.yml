@@ -12,8 +12,13 @@ concurrency:
 jobs:
   build-test:
     runs-on: ubuntu-latest
+    env:
+      SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0   # SonarCloud 정확한 분석(blame 등)을 위한 전체 히스토리
 
       - name: Set up JDK 21
         uses: actions/setup-java@v4
@@ -26,3 +31,7 @@ jobs:
         run: |
           chmod +x ./gradlew
           ./gradlew build --no-daemon
+
+      - name: SonarCloud 분석
+        if: env.SONAR_TOKEN != ''   # 시크릿 설정 전에는 자동 스킵
+        run: ./gradlew sonar --no-daemon
