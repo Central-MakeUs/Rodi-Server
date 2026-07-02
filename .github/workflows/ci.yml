@@ -16,7 +16,7 @@ jobs:
       SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
       GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0   # SonarCloud 정확한 분석(blame 등)을 위한 전체 히스토리
 

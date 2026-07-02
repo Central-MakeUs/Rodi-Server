@@ -17,7 +17,7 @@ jobs:
       SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
       GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0
       - name: Set up JDK 21
@@ -41,7 +41,7 @@ jobs:
       contents: read
       packages: write        # GHCR push
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Set lowercase image name
         id: img
@@ -72,7 +72,7 @@ jobs:
     needs: build-push
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       # 최신 compose·Caddy 설정을 서버로 전송 (deploy/ 접두어 제거하고 /opt/rodi 에 배치)
       - name: Copy deploy files to server
