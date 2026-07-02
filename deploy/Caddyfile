@@ -1,0 +1,9 @@
+# api.stillstar.store 요청을 내부 app:8080 으로 프록시. HTTPS 인증서는 Caddy가 자동 발급/갱신.
+# (Let's Encrypt 만료 알림 메일을 받으려면 아래 전역 블록 주석 해제 후 메일 입력)
+# {
+#     email you@example.com
+# }
+
+api.stillstar.store {
+    reverse_proxy app:8080
+}

@@ -1,0 +1,52 @@
+# 운영 배포용 Compose (서버 /opt/rodi/ 에 위치). 로컬 개발용 compose.yaml과 별개.
+# 같은 디렉터리의 .env 에서 값 주입 (.env 는 git 커밋 금지).
+services:
+  db:
+    image: imresamu/postgis:16-3.4
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    # 외부 포트 노출 없음 — 내부 네트워크에서만 접근
+
+  app:
+    image: ghcr.io/central-makeus/rodi-server:${IMAGE_TAG:-latest}
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      SPRING_PROFILES_ACTIVE: prod
+      DB_URL: jdbc:postgresql://db:5432/${POSTGRES_DB}
+      DB_USERNAME: ${POSTGRES_USER}
+      DB_PASSWORD: ${POSTGRES_PASSWORD}
+      SLACK_WEBHOOK_URL: ${SLACK_WEBHOOK_URL:-}
+      JAVA_OPTS: "-XX:MaxRAMPercentage=70.0"
+    mem_limit: 600m          # 1GB 중 앱 상한 (DB·OS 여유 확보, 필요 시 조정)
+    # 8080 외부 노출 없음 — Caddy가 내부로 프록시
+
+  caddy:
+    image: caddy:2
+    restart: unless-stopped
+    depends_on:
+      - app
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data       # 발급 인증서 영속화 (재기동 시 재발급 방지)
+      - caddy_config:/config
+
+volumes:
+  pgdata:
+  caddy_data:
+  caddy_config:
