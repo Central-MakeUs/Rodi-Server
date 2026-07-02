@@ -8,6 +8,8 @@ services:
       POSTGRES_DB: ${POSTGRES_DB}
       POSTGRES_USER: ${POSTGRES_USER}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    ports:
+      - "127.0.0.1:5432:5432"   # 서버 loopback에만 노출 → SSH 터널 전용(인터넷 미노출)
     volumes:
       - pgdata:/var/lib/postgresql/data
     healthcheck:
@@ -15,7 +17,6 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
-    # 외부 포트 노출 없음 — 내부 네트워크에서만 접근
 
   app:
     image: ghcr.io/central-makeus/rodi-server:${IMAGE_TAG:-latest}
