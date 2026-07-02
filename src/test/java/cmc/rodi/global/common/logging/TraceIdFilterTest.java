@@ -19,8 +19,8 @@ class TraceIdFilterTest {
 
         new TraceIdFilter().doFilter(request, response, chain);
 
-        assertThat(duringChain[0]).isNotBlank();                              // 체인 실행 중 MDC에 존재
+        assertThat(duringChain[0]).isNotBlank(); // 체인 실행 중 MDC에 존재
         assertThat(response.getHeader("X-Trace-Id")).isEqualTo(duringChain[0]); // 응답 헤더와 동일
-        assertThat(MDC.get(TraceIdFilter.TRACE_ID)).isNull();                 // 요청 종료 후 정리됨
+        assertThat(MDC.get(TraceIdFilter.TRACE_ID)).isNull(); // 요청 종료 후 정리됨
     }
 }

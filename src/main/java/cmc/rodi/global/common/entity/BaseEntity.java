@@ -9,9 +9,7 @@ import org.springframework.data.annotation.CreatedDate;
 import org.springframework.data.annotation.LastModifiedDate;
 import org.springframework.data.jpa.domain.support.AuditingEntityListener;
 
-/**
- * 모든 엔티티 공통 생성/수정 시각. 엔티티는 이 클래스를 상속하면 created_at/updated_at이 자동 관리된다.
- */
+/** 모든 엔티티 공통 생성/수정 시각. 엔티티는 이 클래스를 상속하면 created_at/updated_at이 자동 관리된다. */
 @Getter
 @MappedSuperclass
 @EntityListeners(AuditingEntityListener.class)

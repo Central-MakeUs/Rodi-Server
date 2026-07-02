@@ -17,8 +17,8 @@ import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 
 /**
- * 전역 예외 처리. 모든 예외를 공통 응답 형식으로 변환하고 서버에 로그를 남긴다.
- * 실패 응답에는 traceId가 자동 포함(ApiResponse.error)되고, 미처리 5xx는 Slack으로도 알린다.
+ * 전역 예외 처리. 모든 예외를 공통 응답 형식으로 변환하고 서버에 로그를 남긴다. 실패 응답에는 traceId가 자동 포함(ApiResponse.error)되고, 미처리
+ * 5xx는 Slack으로도 알린다.
  */
 @RestControllerAdvice
 public class GlobalExceptionHandler {
@@ -36,13 +36,15 @@ public class GlobalExceptionHandler {
     public ResponseEntity<ApiResponse<Void>> handleBusinessException(BusinessException e) {
         ResponseCode errorCode = e.getErrorCode();
         log.warn("BusinessException: {} - {}", errorCode.getCode(), errorCode.getMessage());
-        return ResponseEntity.status(errorCode.getHttpStatus())
-                .body(ApiResponse.error(errorCode));
+        return ResponseEntity.status(errorCode.getHttpStatus()).body(ApiResponse.error(errorCode));
     }
 
-    /** @Valid 검증 실패 — 필드별 에러 메시지를 data에 담아 400 반환. */
+    /**
+     * @Valid 검증 실패 — 필드별 에러 메시지를 data에 담아 400 반환.
+     */
     @ExceptionHandler(MethodArgumentNotValidException.class)
-    public ResponseEntity<ApiResponse<Map<String, String>>> handleValidation(MethodArgumentNotValidException e) {
+    public ResponseEntity<ApiResponse<Map<String, String>>> handleValidation(
+            MethodArgumentNotValidException e) {
         Map<String, String> fieldErrors = new LinkedHashMap<>();
         for (FieldError fieldError : e.getBindingResult().getFieldErrors()) {
             fieldErrors.put(fieldError.getField(), fieldError.getDefaultMessage());
@@ -54,10 +56,11 @@ public class GlobalExceptionHandler {
 
     /** 미처리 예외 — 서버 ERROR 로깅 + Slack 알림, 응답엔 traceId만. */
     @ExceptionHandler(Exception.class)
-    public ResponseEntity<ApiResponse<Void>> handleException(Exception e, HttpServletRequest request) {
+    public ResponseEntity<ApiResponse<Void>> handleException(
+            Exception e, HttpServletRequest request) {
         log.error("Unhandled exception", e);
-        slackNotifier.sendServerError(MDC.get(TraceIdFilter.TRACE_ID), e,
-                request.getMethod(), request.getRequestURI());
+        slackNotifier.sendServerError(
+                MDC.get(TraceIdFilter.TRACE_ID), e, request.getMethod(), request.getRequestURI());
         return ResponseEntity.status(ErrorCode.INTERNAL_SERVER_ERROR.getHttpStatus())
                 .body(ApiResponse.error(ErrorCode.INTERNAL_SERVER_ERROR));
     }
