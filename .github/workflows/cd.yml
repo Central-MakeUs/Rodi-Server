@@ -1,0 +1,92 @@
+name: CD
+
+# main push 시: 테스트 → 이미지 빌드/GHCR push → Lightsail 배포
+on:
+  push:
+    branches: [main]
+  workflow_dispatch: {}   # 수동 재배포/롤백용
+
+concurrency:
+  group: cd-main
+  cancel-in-progress: false   # 배포는 중간에 취소하지 않음
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: gradle
+      - name: Test
+        run: |
+          chmod +x ./gradlew
+          ./gradlew build --no-daemon
+
+  build-push:
+    needs: test
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write        # GHCR push
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set lowercase image name
+        id: img
+        run: echo "name=ghcr.io/${GITHUB_REPOSITORY,,}" >> "$GITHUB_OUTPUT"
+
+      - uses: docker/setup-buildx-action@v3
+
+      - name: Login to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build & push (amd64)
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          platforms: linux/amd64
+          push: true
+          tags: |
+            ${{ steps.img.outputs.name }}:latest
+            ${{ steps.img.outputs.name }}:${{ github.sha }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  deploy:
+    needs: build-push
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # 최신 compose·Caddy 설정을 서버로 전송 (deploy/ 접두어 제거하고 /opt/rodi 에 배치)
+      - name: Copy deploy files to server
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: ubuntu
+          key: ${{ secrets.SSH_KEY }}
+          source: "deploy/compose.prod.yaml,deploy/Caddyfile"
+          target: "/opt/rodi"
+          strip_components: 1
+
+      # 이번 커밋 SHA 태그 이미지를 pull 후 재기동
+      - name: Deploy over SSH
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: ubuntu
+          key: ${{ secrets.SSH_KEY }}
+          script: |
+            cd /opt/rodi
+            export IMAGE_TAG=${{ github.sha }}
+            docker compose -f compose.prod.yaml pull
+            docker compose -f compose.prod.yaml up -d
+            docker image prune -f
