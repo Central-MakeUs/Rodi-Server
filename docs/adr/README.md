@@ -24,4 +24,6 @@
 | [0002](0002-place-joined-inheritance.md) | Place 상속 전략 — JOINED | Accepted |
 | [0003](0003-region-hierarchy-and-postgis.md) | 지역 처리 — 계층 region 테이블 + PostGIS | Accepted |
 | [0004](0004-member-soft-delete.md) | 회원 탈퇴 — soft delete + PII 익명화 | Accepted |
-| [0005](0005-hosting-aws-lightsail.md) | 배포 인프라 — AWS Lightsail 단일 인스턴스 | Accepted |
+| [0005](0005-hosting-aws-lightsail.md) | 배포 인프라 및 CI/CD | Accepted |
+| [0006](0006-code-quality-tools.md) | 코드 품질·의존성 도구 | Accepted |
+| [0007](0007-flyway-db-migration.md) | DB 스키마 마이그레이션 — Flyway | Accepted |

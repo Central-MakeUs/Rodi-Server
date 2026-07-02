@@ -9,5 +9,4 @@ public class RodiApplication {
     public static void main(String[] args) {
         SpringApplication.run(RodiApplication.class, args);
     }
-
 }

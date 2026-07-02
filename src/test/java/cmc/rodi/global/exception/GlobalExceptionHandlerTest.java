@@ -23,11 +23,14 @@ import org.springframework.web.bind.annotation.RestController;
 
 @WebMvcTest
 @AutoConfigureMockMvc(addFilters = false) // 보안 필터 제외(응답/예외 형식만 검증)
-@Import({GlobalExceptionHandler.class, SlackNotifier.class, GlobalExceptionHandlerTest.TestController.class})
+@Import({
+    GlobalExceptionHandler.class,
+    SlackNotifier.class,
+    GlobalExceptionHandlerTest.TestController.class
+})
 class GlobalExceptionHandlerTest {
 
-    @Autowired
-    MockMvc mockMvc;
+    @Autowired MockMvc mockMvc;
 
     @Test
     void 성공_응답은_200과_success_형식() throws Exception {
@@ -48,9 +51,10 @@ class GlobalExceptionHandlerTest {
 
     @Test
     void 검증실패는_400과_필드에러() throws Exception {
-        mockMvc.perform(post("/test/validate")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"name\":\"\"}"))
+        mockMvc.perform(
+                        post("/test/validate")
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content("{\"name\":\"\"}"))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.isSuccess").value(false))
                 .andExpect(jsonPath("$.code").value("COMMON_400"))
@@ -89,6 +93,5 @@ class GlobalExceptionHandlerTest {
         }
     }
 
-    record Req(@NotBlank String name) {
-    }
+    record Req(@NotBlank String name) {}
 }
