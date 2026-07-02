@@ -1,0 +1,11 @@
+# 빌드 컨텍스트에서 제외 (이미지·전송 크기 축소, 시크릿 유출 방지)
+.git
+.gradle
+build
+.idea
+*.iml
+.env
+.env.*
+docs
+.claude
+*.md
