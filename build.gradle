@@ -2,6 +2,9 @@ plugins {
     id 'java'
     id 'org.springframework.boot' version '3.5.16'
     id 'io.spring.dependency-management' version '1.1.7'
+    id 'com.diffplug.spotless' version '6.25.0'
+    id 'jacoco'
+    id 'org.sonarqube' version '5.1.0.4882'
 }
 
 group = 'cmc'
@@ -63,4 +66,35 @@ dependencies {
 
 tasks.named('test') {
     useJUnitPlatform()
+    finalizedBy tasks.named('jacocoTestReport')
+}
+
+jacoco {
+    toolVersion = '0.8.12'
+}
+
+tasks.named('jacocoTestReport') {
+    dependsOn tasks.named('test')
+    reports {
+        xml.required = true   // SonarCloud 커버리지 입력용
+    }
+}
+
+spotless {
+    java {
+        googleJavaFormat().aosp()   // Google 포맷(4-space), 결정론적
+        importOrder()
+        removeUnusedImports()
+        trimTrailingWhitespace()
+        endWithNewline()
+    }
+}
+
+sonar {
+    properties {
+        // SonarCloud 프로젝트 생성 후 표시되는 값으로 확인/교체
+        property 'sonar.projectKey', 'Central-MakeUs_Rodi-Server'
+        property 'sonar.organization', 'central-makeus'
+        property 'sonar.host.url', 'https://sonarcloud.io'
+    }
 }

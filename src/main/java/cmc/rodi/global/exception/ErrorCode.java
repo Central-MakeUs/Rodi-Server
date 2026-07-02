@@ -5,9 +5,7 @@ import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 
-/**
- * 실패 응답 코드. 공통 코드부터 정의하고, 도메인별 코드는 각 기능 구현 시 추가한다.
- */
+/** 실패 응답 코드. 공통 코드부터 정의하고, 도메인별 코드는 각 기능 구현 시 추가한다. */
 @Getter
 @RequiredArgsConstructor
 public enum ErrorCode implements ResponseCode {

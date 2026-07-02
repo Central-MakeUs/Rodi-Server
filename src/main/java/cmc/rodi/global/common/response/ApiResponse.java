@@ -7,14 +7,15 @@ import lombok.Getter;
 import org.slf4j.MDC;
 
 /**
- * 모든 API의 공통 응답 래퍼. 성공/실패 모두 {@code isSuccess/code/message/data} 형태로 통일한다.
- * 실패 응답에는 요청 추적용 {@code traceId}가 함께 실린다(성공 시 생략).
+ * 모든 API의 공통 응답 래퍼. 성공/실패 모두 {@code isSuccess/code/message/data} 형태로 통일한다. 실패 응답에는 요청 추적용 {@code
+ * traceId}가 함께 실린다(성공 시 생략).
  */
 @Getter
 public class ApiResponse<T> {
 
     @JsonProperty("isSuccess")
     private final boolean success;
+
     private final String code;
     private final String message;
     private final T data;
@@ -45,7 +46,11 @@ public class ApiResponse<T> {
 
     /** 검증 실패 등 추가 데이터(필드 에러 등)를 실어 보낼 때. traceId는 MDC에서 자동 주입. */
     public static <T> ApiResponse<T> error(ResponseCode errorCode, T data) {
-        return new ApiResponse<>(false, errorCode.getCode(), errorCode.getMessage(), data,
+        return new ApiResponse<>(
+                false,
+                errorCode.getCode(),
+                errorCode.getMessage(),
+                data,
                 MDC.get(TraceIdFilter.TRACE_ID));
     }
 }

@@ -1,16 +1,38 @@
 # yaml-language-server: $schema=https://coderabbit.ai/integrations/schema.v2.json
-language: "ko-KR"          # 리뷰를 한국어로
+language: "ko-KR"
+tone_instructions: >
+  Spring Boot 3.5 / Java 21 백엔드 리뷰어. 근거 있는 지적만 하고, 사소한 스타일은
+  Spotless/SonarCloud가 처리하니 생략. 버그·보안(인증/입력검증)·성능(N+1, 트랜잭션 경계)·
+  위치기반(PostGIS) 정확성·API 응답 일관성에 집중.
 reviews:
-  profile: "chill"          # 과도한 nitpick 줄임
+  profile: "assertive"        # 더 꼼꼼한 리뷰
   request_changes_workflow: false
-  high_level_summary: true  # PR 요약 제공
+  high_level_summary: true
+  sequence_diagrams: true
   poem: false
   auto_review:
     enabled: true
-    drafts: false           # 드래프트 PR은 리뷰 안 함
+    drafts: false
     base_branches: ["main", "develop"]
   path_filters:
     - "!**/build/**"
     - "!**/gradle/wrapper/**"
+  path_instructions:
+    - path: "src/main/java/**/*.java"
+      instructions: >
+        package-by-feature 구조. 비즈니스 로직은 service, 도메인 규칙은 entity,
+        repository는 인터페이스. 응답은 ApiResponse<T>로 통일, 예외는 BusinessException +
+        ResponseCode(ErrorCode) 사용. N+1 쿼리, 트랜잭션 경계(@Transactional 범위),
+        입력 검증(@Valid), 인증/인가 누락, PostGIS 좌표(SRID 4326) 처리를 중점 검토.
+    - path: "src/main/resources/db/migration/*.sql"
+      instructions: >
+        Flyway 마이그레이션. 파괴적 변경(DROP/컬럼 삭제) 주의, 인덱스·제약조건·NOT NULL
+        기본값을 확인. 한 번 머지된 마이그레이션은 수정 금지(새 버전으로).
+    - path: "**/*.{yml,yaml}"
+      instructions: >
+        시크릿 하드코딩 금지(환경변수/시크릿 사용). 프로파일별 설정 분리가 맞는지 확인.
 chat:
   auto_reply: true
+knowledge_base:
+  learnings:
+    scope: "auto"
