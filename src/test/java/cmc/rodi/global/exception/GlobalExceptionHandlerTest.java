@@ -5,14 +5,19 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import cmc.rodi.global.auth.jwt.JwtAuthenticationFilter;
 import cmc.rodi.global.common.response.ApiResponse;
 import cmc.rodi.global.common.slack.SlackNotifier;
+import cmc.rodi.global.config.SecurityConfig;
+import cmc.rodi.global.config.WebConfig;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
+import org.springframework.context.annotation.ComponentScan.Filter;
+import org.springframework.context.annotation.FilterType;
 import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
@@ -21,7 +26,17 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RestController;
 
-@WebMvcTest(controllers = GlobalExceptionHandlerTest.TestController.class) // 이 테스트용 컨트롤러만 스캔
+// 응답/예외 형식만 검증하는 슬라이스 → 실제 보안·웹 설정(JWT 필터 등)은 제외
+@WebMvcTest(
+        controllers = GlobalExceptionHandlerTest.TestController.class,
+        excludeFilters =
+                @Filter(
+                        type = FilterType.ASSIGNABLE_TYPE,
+                        classes = {
+                            SecurityConfig.class,
+                            WebConfig.class,
+                            JwtAuthenticationFilter.class
+                        }))
 @AutoConfigureMockMvc(addFilters = false) // 보안 필터 제외(응답/예외 형식만 검증)
 @Import({
     GlobalExceptionHandler.class,
