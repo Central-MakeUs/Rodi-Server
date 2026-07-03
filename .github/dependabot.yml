@@ -5,8 +5,11 @@ updates:
     directory: "/"
     target-branch: "develop"
     schedule:
-      interval: "weekly"
+      interval: "monthly"
     open-pull-requests-limit: 5
+    groups:
+      gradle:
+        patterns: ["*"]   # 모든 gradle 업데이트를 PR 1개로 묶음
     labels: ["dependencies"]
 
   # GitHub Actions 워크플로 액션 버전
@@ -14,7 +17,10 @@ updates:
     directory: "/"
     target-branch: "develop"
     schedule:
-      interval: "weekly"
+      interval: "monthly"
+    groups:
+      github-actions:
+        patterns: ["*"]
     labels: ["dependencies", "ci"]
 
   # Dockerfile 베이스 이미지
@@ -22,5 +28,8 @@ updates:
     directory: "/"
     target-branch: "develop"
     schedule:
-      interval: "weekly"
+      interval: "monthly"
+    groups:
+      docker:
+        patterns: ["*"]
     labels: ["dependencies", "docker"]
