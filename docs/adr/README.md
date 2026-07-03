@@ -27,3 +27,5 @@
 | [0005](0005-hosting-aws-lightsail.md) | 배포 인프라 및 CI/CD | Accepted |
 | [0006](0006-code-quality-tools.md) | 코드 품질·의존성 도구 | Accepted |
 | [0007](0007-flyway-db-migration.md) | DB 스키마 마이그레이션 — Flyway | Accepted |
+| [0008](0008-social-login.md) | 소셜 로그인 전략 | Accepted |
+| [0009](0009-authentication-authorization.md) | 사용자 인증/인가 전략 | Accepted |
