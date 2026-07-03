@@ -16,7 +16,12 @@ import org.springframework.security.web.SecurityFilterChain;
 public class SecurityConfig {
 
     private static final String[] PUBLIC_ENDPOINTS = {
-        "/actuator/health", "/swagger-ui/**", "/swagger-ui.html", "/v3/api-docs/**", "/error"
+        "/actuator/health",
+        "/swagger-ui/**",
+        "/swagger-ui.html",
+        "/v3/api-docs/**",
+        "/error",
+        "/api/v1/auth/**" // 소셜 로그인·토큰 재발급·로그아웃(토큰 없이 접근)
     };
 
     @Bean

@@ -21,7 +21,7 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RestController;
 
-@WebMvcTest
+@WebMvcTest(controllers = GlobalExceptionHandlerTest.TestController.class) // 이 테스트용 컨트롤러만 스캔
 @AutoConfigureMockMvc(addFilters = false) // 보안 필터 제외(응답/예외 형식만 검증)
 @Import({
     GlobalExceptionHandler.class,

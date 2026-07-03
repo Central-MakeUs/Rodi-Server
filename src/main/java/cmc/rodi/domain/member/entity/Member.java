@@ -24,7 +24,8 @@ public class Member extends BaseEntity {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @Column(nullable = false, unique = true, length = 30)
+    /** 닉네임은 가입 시엔 비어 있고 온보딩에서 설정한다. */
+    @Column(unique = true, length = 30)
     private String nickname;
 
     @Column(length = 255)
@@ -37,5 +38,10 @@ public class Member extends BaseEntity {
     private Member(String nickname, String email) {
         this.nickname = nickname;
         this.email = email;
+    }
+
+    /** 소셜 로그인으로 신규 가입. 닉네임 없이 식별정보만으로 생성하고, 닉네임은 온보딩에서 채운다. */
+    public static Member createBySocial(String email) {
+        return Member.builder().email(email).build();
     }
 }
