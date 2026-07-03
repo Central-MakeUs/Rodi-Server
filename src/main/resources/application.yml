@@ -31,3 +31,8 @@ management:
   endpoint:
     health:
       show-details: when-authorized   # 상세는 인증 시에만
+
+jwt:
+  secret: ${JWT_SECRET:rodi-local-dev-secret-change-me-please-at-least-32-bytes}   # prod는 env로 주입
+  access-token-ttl: 30m
+  refresh-token-ttl: 14d
