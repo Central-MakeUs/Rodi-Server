@@ -10,6 +10,8 @@ updates:
     groups:
       gradle:
         patterns: ["*"]   # 모든 gradle 업데이트를 PR 1개로 묶음
+    commit-message:
+      prefix: "chore"     # 커밋 컨벤션(build 아님)
     labels: ["dependencies"]
 
   # GitHub Actions 워크플로 액션 버전
@@ -21,6 +23,8 @@ updates:
     groups:
       github-actions:
         patterns: ["*"]
+    commit-message:
+      prefix: "chore"
     labels: ["dependencies", "ci"]
 
   # Dockerfile 베이스 이미지
@@ -32,4 +36,6 @@ updates:
     groups:
       docker:
         patterns: ["*"]
+    commit-message:
+      prefix: "chore"
     labels: ["dependencies", "docker"]
