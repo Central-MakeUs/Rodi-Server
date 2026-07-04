@@ -54,5 +54,7 @@ DDD + **package-by-feature**로 시작, 도메인이 복잡해지면 feature 단
 ## 참고
 
 - 루트 패키지 `cmc.rodi`, 진입점 [RodiApplication.java](src/main/java/cmc/rodi/RodiApplication.java).
+- 패키지: `global`(공통·인프라 — config·exception·response·auth 등) · `domain`(비즈니스 도메인 — member 등). feature 하위는 `entity`/`repository`/`service`/`controller`/`dto` 계층으로 나눈다.
 - 문서 — 데이터 모델: [docs/erd.md](docs/erd.md) · 아키텍처 결정: [docs/adr/](docs/adr/) · 기능 스펙: [docs/specs/](docs/specs/) ([템플릿](docs/specs/TEMPLATE.md)). 작업 전 먼저 확인.
 - 시크릿(DB·OAuth2·JWT)은 환경변수/프로파일로 주입, 커밋 금지.
+- API 경로는 `/api/v1` prefix로 버전을 명시한다 (예: `/api/v1/auth/oauth/{provider}`).
