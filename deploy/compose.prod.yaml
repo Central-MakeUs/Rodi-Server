@@ -29,6 +29,7 @@ services:
       DB_URL: jdbc:postgresql://db:5432/${POSTGRES_DB}
       DB_USERNAME: ${POSTGRES_USER}
       DB_PASSWORD: ${POSTGRES_PASSWORD}
+      JWT_SECRET: ${JWT_SECRET}   # .env에서 주입 (미전달 시 앱이 ${JWT_SECRET} 리터럴을 키로 써 WeakKey로 기동 실패)
       SLACK_WEBHOOK_URL: ${SLACK_WEBHOOK_URL:-}
       JAVA_OPTS: "-XX:MaxRAMPercentage=70.0"
     mem_limit: 600m          # 1GB 중 앱 상한 (DB·OS 여유 확보, 필요 시 조정)
