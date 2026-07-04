@@ -34,7 +34,17 @@ public class AuthService {
                         .orElse(null);
 
         boolean isNewMember = account == null;
-        Member member = isNewMember ? register(userInfo) : account.getMember();
+        Member member;
+        if (isNewMember) {
+            member = register(userInfo);
+        } else {
+            // 재로그인: 공급자 프로필·refresh token을 최신값으로 갱신(email은 가입 시 값 유지)
+            account.updateProviderInfo(
+                    userInfo.providerRefreshToken(),
+                    userInfo.providerNickname(),
+                    userInfo.providerProfileImageUrl());
+            member = account.getMember();
+        }
 
         Tokens tokens = tokenService.issue(member);
         return TokenResponse.of(tokens, isNewMember);
@@ -62,6 +72,9 @@ public class AuthService {
                         .provider(userInfo.provider())
                         .providerId(userInfo.providerId())
                         .email(userInfo.email())
+                        .providerRefreshToken(userInfo.providerRefreshToken())
+                        .providerNickname(userInfo.providerNickname())
+                        .providerProfileImageUrl(userInfo.providerProfileImageUrl())
                         .build());
         return member;
     }
