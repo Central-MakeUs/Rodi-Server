@@ -121,9 +121,20 @@ main
 ```
 1. develop에서 브랜치 생성   git checkout -b feat/course-route-api develop
 2. 작업 후 커밋             git commit -m "feat(course): 루트 코스 목록 조회 API 구현"
-3. develop으로 PR 생성 → 리뷰 → Merge
-4. 배포 시점에 develop → main PR
+3. develop으로 PR 생성 → 리뷰 → Squash merge
+4. 배포 시점에 develop → main PR (Merge commit)
 ```
+
+### 머지 방식
+
+| 머지 | 방식 | 이유 |
+| --- | --- | --- |
+| `feat/`·`fix/`·`chore/`·`refactor/` → `develop` | **Squash merge** | 기능 1개 = 커밋 1개로 develop 히스토리를 깔끔·선형으로, 기능 단위 revert 용이 |
+| `develop` → `main` | **Merge commit** | 어떤 기능들이 함께 배포됐는지 릴리즈 묶음을 보존 |
+| `hotfix/` → `main` (+`develop`) | **Merge commit** | 긴급 수정 이력 보존 |
+
+- 스쿼시 시 **커밋 제목 = PR 제목**이 되므로 PR 제목을 `<type>(<scope>): <subject>` 컨벤션에 맞춘다(세부 커밋은 PR에 남아 추적 가능).
+- 스쿼시 후 SHA가 바뀌므로 **머지 후 로컬·원격 브랜치를 삭제**하고 develop을 새로 pull 한다.
 
 ### 규칙 요약
 
