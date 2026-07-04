@@ -6,6 +6,7 @@ import cmc.rodi.global.auth.social.OAuthUserInfo;
 import cmc.rodi.global.auth.social.SocialClient;
 import cmc.rodi.global.exception.BusinessException;
 import io.jsonwebtoken.Claims;
+import io.jsonwebtoken.ExpiredJwtException;
 import io.jsonwebtoken.Header;
 import io.jsonwebtoken.JwsHeader;
 import io.jsonwebtoken.JwtException;
@@ -14,6 +15,7 @@ import io.jsonwebtoken.Locator;
 import io.jsonwebtoken.security.Jwk;
 import io.jsonwebtoken.security.JwkSet;
 import io.jsonwebtoken.security.Jwks;
+import io.jsonwebtoken.security.SignatureException;
 import java.security.Key;
 import java.util.HashMap;
 import java.util.Map;
@@ -69,13 +71,25 @@ public class AppleSocialClient implements SocialClient, Locator<Key> {
                 token.refreshToken());
     }
 
+    /** client_secret(.p8 서명) 생성. 설정 오류를 명확히 로깅한다(서버 설정 문제 → 500). */
+    private String generateClientSecret() {
+        try {
+            return clientSecretGenerator.generate();
+        } catch (RuntimeException e) {
+            log.error(
+                    "애플 client_secret 생성 실패 — 설정 확인(APPLE_PRIVATE_KEY/KEY_ID/TEAM_ID/CLIENT_ID)",
+                    e);
+            throw e;
+        }
+    }
+
     /** authorizationCode → 애플 토큰 엔드포인트 교환(id_token + refresh_token 확보). */
     private AppleTokenResponse exchange(String authorizationCode) {
         MultiValueMap<String, String> form = new LinkedMultiValueMap<>();
         form.add("grant_type", "authorization_code");
         form.add("code", authorizationCode);
         form.add("client_id", properties.clientId());
-        form.add("client_secret", clientSecretGenerator.generate());
+        form.add("client_secret", generateClientSecret());
         try {
             AppleTokenResponse response =
                     restClient
@@ -86,6 +100,9 @@ public class AppleSocialClient implements SocialClient, Locator<Key> {
                             .retrieve()
                             .body(AppleTokenResponse.class);
             if (response == null || response.idToken() == null) {
+                log.warn(
+                        "애플 토큰 교환 응답에 id_token 없음(refresh_token 존재? {})",
+                        response != null && response.refreshToken() != null);
                 throw new BusinessException(AuthErrorCode.SOCIAL_VERIFICATION_FAILED);
             }
             return response;
@@ -101,25 +118,37 @@ public class AppleSocialClient implements SocialClient, Locator<Key> {
         }
     }
 
-    /** id_token 서명(JWKS)·iss·aud·exp 검증 후 클레임 반환. */
+    /** id_token 서명(JWKS)·iss·aud·exp 검증 후 클레임 반환. 실패 원인을 세분화해 로깅한다. */
     private Claims verifyIdToken(String idToken) {
+        Claims claims;
         try {
-            Claims claims =
+            claims =
                     Jwts.parser()
                             .keyLocator(this)
                             .requireIssuer(properties.issuer())
                             .build()
                             .parseSignedClaims(idToken)
                             .getPayload();
-            if (claims.getAudience() == null
-                    || !claims.getAudience().contains(properties.clientId())) {
-                throw new BusinessException(AuthErrorCode.SOCIAL_VERIFICATION_FAILED);
-            }
-            return claims;
+        } catch (ExpiredJwtException e) {
+            log.warn("애플 id_token 만료: exp={}", e.getClaims().getExpiration());
+            throw new BusinessException(AuthErrorCode.SOCIAL_VERIFICATION_FAILED);
+        } catch (SignatureException e) {
+            log.warn("애플 id_token 서명 검증 실패(공개키 불일치 등): {}", e.getMessage());
+            throw new BusinessException(AuthErrorCode.SOCIAL_VERIFICATION_FAILED);
         } catch (JwtException | IllegalArgumentException e) {
-            log.warn("애플 id_token 검증 실패", e);
+            // issuer 불일치, 형식 오류, kid 미발견(키 null) 등
+            log.warn("애플 id_token 검증 실패: {}", e.getMessage());
             throw new BusinessException(AuthErrorCode.SOCIAL_VERIFICATION_FAILED);
         }
+        if (claims.getAudience() == null || !claims.getAudience().contains(properties.clientId())) {
+            log.warn(
+                    "애플 id_token aud 불일치: expected={}, actual={}",
+                    properties.clientId(),
+                    claims.getAudience());
+            throw new BusinessException(AuthErrorCode.SOCIAL_VERIFICATION_FAILED);
+        }
+        log.debug("애플 id_token 검증 성공: sub={}", claims.getSubject());
+        return claims;
     }
 
     /** JWS 헤더의 kid로 JWKS에서 공개키를 찾는다. 캐시에 없으면 한 번 재조회한다. */
@@ -133,6 +162,9 @@ public class AppleSocialClient implements SocialClient, Locator<Key> {
         if (key == null) {
             jwksCache = fetchJwks();
             key = jwksCache.get(kid);
+            if (key == null) {
+                log.warn("애플 JWKS에 해당 kid 없음: kid={}, 사용가능 kid={}", kid, jwksCache.keySet());
+            }
         }
         return key;
     }
