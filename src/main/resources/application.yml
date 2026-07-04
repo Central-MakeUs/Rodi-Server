@@ -40,3 +40,11 @@ jwt:
 oauth:
   kakao:
     user-info-uri: https://kapi.kakao.com/v2/user/me   # accessToken 검증 방식(코드 교환 X)
+  apple:
+    issuer: https://appleid.apple.com
+    token-uri: https://appleid.apple.com/auth/token
+    jwks-uri: https://appleid.apple.com/auth/keys
+    team-id: ${APPLE_TEAM_ID:}          # env 주입(미설정 시 애플 로그인만 불가, 앱 기동은 정상)
+    key-id: ${APPLE_KEY_ID:}
+    client-id: ${APPLE_CLIENT_ID:}      # Bundle ID
+    private-key: ${APPLE_PRIVATE_KEY:}  # .p8 내용(시크릿)

@@ -58,6 +58,11 @@ public class KakaoSocialClient implements SocialClient {
             throw new BusinessException(AuthErrorCode.SOCIAL_VERIFICATION_FAILED);
         }
         return new OAuthUserInfo(
-                SocialProvider.KAKAO, String.valueOf(response.id()), response.email());
+                SocialProvider.KAKAO,
+                String.valueOf(response.id()),
+                response.email(),
+                response.nickname(),
+                response.profileImageUrl(),
+                null); // 카카오는 refresh token 미저장
     }
 }

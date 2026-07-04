@@ -49,11 +49,46 @@ public class SocialAccount extends BaseEntity {
     @Column(length = 255)
     private String email;
 
+    /** 공급자 refresh token(애플 탈퇴 revoke용). 애플만 채운다. */
+    @Column(name = "provider_refresh_token", length = 512)
+    private String providerRefreshToken;
+
+    /** 공급자 프로필 닉네임(카카오톡 닉네임 등). 서비스 닉네임(member.nickname)과 분리. */
+    @Column(name = "provider_nickname", length = 50)
+    private String providerNickname;
+
+    @Column(name = "provider_profile_image_url", length = 512)
+    private String providerProfileImageUrl;
+
     @Builder
-    private SocialAccount(Member member, SocialProvider provider, String providerId, String email) {
+    private SocialAccount(
+            Member member,
+            SocialProvider provider,
+            String providerId,
+            String email,
+            String providerRefreshToken,
+            String providerNickname,
+            String providerProfileImageUrl) {
         this.member = member;
         this.provider = provider;
         this.providerId = providerId;
         this.email = email;
+        this.providerRefreshToken = providerRefreshToken;
+        this.providerNickname = providerNickname;
+        this.providerProfileImageUrl = providerProfileImageUrl;
+    }
+
+    /** 재로그인 시 공급자 프로필·refresh token을 최신값으로 갱신(값이 있을 때만). */
+    public void updateProviderInfo(
+            String providerRefreshToken, String providerNickname, String providerProfileImageUrl) {
+        if (providerRefreshToken != null) {
+            this.providerRefreshToken = providerRefreshToken;
+        }
+        if (providerNickname != null) {
+            this.providerNickname = providerNickname;
+        }
+        if (providerProfileImageUrl != null) {
+            this.providerProfileImageUrl = providerProfileImageUrl;
+        }
     }
 }
