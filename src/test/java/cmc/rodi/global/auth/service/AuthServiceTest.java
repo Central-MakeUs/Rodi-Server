@@ -31,6 +31,8 @@ class AuthServiceTest {
     private static final String CREDENTIAL = "kakao-access-token";
     private static final String PROVIDER_ID = "123456789";
     private static final String EMAIL = "user@kakao.com";
+    private static final String NICKNAME = "카카오닉";
+    private static final String IMAGE_URL = "https://k.example/profile.jpg";
 
     @Mock SocialClientResolver socialClientResolver;
     @Mock SocialAccountRepository socialAccountRepository;
@@ -43,7 +45,14 @@ class AuthServiceTest {
     private void stubSocialVerification() {
         when(socialClientResolver.resolve(SocialProvider.KAKAO)).thenReturn(socialClient);
         when(socialClient.verify(CREDENTIAL))
-                .thenReturn(new OAuthUserInfo(SocialProvider.KAKAO, PROVIDER_ID, EMAIL));
+                .thenReturn(
+                        new OAuthUserInfo(
+                                SocialProvider.KAKAO,
+                                PROVIDER_ID,
+                                EMAIL,
+                                NICKNAME,
+                                IMAGE_URL,
+                                null));
     }
 
     @Test
@@ -75,6 +84,9 @@ class AuthServiceTest {
         assertThat(account.getMember()).isSameAs(savedMember);
         assertThat(account.getProvider()).isEqualTo(SocialProvider.KAKAO);
         assertThat(account.getProviderId()).isEqualTo(PROVIDER_ID);
+        // 공급자 프로필(카카오 닉네임·이미지)이 소셜 계정에 저장됨
+        assertThat(account.getProviderNickname()).isEqualTo(NICKNAME);
+        assertThat(account.getProviderProfileImageUrl()).isEqualTo(IMAGE_URL);
 
         verify(tokenService).issue(savedMember);
     }
