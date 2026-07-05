@@ -1,3 +1,7 @@
+server:
+  # Caddy(HTTPS 종단) 뒤에서 X-Forwarded-* 헤더를 신뢰 → https 스킴 인식(Swagger가 https로 요청)
+  forward-headers-strategy: framework
+
 spring:
   application:
     name: Rodi
