@@ -24,8 +24,10 @@ logging:
   pattern:
     level: "%5p [traceId=%X{traceId:-}]"   # 모든 로그 줄에 요청별 traceId 표시
 
-slack:
-  webhook-url: ${SLACK_WEBHOOK_URL:}   # 미설정 시 알림 전송 안 함(로컬 등)
+notification:
+  discord:
+    error-webhook-url: ${DISCORD_ERROR_WEBHOOK_URL:}    # 5xx 서버 오류 알림. 미설정 시 전송 안 함(로컬 등)
+    health-webhook-url: ${DISCORD_HEALTH_WEBHOOK_URL:}  # 서버 기동/종료(재배포) 알림
 
 management:
   endpoints:

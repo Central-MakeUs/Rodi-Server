@@ -6,8 +6,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import cmc.rodi.global.auth.jwt.JwtAuthenticationFilter;
+import cmc.rodi.global.common.notification.DiscordNotifier;
 import cmc.rodi.global.common.response.ApiResponse;
-import cmc.rodi.global.common.slack.SlackNotifier;
 import cmc.rodi.global.config.SecurityConfig;
 import cmc.rodi.global.config.WebConfig;
 import jakarta.validation.Valid;
@@ -40,7 +40,7 @@ import org.springframework.web.bind.annotation.RestController;
 @AutoConfigureMockMvc(addFilters = false) // 보안 필터 제외(응답/예외 형식만 검증)
 @Import({
     GlobalExceptionHandler.class,
-    SlackNotifier.class,
+    DiscordNotifier.class,
     GlobalExceptionHandlerTest.TestController.class
 })
 class GlobalExceptionHandlerTest {

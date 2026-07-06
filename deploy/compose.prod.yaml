@@ -34,7 +34,8 @@ services:
       APPLE_KEY_ID: ${APPLE_KEY_ID:-}
       APPLE_CLIENT_ID: ${APPLE_CLIENT_ID:-}
       APPLE_PRIVATE_KEY: ${APPLE_PRIVATE_KEY:-}
-      SLACK_WEBHOOK_URL: ${SLACK_WEBHOOK_URL:-}
+      DISCORD_ERROR_WEBHOOK_URL: ${DISCORD_ERROR_WEBHOOK_URL:-}     # 5xx 오류 알림
+      DISCORD_HEALTH_WEBHOOK_URL: ${DISCORD_HEALTH_WEBHOOK_URL:-}   # 기동/종료(재배포) 알림
       JAVA_OPTS: "-XX:MaxRAMPercentage=70.0"
     mem_limit: 600m          # 1GB 중 앱 상한 (DB·OS 여유 확보, 필요 시 조정)
     # 8080 외부 노출 없음 — Caddy가 내부로 프록시
