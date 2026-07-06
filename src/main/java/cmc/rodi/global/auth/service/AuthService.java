@@ -68,6 +68,40 @@ public class AuthService {
         return SocialLoginResponse.success(tokenService.issue(member), false);
     }
 
+    /**
+     * 계정 복구. 탈퇴 유예기간(PENDING) 내 소셜 재검증으로 deletedAt을 해제하고 토큰을 발급한다. 유예 경과(LOCKED)면 재가입 대기 에러, 복구 대상이
+     * 없으면 not-recoverable.
+     */
+    @Transactional
+    public SocialLoginResponse restore(SocialProvider provider, String credential) {
+        OAuthUserInfo userInfo = socialClientResolver.resolve(provider).verify(credential);
+
+        SocialAccount account =
+                socialAccountRepository
+                        .findByProviderAndProviderId(userInfo.provider(), userInfo.providerId())
+                        .orElseThrow(
+                                () ->
+                                        new BusinessException(
+                                                MemberErrorCode.WITHDRAWAL_NOT_RECOVERABLE));
+
+        Member member = account.getMember();
+        MemberStatus state =
+                member.withdrawalState(LocalDateTime.now(), WithdrawalPolicy.RECOVERABLE_WINDOW);
+
+        if (state == MemberStatus.WITHDRAWAL_LOCKED) {
+            throw new BusinessException(MemberErrorCode.WITHDRAWAL_LOCKED);
+        }
+        if (state == MemberStatus.WITHDRAWAL_PENDING) {
+            member.restore();
+            account.updateProviderInfo(
+                    userInfo.providerRefreshToken(),
+                    userInfo.providerNickname(),
+                    userInfo.providerProfileImageUrl());
+        }
+        // ACTIVE(이미 정상) 또는 방금 복구 → 로그인 토큰 발급
+        return SocialLoginResponse.success(tokenService.issue(member), false);
+    }
+
     /** refresh token으로 재발급(회전 + 재사용 탐지). 신규 가입이 아니므로 isNewMember=false. */
     @Transactional
     public TokenResponse reissue(String refreshToken) {

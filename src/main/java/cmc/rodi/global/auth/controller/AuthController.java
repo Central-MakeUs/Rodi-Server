@@ -34,6 +34,14 @@ public class AuthController implements AuthControllerDocs {
     }
 
     @Override
+    @PostMapping("/oauth/{provider}/restore")
+    public ApiResponse<SocialLoginResponse> restore(
+            @PathVariable String provider, @Valid @RequestBody SocialLoginRequest request) {
+        return ApiResponse.success(
+                authService.restore(SocialProvider.from(provider), request.credential()));
+    }
+
+    @Override
     @PostMapping("/token/refresh")
     public ApiResponse<TokenResponse> reissue(@Valid @RequestBody TokenRefreshRequest request) {
         return ApiResponse.success(authService.reissue(request.refreshToken()));

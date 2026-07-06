@@ -30,6 +30,15 @@ public interface AuthControllerDocs {
             @RequestBody SocialLoginRequest request);
 
     @Operation(
+            summary = "계정 복구",
+            description =
+                    "탈퇴 유예기간(3일) 내에 동일 소셜 credential로 계정을 복구하고 토큰을 발급한다. "
+                            + "유예 경과(LOCKED)는 MEMBER_409_1, 복구 대상이 없으면 MEMBER_404_1.")
+    ApiResponse<SocialLoginResponse> restore(
+            @Parameter(description = "소셜 공급자", example = "kakao") @PathVariable String provider,
+            @RequestBody SocialLoginRequest request);
+
+    @Operation(
             summary = "토큰 재발급",
             description =
                     "refresh token으로 access token을 재발급한다(회전). "
