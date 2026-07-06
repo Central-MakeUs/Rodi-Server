@@ -1,9 +1,9 @@
 package cmc.rodi.global.exception;
 
 import cmc.rodi.global.common.logging.TraceIdFilter;
+import cmc.rodi.global.common.notification.DiscordNotifier;
 import cmc.rodi.global.common.response.ApiResponse;
 import cmc.rodi.global.common.response.ResponseCode;
-import cmc.rodi.global.common.slack.SlackNotifier;
 import jakarta.servlet.http.HttpServletRequest;
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -18,17 +18,17 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
 
 /**
  * 전역 예외 처리. 모든 예외를 공통 응답 형식으로 변환하고 서버에 로그를 남긴다. 실패 응답에는 traceId가 자동 포함(ApiResponse.error)되고, 미처리
- * 5xx는 Slack으로도 알린다.
+ * 5xx는 Discord로도 알린다.
  */
 @RestControllerAdvice
 public class GlobalExceptionHandler {
 
     private static final Logger log = LoggerFactory.getLogger(GlobalExceptionHandler.class);
 
-    private final SlackNotifier slackNotifier;
+    private final DiscordNotifier discordNotifier;
 
-    public GlobalExceptionHandler(SlackNotifier slackNotifier) {
-        this.slackNotifier = slackNotifier;
+    public GlobalExceptionHandler(DiscordNotifier discordNotifier) {
+        this.discordNotifier = discordNotifier;
     }
 
     /** 비즈니스 예외 — 예측된 실패라 WARN 로깅. */
@@ -59,7 +59,7 @@ public class GlobalExceptionHandler {
     public ResponseEntity<ApiResponse<Void>> handleException(
             Exception e, HttpServletRequest request) {
         log.error("Unhandled exception", e);
-        slackNotifier.sendServerError(
+        discordNotifier.sendServerError(
                 MDC.get(TraceIdFilter.TRACE_ID), e, request.getMethod(), request.getRequestURI());
         return ResponseEntity.status(ErrorCode.INTERNAL_SERVER_ERROR.getHttpStatus())
                 .body(ApiResponse.error(ErrorCode.INTERNAL_SERVER_ERROR));
