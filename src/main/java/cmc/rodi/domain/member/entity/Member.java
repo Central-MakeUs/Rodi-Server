@@ -31,8 +31,13 @@ public class Member extends BaseEntity {
     @Column(length = 255)
     private String email;
 
+    /** 탈퇴 요청 시각(soft delete). 유예기간 동안 복구 대상(ADR 0004). */
     @Column(name = "deleted_at")
     private LocalDateTime deletedAt;
+
+    /** 개인정보 익명화 시각. 유예기간 경과 후 배치가 설정한다. */
+    @Column(name = "anonymized_at")
+    private LocalDateTime anonymizedAt;
 
     @Builder
     private Member(String nickname, String email) {
@@ -43,5 +48,26 @@ public class Member extends BaseEntity {
     /** 소셜 로그인으로 신규 가입. 닉네임 없이 식별정보만으로 생성하고, 닉네임은 온보딩에서 채운다. */
     public static Member createBySocial(String email) {
         return Member.builder().email(email).build();
+    }
+
+    /** 탈퇴 요청 — soft delete. 유예기간 내 복구 가능. */
+    public void withdraw(LocalDateTime now) {
+        this.deletedAt = now;
+    }
+
+    /** 복구 — 탈퇴 요청 취소(유예기간 내에서만 의미 있음). */
+    public void restore() {
+        this.deletedAt = null;
+    }
+
+    /** 익명화 — 유예기간 경과 후 개인정보 제거. */
+    public void anonymize(LocalDateTime now) {
+        this.nickname = null;
+        this.email = null;
+        this.anonymizedAt = now;
+    }
+
+    public boolean isWithdrawn() {
+        return deletedAt != null;
     }
 }
