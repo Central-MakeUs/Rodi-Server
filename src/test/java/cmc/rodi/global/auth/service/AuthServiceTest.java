@@ -1,12 +1,14 @@
 package cmc.rodi.global.auth.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import cmc.rodi.domain.member.entity.Member;
+import cmc.rodi.domain.member.exception.MemberErrorCode;
 import cmc.rodi.domain.member.repository.MemberRepository;
 import cmc.rodi.global.auth.dto.SocialLoginResponse;
 import cmc.rodi.global.auth.dto.TokenResponse;
@@ -17,6 +19,8 @@ import cmc.rodi.global.auth.social.OAuthUserInfo;
 import cmc.rodi.global.auth.social.SocialClient;
 import cmc.rodi.global.auth.social.SocialClientResolver;
 import cmc.rodi.global.auth.vo.Tokens;
+import cmc.rodi.global.exception.BusinessException;
+import java.time.LocalDateTime;
 import java.util.Optional;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -139,5 +143,98 @@ class AuthServiceTest {
         authService.logout("refresh-raw");
 
         verify(tokenService).logout("refresh-raw");
+    }
+
+    @Test
+    @DisplayName("탈퇴 유예 중 로그인: 토큰 대신 WITHDRAWAL_PENDING 안내")
+    void 탈퇴유예_로그인_복구안내() {
+        stubSocialVerification();
+        Member withdrawing = Member.createBySocial(EMAIL);
+        withdrawing.withdraw(LocalDateTime.now().minusDays(1)); // 3일 이내 → PENDING
+        when(socialAccountRepository.findByProviderAndProviderId(SocialProvider.KAKAO, PROVIDER_ID))
+                .thenReturn(Optional.of(accountOf(withdrawing)));
+
+        SocialLoginResponse response = authService.login(SocialProvider.KAKAO, CREDENTIAL);
+
+        assertThat(response.status()).isEqualTo(SocialLoginResponse.Status.WITHDRAWAL_PENDING);
+        assertThat(response.accessToken()).isNull();
+        assertThat(response.withdrawalRequestedAt()).isNotNull();
+        verify(tokenService, never()).issue(any());
+    }
+
+    @Test
+    @DisplayName("탈퇴 유예 경과 로그인: WITHDRAWAL_LOCKED")
+    void 탈퇴유예경과_로그인_잠금() {
+        stubSocialVerification();
+        Member withdrawn = Member.createBySocial(EMAIL);
+        withdrawn.withdraw(LocalDateTime.now().minusDays(5)); // 3일 경과 → LOCKED
+        when(socialAccountRepository.findByProviderAndProviderId(SocialProvider.KAKAO, PROVIDER_ID))
+                .thenReturn(Optional.of(accountOf(withdrawn)));
+
+        assertThatThrownBy(() -> authService.login(SocialProvider.KAKAO, CREDENTIAL))
+                .isInstanceOfSatisfying(
+                        BusinessException.class,
+                        e ->
+                                assertThat(e.getErrorCode())
+                                        .isEqualTo(MemberErrorCode.WITHDRAWAL_LOCKED));
+        verify(tokenService, never()).issue(any());
+    }
+
+    @Test
+    @DisplayName("복구: 유예 중이면 deletedAt 해제 후 토큰 발급")
+    void 복구_성공() {
+        stubSocialVerification();
+        Member withdrawing = Member.createBySocial(EMAIL);
+        withdrawing.withdraw(LocalDateTime.now().minusDays(1)); // PENDING
+        when(socialAccountRepository.findByProviderAndProviderId(SocialProvider.KAKAO, PROVIDER_ID))
+                .thenReturn(Optional.of(accountOf(withdrawing)));
+        when(tokenService.issue(withdrawing)).thenReturn(new Tokens("access-jwt", "refresh-raw"));
+
+        SocialLoginResponse response = authService.restore(SocialProvider.KAKAO, CREDENTIAL);
+
+        assertThat(withdrawing.isWithdrawn()).isFalse();
+        assertThat(response.status()).isEqualTo(SocialLoginResponse.Status.SUCCESS);
+        assertThat(response.accessToken()).isEqualTo("access-jwt");
+    }
+
+    @Test
+    @DisplayName("복구: 유예 경과면 WITHDRAWAL_LOCKED")
+    void 복구_잠금() {
+        stubSocialVerification();
+        Member withdrawn = Member.createBySocial(EMAIL);
+        withdrawn.withdraw(LocalDateTime.now().minusDays(5)); // LOCKED
+        when(socialAccountRepository.findByProviderAndProviderId(SocialProvider.KAKAO, PROVIDER_ID))
+                .thenReturn(Optional.of(accountOf(withdrawn)));
+
+        assertThatThrownBy(() -> authService.restore(SocialProvider.KAKAO, CREDENTIAL))
+                .isInstanceOfSatisfying(
+                        BusinessException.class,
+                        e ->
+                                assertThat(e.getErrorCode())
+                                        .isEqualTo(MemberErrorCode.WITHDRAWAL_LOCKED));
+    }
+
+    @Test
+    @DisplayName("복구: 대상 계정 없으면 WITHDRAWAL_NOT_RECOVERABLE")
+    void 복구_대상없음() {
+        stubSocialVerification();
+        when(socialAccountRepository.findByProviderAndProviderId(SocialProvider.KAKAO, PROVIDER_ID))
+                .thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> authService.restore(SocialProvider.KAKAO, CREDENTIAL))
+                .isInstanceOfSatisfying(
+                        BusinessException.class,
+                        e ->
+                                assertThat(e.getErrorCode())
+                                        .isEqualTo(MemberErrorCode.WITHDRAWAL_NOT_RECOVERABLE));
+    }
+
+    private SocialAccount accountOf(Member member) {
+        return SocialAccount.builder()
+                .member(member)
+                .provider(SocialProvider.KAKAO)
+                .providerId(PROVIDER_ID)
+                .email(EMAIL)
+                .build();
     }
 }
