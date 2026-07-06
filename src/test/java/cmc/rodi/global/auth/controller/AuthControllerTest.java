@@ -7,10 +7,12 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import cmc.rodi.global.auth.dto.SocialLoginResponse;
 import cmc.rodi.global.auth.dto.TokenResponse;
 import cmc.rodi.global.auth.entity.SocialProvider;
 import cmc.rodi.global.auth.jwt.JwtAuthenticationFilter;
 import cmc.rodi.global.auth.service.AuthService;
+import cmc.rodi.global.auth.vo.Tokens;
 import cmc.rodi.global.common.notification.DiscordNotifier;
 import cmc.rodi.global.config.SecurityConfig;
 import cmc.rodi.global.config.WebConfig;
@@ -50,7 +52,8 @@ class AuthControllerTest {
     @DisplayName("소셜 로그인 성공: 200 + 공통 응답 형식으로 토큰 반환")
     void 소셜_로그인_성공() throws Exception {
         when(authService.login(eq(SocialProvider.KAKAO), eq("kakao-token")))
-                .thenReturn(new TokenResponse("access-jwt", "refresh-raw", true));
+                .thenReturn(
+                        SocialLoginResponse.success(new Tokens("access-jwt", "refresh-raw"), true));
 
         mockMvc.perform(
                         post("/api/v1/auth/oauth/kakao")
@@ -59,6 +62,7 @@ class AuthControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.isSuccess").value(true))
                 .andExpect(jsonPath("$.code").value("COMMON_200"))
+                .andExpect(jsonPath("$.data.status").value("SUCCESS"))
                 .andExpect(jsonPath("$.data.accessToken").value("access-jwt"))
                 .andExpect(jsonPath("$.data.refreshToken").value("refresh-raw"))
                 .andExpect(jsonPath("$.data.isNewMember").value(true));

@@ -1,65 +1,96 @@
-# 회원 탈퇴 (Account Withdrawal)
+# 회원 탈퇴 (단계적 탈퇴 · 복구)
 
 ## Status
 
 | 날짜 | Status | 변경 내용 |
 |------|--------|-----------|
-| 2026-07-05 | Draft | 최초 작성 |
+| 2026-07-05 | Draft | 최초 작성(즉시 삭제안) |
+| 2026-07-07 | Draft | PM 정책 반영 — 3일 복구 / 3일 익명화 / 10일 재가입 단계화 |
 
 ## 배경 / 목적
 
-회원이 서비스를 탈퇴한다. **서버 DB만 지우는 게 아니라, 소셜 공급자(애플·카카오)에도 연결 해제/토큰 revoke를 먼저 요청**하고 성공했을 때만 내부 데이터를 정리해야 한다. 애플은 "Sign in with Apple" 채택 앱에 **계정 삭제 시 토큰 revoke를 필수로 요구**한다(App Store 심사 지침). 공급자 정리를 빠뜨리면 "탈퇴했는데 공급자엔 연결이 남는" 사고가 난다.
+회원 탈퇴를 **단계적**으로 처리한다. 실수 탈퇴를 되돌릴 수 있는 유예기간을 두고, 이후 개인정보를 익명화/삭제하며, 일정 기간 후 동일 소셜 계정으로 재가입을 허용한다. 애플은 "Sign in with Apple" 앱에 계정 삭제 시 토큰 revoke를 요구한다(App Store 심사).
+
+## 정책 타임라인
+
+| 시점 | 처리 |
+|------|------|
+| **Day 0** (탈퇴 요청) | `member.deletedAt = now`, 서버 세션(refresh) 전체 폐기. **소셜 연결·개인정보 유지**(복구 대비) |
+| **Day 0~3** (복구 가능) | 동일 소셜 재로그인 시 "탈퇴 처리 중, 복구?" 안내 → 복구 시 `deletedAt` 해제 |
+| **Day 3** (익명화) | 개인정보 익명화(null) + **공급자 revoke(애플)/unlink(카카오)**. `anonymizedAt=now`. 소셜 연결은 유지(재가입 차단) |
+| **Day 3~10** (잠금) | 복구·재가입 모두 불가. 재로그인 시 "이미 탈퇴 처리됨, N일 후 재가입 가능" |
+| **Day 10** (재가입 허용) | `social_account` 삭제(=식별자 해제). 이후 동일 소셜 로그인은 **신규 가입** |
 
 ## 요구사항
 
-- **기능 요구사항**
-  - 인증된 회원이 자신의 계정을 탈퇴한다.
-  - 회원에 연결된 **모든 소셜 계정을 공급자에서 해제/revoke**한다(애플 revoke, 카카오 unlink).
-  - 공급자 정리가 **성공(200)** 하면 서버 데이터를 정리한다: 회원 soft delete(ADR 0004), 소셜 계정 삭제, 서버 refresh 토큰 전체 폐기.
-  - 처리 결과를 응답 → 클라이언트가 로그아웃/화면 처리.
-- **비기능 요구사항**
-  - **순서 보장**: 플랫폼 revoke/unlink → 성공 시 DB 정리 → 응답. (플랫폼 실패 시 DB는 건드리지 않고 에러 반환)
-  - 인증 필요(`@CurrentMember`). 본인 계정만.
-  - 멱등성 고려: 이미 탈퇴(soft delete)된 회원 재요청은 안전하게 처리.
+- **기능**
+  - 인증된 회원이 탈퇴를 요청한다(Day 0).
+  - Day 0~3 재로그인 시 복구 안내를 받고, 복구를 선택하면 계정이 원상 복구된다.
+  - Day 3에 개인정보 익명화 + 공급자 연결 해제, Day 10에 소셜 식별자 해제(재가입 허용).
+- **비기능**
+  - 유예/익명화/해제 시점 경과는 `member.deletedAt` 기준으로 계산.
+  - 익명화·해제는 **일 배치 스케줄러**로 처리(단일 인스턴스).
+  - 공급자 revoke/unlink는 외부 I/O — 실패 시 로깅·다음 배치 재처리 여지.
 
-## 아키텍처 / 처리 흐름
+## 상태 파생
 
-`DELETE /api/v1/members/me` (인증 필요)
-
-1. `@CurrentMember`로 회원 식별, 연결된 `social_account` 목록 조회.
-2. 각 소셜 계정에 대해 **공급자 해제 호출**(전략: `SocialClient`에 `revoke(account)` 추가 또는 provider별 unlink 서비스):
-   - **애플**: `POST https://appleid.apple.com/auth/revoke` — `client_id`, `client_secret`(.p8 서명 JWT), `token`=저장된 `provider_refresh_token`, `token_type_hint=refresh_token`.
-   - **카카오**: `POST https://kapi.kakao.com/v1/user/unlink` — Admin Key 방식(`Authorization: KakaoAK {admin_key}`, `target_id_type=user_id`, `target_id={providerId}`).
-3. 모든 공급자 해제가 성공하면:
-   - `member` soft delete(`deletedAt` 설정, ADR 0004),
-   - `social_account` 삭제(또는 마킹) — 같은 공급자 계정으로 재가입 가능하게,
-   - 해당 회원의 `refresh_token` 전체 폐기(`revokeAllByMember`).
-4. 실패 시: DB 변경 없이 에러 반환(어떤 공급자가 실패했는지 로깅).
-
-- 트랜잭션: 공급자 호출은 외부 I/O라 DB 트랜잭션 밖에서 수행하고, 성공 후 DB 정리를 트랜잭션으로 묶는다.
+`member.deletedAt`(요청 시각) + `anonymizedAt`(익명화 시각, nullable)로 파생:
+- `deletedAt == null` → **ACTIVE**
+- `deletedAt != null` & `now < deletedAt + 3d` → **WITHDRAWAL_PENDING**(복구 가능)
+- 그 외(`deletedAt + 3d` 경과) → **WITHDRAWAL_LOCKED**(복구 불가). `deletedAt + 10d` 경과분은 배치가 소셜 연결 해제.
 
 ## API 명세
 
 | Method | Path | 설명 | 인증 |
 |--------|------|------|------|
-| DELETE | /api/v1/members/me | 회원 탈퇴(공급자 revoke 후 정리) | JWT |
+| DELETE | /api/v1/members/me | 탈퇴 요청(Day 0) | JWT |
+| POST | /api/v1/auth/oauth/{provider}/restore | 계정 복구(소셜 재검증) | 불필요 |
+| POST | /api/v1/auth/oauth/{provider} | 로그인 — 탈퇴 대기 회원이면 복구 안내 응답 | 불필요 |
 
-```json
-// Request  DELETE /api/v1/members/me   (Authorization: Bearer <accessToken>)
-// (본문 없음)
-
-// Response 200
-{ "isSuccess": true, "code": "COMMON_200", "message": "요청에 성공했습니다.", "data": null }
+### 탈퇴 요청
+```
+DELETE /api/v1/members/me   (Authorization: Bearer)
+→ 200 { isSuccess:true, code:"COMMON_200", data:null }
 ```
 
-에러(안):
-- `AUTH_401_6` 인증 필요
-- (신규) 공급자 해제 실패 코드 — 예: `MEMBER_4xx_x` 또는 `AUTH_4xx_x`(탈퇴 처리 중 공급자 revoke 실패). 코드값은 구현 시 확정.
+### 로그인 응답 확장 (status 필드 추가)
+로그인 성공/탈퇴대기를 `status`로 구분(성공 응답 하위호환 — 성공 시 토큰 필드 그대로, `status:"SUCCESS"` 추가).
+```json
+// 정상 로그인
+{ "isSuccess": true, "code": "COMMON_200",
+  "data": { "status": "SUCCESS", "accessToken": "...", "refreshToken": "...", "isNewMember": false,
+            "withdrawalRequestedAt": null, "recoverableUntil": null } }
+
+// 탈퇴 대기(Day 0~3) — 토큰 미발급
+{ "isSuccess": true, "code": "COMMON_200",
+  "data": { "status": "WITHDRAWAL_PENDING", "accessToken": null, "refreshToken": null, "isNewMember": false,
+            "withdrawalRequestedAt": "2026-07-07T10:00:00", "recoverableUntil": "2026-07-10T10:00:00" } }
+```
+- 클라이언트: `status == "WITHDRAWAL_PENDING"` 이면 "탈퇴 처리 중입니다. 복구하시겠습니까?" 다이얼로그 → 예 → 복구 API.
+- **Day 3~10 잠금** 회원 로그인 시도는 에러 `MEMBER_WITHDRAWAL_LOCKED`(409, "N일 후 재가입 가능").
+
+### 계정 복구
+```
+POST /api/v1/auth/oauth/{provider}/restore   { "credential": "..." }
+→ 소셜 credential 재검증 → 해당 회원이 WITHDRAWAL_PENDING이면 deletedAt 해제 → 토큰 발급
+→ 200 { data: { status:"SUCCESS", accessToken, refreshToken, isNewMember:false, ... } }
+```
+- 대상이 복구 불가 상태면 `MEMBER_WITHDRAWAL_LOCKED`.
 
 ## 도메인 모델
 
-- 신규 엔티티 없음. `member.deletedAt`(soft delete, 기존), `social_account.provider_refresh_token`(애플 revoke용, apple-login 스펙 V3에서 추가).
-- 소셜 계정 삭제 정책(하드 삭제 vs soft) — 미해결 질문 참조.
+- **member** 확장(마이그레이션 **V4**): `anonymized_at TIMESTAMP` 추가. (`deleted_at` 기존)
+- 익명화 대상(null 처리): `member.email`, `member.nickname`, `social_account.provider_nickname`, `provider_profile_image_url`, `provider_refresh_token`(revoke 후).
+- Day 10에 `social_account` 행 삭제(식별자 해제). member 행은 익명화 상태로 감사 보존.
+
+## 스케줄러 / 공급자 해제
+
+- `@Scheduled`(일 1회) → `WithdrawalScheduler`:
+  1. **익명화**: `deletedAt <= now-3d` & `anonymizedAt is null` → 공급자 revoke/unlink → 개인정보 null → `anonymizedAt=now`.
+  2. **해제**: `deletedAt <= now-10d` → `social_account` 삭제.
+- 공급자 해제: `SocialClient`에 `revoke(SocialAccount)` 추가.
+  - 애플: `POST /auth/revoke` (client_secret + 저장된 refresh_token)
+  - 카카오: `POST /v1/user/unlink` (Admin Key + providerId)
 
 ## 설정 (환경변수)
 
@@ -70,21 +101,22 @@
 
 ## 완료 조건 (Acceptance Criteria)
 
-- [ ] `DELETE /api/v1/members/me` → 공급자 revoke/unlink 성공 시 회원 soft delete + 소셜계정 삭제 + refresh 전체 폐기
-- [ ] 애플 계정: 저장된 refresh_token으로 revoke 호출, 성공 확인
-- [ ] 카카오 계정: Admin Key로 unlink 호출, 성공 확인
-- [ ] 공급자 해제 실패 시 **DB 변경 없이** 에러 반환
-- [ ] 탈퇴 후 해당 회원의 서버 토큰으로 접근 불가(401)
-- [ ] 관련 테스트 통과 (`./gradlew test`) — 공급자 호출은 MockRestServiceServer로
+- [ ] `DELETE /api/v1/members/me` → deletedAt 세팅 + refresh 전체 폐기
+- [ ] Day 0~3 재로그인 → `status:WITHDRAWAL_PENDING` + 복구정보 반환(토큰 미발급)
+- [ ] 복구 API → deletedAt 해제 후 정상 토큰 발급, 이후 로그인 정상
+- [ ] 스케줄러: 3일 경과분 익명화(개인정보 null + 공급자 revoke/unlink + anonymizedAt)
+- [ ] 스케줄러: 10일 경과분 social_account 삭제 → 동일 소셜 재로그인 시 신규 가입(isNewMember=true)
+- [ ] Day 3~10 로그인 시도 → `MEMBER_WITHDRAWAL_LOCKED`
+- [ ] 관련 테스트 통과(`./gradlew test`) — 공급자 호출은 MockRestServiceServer, 스케줄러는 단위 테스트
 
-## 범위 밖 (다음/후순위)
+## 결정 사항 (2026-07-07)
 
-- 애플 **Server-to-Server 알림**(사용자가 애플에서 직접 연동 해제/계정 삭제 시 통지) 수신 처리 — 후순위.
-- 탈퇴 데이터 보존 정책/유예기간, 재가입 제한 — 후순위.
+- 로그인 응답에 `status` 필드로 복구 대기 표현(성공 응답 하위호환).
+- 복구 인증은 **소셜 credential 재검증**.
+- 공급자 revoke/unlink는 **Day 3(익명화 시점)**.
+- 익명화는 개인정보 **완전 null**, member·social_account 행은 유지(감사·재가입 차단), social_account는 Day 10 삭제.
+- 탈퇴 요청 즉시 **refresh 전체 폐기**.
 
-## 미해결 질문
+## 범위 밖 (후순위)
 
-- **소셜 계정 삭제 방식**: 하드 삭제(재가입 깔끔) vs soft delete(감사 추적). member는 soft delete인데 social_account도 맞출지?
-- **부분 실패 처리**: 한 회원에 여러 공급자가 연결된 경우(계정 연결은 후순위라 당장은 1개지만), 일부만 revoke 성공 시 롤백 정책.
-- 공급자 revoke 실패 시 **재시도/수동 정리** 필요 여부(예: 애플 토큰 이미 만료).
-- 탈퇴 에러 코드 체계 확정.
+- 애플 Server-to-Server 알림 수신, 재가입 제한(쿨다운) 세부, 탈퇴 사유 수집.
