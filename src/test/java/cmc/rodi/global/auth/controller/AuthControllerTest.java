@@ -11,7 +11,7 @@ import cmc.rodi.global.auth.dto.TokenResponse;
 import cmc.rodi.global.auth.entity.SocialProvider;
 import cmc.rodi.global.auth.jwt.JwtAuthenticationFilter;
 import cmc.rodi.global.auth.service.AuthService;
-import cmc.rodi.global.common.slack.SlackNotifier;
+import cmc.rodi.global.common.notification.DiscordNotifier;
 import cmc.rodi.global.config.SecurityConfig;
 import cmc.rodi.global.config.WebConfig;
 import cmc.rodi.global.exception.GlobalExceptionHandler;
@@ -39,7 +39,7 @@ import org.springframework.test.web.servlet.MockMvc;
                             JwtAuthenticationFilter.class
                         }))
 @AutoConfigureMockMvc(addFilters = false)
-@Import({GlobalExceptionHandler.class, SlackNotifier.class})
+@Import({GlobalExceptionHandler.class, DiscordNotifier.class})
 class AuthControllerTest {
 
     @Autowired MockMvc mockMvc;
