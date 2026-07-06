@@ -91,4 +91,12 @@ public class SocialAccount extends BaseEntity {
             this.providerProfileImageUrl = providerProfileImageUrl;
         }
     }
+
+    /** 익명화 — 공급자 프로필·이메일·refresh token 등 개인정보 제거. 식별자(provider, providerId)는 재가입 차단 위해 유지. */
+    public void anonymize() {
+        this.email = null;
+        this.providerRefreshToken = null;
+        this.providerNickname = null;
+        this.providerProfileImageUrl = null;
+    }
 }

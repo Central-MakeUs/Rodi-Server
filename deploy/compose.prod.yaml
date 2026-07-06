@@ -34,6 +34,7 @@ services:
       APPLE_KEY_ID: ${APPLE_KEY_ID:-}
       APPLE_CLIENT_ID: ${APPLE_CLIENT_ID:-}
       APPLE_PRIVATE_KEY: ${APPLE_PRIVATE_KEY:-}
+      KAKAO_ADMIN_KEY: ${KAKAO_ADMIN_KEY:-}                        # 탈퇴 시 카카오 unlink
       DISCORD_ERROR_WEBHOOK_URL: ${DISCORD_ERROR_WEBHOOK_URL:-}     # 5xx 오류 알림
       DISCORD_HEALTH_WEBHOOK_URL: ${DISCORD_HEALTH_WEBHOOK_URL:-}   # 기동/종료(재배포) 알림
       JAVA_OPTS: "-XX:MaxRAMPercentage=70.0"

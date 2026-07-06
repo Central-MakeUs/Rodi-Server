@@ -2,6 +2,7 @@ package cmc.rodi.global.auth.controller;
 
 import cmc.rodi.global.auth.dto.LogoutRequest;
 import cmc.rodi.global.auth.dto.SocialLoginRequest;
+import cmc.rodi.global.auth.dto.SocialLoginResponse;
 import cmc.rodi.global.auth.dto.TokenRefreshRequest;
 import cmc.rodi.global.auth.dto.TokenResponse;
 import cmc.rodi.global.auth.entity.SocialProvider;
@@ -25,11 +26,19 @@ public class AuthController implements AuthControllerDocs {
 
     @Override
     @PostMapping("/oauth/{provider}")
-    public ApiResponse<TokenResponse> login(
+    public ApiResponse<SocialLoginResponse> login(
             @PathVariable String provider, @Valid @RequestBody SocialLoginRequest request) {
-        TokenResponse response =
+        SocialLoginResponse response =
                 authService.login(SocialProvider.from(provider), request.credential());
         return ApiResponse.success(response);
+    }
+
+    @Override
+    @PostMapping("/oauth/{provider}/restore")
+    public ApiResponse<SocialLoginResponse> restore(
+            @PathVariable String provider, @Valid @RequestBody SocialLoginRequest request) {
+        return ApiResponse.success(
+                authService.restore(SocialProvider.from(provider), request.credential()));
     }
 
     @Override
