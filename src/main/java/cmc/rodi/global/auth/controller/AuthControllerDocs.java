@@ -2,6 +2,7 @@ package cmc.rodi.global.auth.controller;
 
 import cmc.rodi.global.auth.dto.LogoutRequest;
 import cmc.rodi.global.auth.dto.SocialLoginRequest;
+import cmc.rodi.global.auth.dto.SocialLoginResponse;
 import cmc.rodi.global.auth.dto.TokenRefreshRequest;
 import cmc.rodi.global.auth.dto.TokenResponse;
 import cmc.rodi.global.common.response.ApiResponse;
@@ -20,10 +21,11 @@ public interface AuthControllerDocs {
     @Operation(
             summary = "소셜 로그인",
             description =
-                    "앱에서 받은 소셜 access token을 검증해 로그인/가입 후 토큰을 발급한다. "
-                            + "신규 가입이면 isNewMember=true(온보딩 필요). "
-                            + "미지원 provider는 AUTH_400_1, 검증 실패는 AUTH_401_5.")
-    ApiResponse<TokenResponse> login(
+                    "앱에서 받은 소셜 credential(카카오=access token, 애플=authorizationCode)을 검증해 로그인/가입한다. "
+                            + "응답 status=SUCCESS면 토큰 발급(신규는 isNewMember=true), "
+                            + "status=WITHDRAWAL_PENDING이면 탈퇴 유예기간 내 재로그인이라 토큰 대신 복구 안내를 준다. "
+                            + "미지원 provider는 AUTH_400_1, 검증 실패는 AUTH_401_5, 재가입 대기(유예 경과)는 MEMBER_409_1.")
+    ApiResponse<SocialLoginResponse> login(
             @Parameter(description = "소셜 공급자", example = "kakao") @PathVariable String provider,
             @RequestBody SocialLoginRequest request);
 

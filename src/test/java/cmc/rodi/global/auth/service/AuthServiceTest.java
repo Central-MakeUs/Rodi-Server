@@ -8,6 +8,7 @@ import static org.mockito.Mockito.when;
 
 import cmc.rodi.domain.member.entity.Member;
 import cmc.rodi.domain.member.repository.MemberRepository;
+import cmc.rodi.global.auth.dto.SocialLoginResponse;
 import cmc.rodi.global.auth.dto.TokenResponse;
 import cmc.rodi.global.auth.entity.SocialAccount;
 import cmc.rodi.global.auth.entity.SocialProvider;
@@ -65,8 +66,9 @@ class AuthServiceTest {
         when(memberRepository.save(any(Member.class))).thenReturn(savedMember);
         when(tokenService.issue(savedMember)).thenReturn(new Tokens("access-jwt", "refresh-raw"));
 
-        TokenResponse response = authService.login(SocialProvider.KAKAO, CREDENTIAL);
+        SocialLoginResponse response = authService.login(SocialProvider.KAKAO, CREDENTIAL);
 
+        assertThat(response.status()).isEqualTo(SocialLoginResponse.Status.SUCCESS);
         assertThat(response.isNewMember()).isTrue();
         assertThat(response.accessToken()).isEqualTo("access-jwt");
         assertThat(response.refreshToken()).isEqualTo("refresh-raw");
@@ -107,8 +109,9 @@ class AuthServiceTest {
                 .thenReturn(Optional.of(account));
         when(tokenService.issue(existing)).thenReturn(new Tokens("access-jwt", "refresh-raw"));
 
-        TokenResponse response = authService.login(SocialProvider.KAKAO, CREDENTIAL);
+        SocialLoginResponse response = authService.login(SocialProvider.KAKAO, CREDENTIAL);
 
+        assertThat(response.status()).isEqualTo(SocialLoginResponse.Status.SUCCESS);
         assertThat(response.isNewMember()).isFalse();
         assertThat(response.accessToken()).isEqualTo("access-jwt");
         verify(memberRepository, never()).save(any());

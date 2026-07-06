@@ -7,6 +7,7 @@ import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
+import java.time.Duration;
 import java.time.LocalDateTime;
 import lombok.AccessLevel;
 import lombok.Builder;
@@ -69,5 +70,16 @@ public class Member extends BaseEntity {
 
     public boolean isWithdrawn() {
         return deletedAt != null;
+    }
+
+    /** 탈퇴 진행 상태 파생. 복구 유예기간(recoverableWindow) 내면 PENDING, 경과면 LOCKED. */
+    public MemberStatus withdrawalState(LocalDateTime now, Duration recoverableWindow) {
+        if (deletedAt == null) {
+            return MemberStatus.ACTIVE;
+        }
+        if (now.isBefore(deletedAt.plus(recoverableWindow))) {
+            return MemberStatus.WITHDRAWAL_PENDING;
+        }
+        return MemberStatus.WITHDRAWAL_LOCKED;
     }
 }

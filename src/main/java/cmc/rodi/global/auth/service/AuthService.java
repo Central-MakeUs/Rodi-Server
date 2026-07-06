@@ -1,7 +1,11 @@
 package cmc.rodi.global.auth.service;
 
 import cmc.rodi.domain.member.entity.Member;
+import cmc.rodi.domain.member.entity.MemberStatus;
+import cmc.rodi.domain.member.exception.MemberErrorCode;
+import cmc.rodi.domain.member.policy.WithdrawalPolicy;
 import cmc.rodi.domain.member.repository.MemberRepository;
+import cmc.rodi.global.auth.dto.SocialLoginResponse;
 import cmc.rodi.global.auth.dto.TokenResponse;
 import cmc.rodi.global.auth.entity.SocialAccount;
 import cmc.rodi.global.auth.entity.SocialProvider;
@@ -9,6 +13,8 @@ import cmc.rodi.global.auth.repository.SocialAccountRepository;
 import cmc.rodi.global.auth.social.OAuthUserInfo;
 import cmc.rodi.global.auth.social.SocialClientResolver;
 import cmc.rodi.global.auth.vo.Tokens;
+import cmc.rodi.global.exception.BusinessException;
+import java.time.LocalDateTime;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -23,9 +29,12 @@ public class AuthService {
     private final MemberRepository memberRepository;
     private final TokenService tokenService;
 
-    /** 소셜 로그인. 기존 계정이면 로그인, 없으면 신규 가입 후 토큰 발급. */
+    /**
+     * 소셜 로그인. 신규면 가입 후 토큰 발급, 기존이면 상태에 따라 분기 — ACTIVE는 로그인, 탈퇴 유예기간(PENDING)이면 토큰 대신 복구 안내, 유예 경과
+     * (LOCKED)면 재가입 대기 에러.
+     */
     @Transactional
-    public TokenResponse login(SocialProvider provider, String credential) {
+    public SocialLoginResponse login(SocialProvider provider, String credential) {
         OAuthUserInfo userInfo = socialClientResolver.resolve(provider).verify(credential);
 
         SocialAccount account =
@@ -33,21 +42,30 @@ public class AuthService {
                         .findByProviderAndProviderId(userInfo.provider(), userInfo.providerId())
                         .orElse(null);
 
-        boolean isNewMember = account == null;
-        Member member;
-        if (isNewMember) {
-            member = register(userInfo);
-        } else {
-            // 재로그인: 공급자 프로필·refresh token을 최신값으로 갱신(email은 가입 시 값 유지)
-            account.updateProviderInfo(
-                    userInfo.providerRefreshToken(),
-                    userInfo.providerNickname(),
-                    userInfo.providerProfileImageUrl());
-            member = account.getMember();
+        if (account == null) {
+            Member member = register(userInfo);
+            return SocialLoginResponse.success(tokenService.issue(member), true);
         }
 
-        Tokens tokens = tokenService.issue(member);
-        return TokenResponse.of(tokens, isNewMember);
+        Member member = account.getMember();
+        MemberStatus state =
+                member.withdrawalState(LocalDateTime.now(), WithdrawalPolicy.RECOVERABLE_WINDOW);
+
+        if (state == MemberStatus.WITHDRAWAL_LOCKED) {
+            throw new BusinessException(MemberErrorCode.WITHDRAWAL_LOCKED);
+        }
+        if (state == MemberStatus.WITHDRAWAL_PENDING) {
+            return SocialLoginResponse.withdrawalPending(
+                    member.getDeletedAt(),
+                    member.getDeletedAt().plus(WithdrawalPolicy.RECOVERABLE_WINDOW));
+        }
+
+        // ACTIVE: 재로그인 — 공급자 프로필·refresh token을 최신값으로 갱신(email은 가입 시 값 유지)
+        account.updateProviderInfo(
+                userInfo.providerRefreshToken(),
+                userInfo.providerNickname(),
+                userInfo.providerProfileImageUrl());
+        return SocialLoginResponse.success(tokenService.issue(member), false);
     }
 
     /** refresh token으로 재발급(회전 + 재사용 탐지). 신규 가입이 아니므로 isNewMember=false. */
