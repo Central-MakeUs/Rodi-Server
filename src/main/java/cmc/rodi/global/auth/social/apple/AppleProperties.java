@@ -11,6 +11,7 @@ public record AppleProperties(
         String issuer,
         String tokenUri,
         String jwksUri,
+        String revokeUri,
         String teamId,
         String keyId,
         String clientId,

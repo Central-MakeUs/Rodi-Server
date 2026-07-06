@@ -1,5 +1,6 @@
 package cmc.rodi.global.auth.social.apple;
 
+import cmc.rodi.global.auth.entity.SocialAccount;
 import cmc.rodi.global.auth.entity.SocialProvider;
 import cmc.rodi.global.auth.exception.AuthErrorCode;
 import cmc.rodi.global.auth.social.OAuthUserInfo;
@@ -69,6 +70,39 @@ public class AppleSocialClient implements SocialClient, Locator<Key> {
                 null, // 애플은 닉네임 미제공
                 null, // 애플은 프로필 이미지 미제공
                 token.refreshToken());
+    }
+
+    /** 저장된 애플 refresh token으로 revoke 호출. 토큰이 없으면(이미 해제·미저장) 스킵한다. */
+    @Override
+    public void revoke(SocialAccount account) {
+        String refreshToken = account.getProviderRefreshToken();
+        if (refreshToken == null || refreshToken.isBlank()) {
+            log.warn("애플 revoke 스킵: refresh token 없음 (providerId={})", account.getProviderId());
+            return;
+        }
+        MultiValueMap<String, String> form = new LinkedMultiValueMap<>();
+        form.add("client_id", properties.clientId());
+        form.add("client_secret", generateClientSecret());
+        form.add("token", refreshToken);
+        form.add("token_type_hint", "refresh_token");
+        try {
+            restClient
+                    .post()
+                    .uri(properties.revokeUri())
+                    .contentType(MediaType.APPLICATION_FORM_URLENCODED)
+                    .body(form)
+                    .retrieve()
+                    .toBodilessEntity();
+        } catch (RestClientResponseException e) {
+            log.warn(
+                    "애플 revoke 실패: status={}, body={}",
+                    e.getStatusCode(),
+                    e.getResponseBodyAsString());
+            throw new BusinessException(AuthErrorCode.SOCIAL_UNLINK_FAILED);
+        } catch (RestClientException e) {
+            log.warn("애플 revoke 오류", e);
+            throw new BusinessException(AuthErrorCode.SOCIAL_UNLINK_FAILED);
+        }
     }
 
     /** client_secret(.p8 서명) 생성. 설정 오류를 명확히 로깅한다(서버 설정 문제 → 500). */

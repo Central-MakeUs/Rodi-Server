@@ -8,6 +8,7 @@ import static org.springframework.test.web.client.match.MockRestRequestMatchers.
 import static org.springframework.test.web.client.response.MockRestResponseCreators.withStatus;
 import static org.springframework.test.web.client.response.MockRestResponseCreators.withSuccess;
 
+import cmc.rodi.global.auth.entity.SocialAccount;
 import cmc.rodi.global.auth.entity.SocialProvider;
 import cmc.rodi.global.auth.exception.AuthErrorCode;
 import cmc.rodi.global.auth.social.OAuthUserInfo;
@@ -25,7 +26,10 @@ import org.springframework.web.client.RestClient;
 class KakaoSocialClientTest {
 
     private static final String USER_INFO_URI = "https://kapi.kakao.com/v2/user/me";
+    private static final String UNLINK_URI = "https://kapi.kakao.com/v1/user/unlink";
+    private static final String ADMIN_KEY = "test-admin-key";
     private static final String ACCESS_TOKEN = "kakao-access-token";
+    private static final String PROVIDER_ID = "123456789";
 
     private MockRestServiceServer server;
     private KakaoSocialClient client;
@@ -34,7 +38,9 @@ class KakaoSocialClientTest {
     void setUp() {
         RestClient.Builder builder = RestClient.builder();
         server = MockRestServiceServer.bindTo(builder).build();
-        client = new KakaoSocialClient(builder, new KakaoProperties(USER_INFO_URI));
+        client =
+                new KakaoSocialClient(
+                        builder, new KakaoProperties(USER_INFO_URI, UNLINK_URI, ADMIN_KEY));
     }
 
     @Test
@@ -89,6 +95,39 @@ class KakaoSocialClientTest {
                 .andRespond(withSuccess("{}", MediaType.APPLICATION_JSON));
 
         assertSocialVerificationFailed();
+    }
+
+    @Test
+    @DisplayName("revoke: Admin Key 헤더로 unlink 호출")
+    void unlink_성공() {
+        server.expect(requestTo(UNLINK_URI))
+                .andExpect(method(HttpMethod.POST))
+                .andExpect(header(HttpHeaders.AUTHORIZATION, "KakaoAK " + ADMIN_KEY))
+                .andRespond(withSuccess("{\"id\":123456789}", MediaType.APPLICATION_JSON));
+
+        client.revoke(socialAccount());
+
+        server.verify();
+    }
+
+    @Test
+    @DisplayName("unlink 실패(4xx)면 SOCIAL_UNLINK_FAILED")
+    void unlink_실패() {
+        server.expect(requestTo(UNLINK_URI)).andRespond(withStatus(HttpStatus.BAD_REQUEST));
+
+        assertThatThrownBy(() -> client.revoke(socialAccount()))
+                .isInstanceOfSatisfying(
+                        BusinessException.class,
+                        e ->
+                                assertThat(e.getErrorCode())
+                                        .isEqualTo(AuthErrorCode.SOCIAL_UNLINK_FAILED));
+    }
+
+    private SocialAccount socialAccount() {
+        return SocialAccount.builder()
+                .provider(SocialProvider.KAKAO)
+                .providerId(PROVIDER_ID)
+                .build();
     }
 
     private void assertSocialVerificationFailed() {

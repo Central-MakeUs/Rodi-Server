@@ -7,6 +7,7 @@ import static org.springframework.test.web.client.match.MockRestRequestMatchers.
 import static org.springframework.test.web.client.response.MockRestResponseCreators.withStatus;
 import static org.springframework.test.web.client.response.MockRestResponseCreators.withSuccess;
 
+import cmc.rodi.global.auth.entity.SocialAccount;
 import cmc.rodi.global.auth.entity.SocialProvider;
 import cmc.rodi.global.auth.exception.AuthErrorCode;
 import cmc.rodi.global.auth.social.OAuthUserInfo;
@@ -39,6 +40,7 @@ class AppleSocialClientTest {
     private static final String ISSUER = "https://appleid.apple.com";
     private static final String TOKEN_URI = "https://appleid.apple.com/auth/token";
     private static final String JWKS_URI = "https://appleid.apple.com/auth/keys";
+    private static final String REVOKE_URI = "https://appleid.apple.com/auth/revoke";
     private static final String CLIENT_ID = "com.rodi.app";
     private static final String KID = "test-kid";
     private static final String SUB = "apple-sub-123";
@@ -76,6 +78,7 @@ class AppleSocialClientTest {
                         ISSUER,
                         TOKEN_URI,
                         JWKS_URI,
+                        REVOKE_URI,
                         "TEAMID",
                         "KEYID",
                         CLIENT_ID,
@@ -140,6 +143,34 @@ class AppleSocialClientTest {
         expectJwks();
 
         assertSocialVerificationFailed();
+    }
+
+    @Test
+    @DisplayName("revoke: 저장된 refresh token으로 애플 revoke 호출")
+    void revoke_성공() {
+        server.expect(requestTo(REVOKE_URI))
+                .andExpect(method(HttpMethod.POST))
+                .andRespond(withSuccess());
+
+        client.revoke(socialAccount("apple-refresh-token"));
+
+        server.verify();
+    }
+
+    @Test
+    @DisplayName("refresh token이 없으면 revoke를 스킵한다(호출 없음)")
+    void revoke_스킵() {
+        client.revoke(socialAccount(null)); // 서버 기대 미등록 → 호출이 있으면 실패
+
+        server.verify();
+    }
+
+    private SocialAccount socialAccount(String refreshToken) {
+        return SocialAccount.builder()
+                .provider(SocialProvider.APPLE)
+                .providerId(SUB)
+                .providerRefreshToken(refreshToken)
+                .build();
     }
 
     private String idToken(String issuer, String audience, Instant expiration) {
