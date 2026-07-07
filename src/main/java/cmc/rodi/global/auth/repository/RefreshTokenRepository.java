@@ -13,8 +13,12 @@ public interface RefreshTokenRepository extends JpaRepository<RefreshToken, Long
 
     Optional<RefreshToken> findByTokenHash(String tokenHash);
 
-    /** 회원의 폐기되지 않은 모든 refresh를 폐기(재사용 탐지·탈퇴 시). */
-    @Modifying(clearAutomatically = true)
+    /**
+     * 회원의 폐기되지 않은 모든 refresh를 폐기(재사용 탐지·탈퇴 시). flushAutomatically=true — 벌크 UPDATE 전에 영속성 컨텍스트의
+     * 변경(예: 같은 트랜잭션에서 세팅한 member.deletedAt)을 먼저 flush해야, clearAutomatically로 컨텍스트가 비워질 때 그 변경이 유실되지
+     * 않는다.
+     */
+    @Modifying(flushAutomatically = true, clearAutomatically = true)
     @Query(
             "update RefreshToken r set r.revokedAt = :now "
                     + "where r.member = :member and r.revokedAt is null")
