@@ -1,25 +1,21 @@
 name: CD
 
-# main push 시: 테스트 → 이미지 빌드/GHCR push → Lightsail 배포
+# main·develop push 시: 테스트 → 이미지 빌드/GHCR push → Lightsail 단일 app 재배포
+# (별도 스테이징 없음 — 서버 메모리 제약. 어느 브랜치를 push하든 같은 app에 배포되며 나중 push가 반영됨)
 on:
   push:
-    branches: [main]
+    branches: [main, develop]
   workflow_dispatch: {}   # 수동 재배포/롤백용
 
 concurrency:
-  group: cd-main
+  group: cd-deploy          # main·develop 배포를 한 그룹으로 직렬화(같은 app을 동시에 안 건드리게)
   cancel-in-progress: false   # 배포는 중간에 취소하지 않음
 
 jobs:
   test:
     runs-on: ubuntu-latest
-    env:
-      SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
-      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
     steps:
       - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
       - name: Set up JDK 21
         uses: actions/setup-java@v4
         with:
@@ -30,9 +26,6 @@ jobs:
         run: |
           chmod +x ./gradlew
           ./gradlew build --no-daemon
-      - name: SonarCloud 분석 (main)
-        if: env.SONAR_TOKEN != ''
-        run: ./gradlew sonar --no-daemon
 
   build-push:
     needs: test
@@ -62,9 +55,10 @@ jobs:
           context: .
           platforms: linux/amd64
           push: true
+          # :sha 는 배포에 사용, :브랜치명(main/develop)은 이동 태그로 편의 제공
           tags: |
-            ${{ steps.img.outputs.name }}:latest
             ${{ steps.img.outputs.name }}:${{ github.sha }}
+            ${{ steps.img.outputs.name }}:${{ github.ref_name }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
@@ -85,43 +79,26 @@ jobs:
           target: "/opt/rodi"
           strip_components: 1
 
-      # 배포 중 잠깐의 다운으로 UptimeRobot이 오탐하지 않도록 모니터를 일시정지
-      - name: Pause UptimeRobot
-        env:
-          API_KEY: ${{ secrets.UPTIMEROBOT_API_KEY }}
-          MONITOR_ID: ${{ secrets.UPTIMEROBOT_MONITOR_ID }}
-        run: |
-          [ -z "$API_KEY" ] && { echo "UPTIMEROBOT_API_KEY 미설정 — pause 스킵"; exit 0; }
-          curl -s -X POST https://api.uptimerobot.com/v2/editMonitor \
-            -d "api_key=$API_KEY" -d "id=$MONITOR_ID" -d "status=0" > /dev/null
-
-      # 이번 커밋 SHA 태그 이미지를 pull 후 재기동
+      # 이번 SHA 이미지로 app 을 pull·재기동
+      # 배포 메타데이터(브랜치·커밋·커밋메시지·레포)는 스크립트에 직접 넣지 않고 envs로 전달(주입 안전)
       - name: Deploy over SSH
         uses: appleboy/ssh-action@v1.2.0
+        env:
+          DEPLOY_BRANCH: ${{ github.ref_name }}
+          DEPLOY_COMMIT: ${{ github.sha }}
+          DEPLOY_MESSAGE: ${{ github.event.head_commit.message }}
+          DEPLOY_REPO: ${{ github.repository }}
         with:
           host: ${{ secrets.SSH_HOST }}
           username: ubuntu
           key: ${{ secrets.SSH_KEY }}
+          envs: DEPLOY_BRANCH,DEPLOY_COMMIT,DEPLOY_MESSAGE,DEPLOY_REPO
           script: |
             cd /opt/rodi
             export IMAGE_TAG=${{ github.sha }}
-            docker compose -f compose.prod.yaml pull
-            docker compose -f compose.prod.yaml up -d
+            # 기동 알림용 메타데이터를 컨테이너로 전달 (커밋 메시지는 제목 한 줄만)
+            export DEPLOY_BRANCH DEPLOY_COMMIT DEPLOY_REPO
+            export DEPLOY_MESSAGE="$(printf '%s' "$DEPLOY_MESSAGE" | head -n1)"
+            docker compose -f compose.prod.yaml pull app
+            docker compose -f compose.prod.yaml up -d app
             docker image prune -f
-
-      # 앱이 정상 기동(health 200)한 뒤 모니터 재개 — 부팅 전 재개 시 오탐 방지. 배포 실패해도 재개.
-      - name: Wait for health then resume UptimeRobot
-        if: always()
-        env:
-          API_KEY: ${{ secrets.UPTIMEROBOT_API_KEY }}
-          MONITOR_ID: ${{ secrets.UPTIMEROBOT_MONITOR_ID }}
-        run: |
-          [ -z "$API_KEY" ] && { echo "UPTIMEROBOT_API_KEY 미설정 — resume 스킵"; exit 0; }
-          for i in $(seq 1 20); do
-            code=$(curl -s -o /dev/null -w "%{http_code}" https://api.stillstar.store/actuator/health || true)
-            echo "health check[$i]: $code"
-            [ "$code" = "200" ] && break
-            sleep 6
-          done
-          curl -s -X POST https://api.uptimerobot.com/v2/editMonitor \
-            -d "api_key=$API_KEY" -d "id=$MONITOR_ID" -d "status=1" > /dev/null
