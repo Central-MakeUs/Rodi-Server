@@ -5,6 +5,7 @@ import cmc.rodi.domain.member.entity.MemberStatus;
 import cmc.rodi.domain.member.exception.MemberErrorCode;
 import cmc.rodi.domain.member.policy.WithdrawalPolicy;
 import cmc.rodi.domain.member.repository.MemberRepository;
+import cmc.rodi.domain.member.service.NicknameAssigner;
 import cmc.rodi.global.auth.dto.SocialLoginResponse;
 import cmc.rodi.global.auth.dto.TokenResponse;
 import cmc.rodi.global.auth.entity.SocialAccount;
@@ -28,6 +29,7 @@ public class AuthService {
     private final SocialAccountRepository socialAccountRepository;
     private final MemberRepository memberRepository;
     private final TokenService tokenService;
+    private final NicknameAssigner nicknameAssigner;
 
     /**
      * 소셜 로그인. 신규면 가입 후 토큰 발급, 기존이면 상태에 따라 분기 — ACTIVE는 로그인, 탈퇴 유예기간(PENDING)이면 토큰 대신 복구 안내, 유예 경과
@@ -44,7 +46,8 @@ public class AuthService {
 
         if (account == null) {
             Member member = register(userInfo);
-            return SocialLoginResponse.success(tokenService.issue(member), true);
+            return SocialLoginResponse.success(
+                    tokenService.issue(member), true, member.getNickname());
         }
 
         Member member = account.getMember();
@@ -65,7 +68,7 @@ public class AuthService {
                 userInfo.providerRefreshToken(),
                 userInfo.providerNickname(),
                 userInfo.providerProfileImageUrl());
-        return SocialLoginResponse.success(tokenService.issue(member), false);
+        return SocialLoginResponse.success(tokenService.issue(member), false, member.getNickname());
     }
 
     /**
@@ -99,7 +102,7 @@ public class AuthService {
                     userInfo.providerProfileImageUrl());
         }
         // ACTIVE(이미 정상) 또는 방금 복구 → 로그인 토큰 발급
-        return SocialLoginResponse.success(tokenService.issue(member), false);
+        return SocialLoginResponse.success(tokenService.issue(member), false, member.getNickname());
     }
 
     /** refresh token으로 재발급(회전 + 재사용 탐지). 신규 가입이 아니므로 isNewMember=false. */
@@ -115,9 +118,11 @@ public class AuthService {
         tokenService.logout(refreshToken);
     }
 
-    /** 소셜 신규 가입. 닉네임 없이 회원을 만들고 소셜 계정을 연결한다(닉네임은 온보딩에서 설정). */
+    /** 소셜 신규 가입. 후보 풀에서 닉네임을 부여해 회원을 만들고 소셜 계정을 연결한다. */
     private Member register(OAuthUserInfo userInfo) {
-        Member member = memberRepository.save(Member.createBySocial(userInfo.email()));
+        Member member = Member.createBySocial(userInfo.email());
+        member.assignNickname(nicknameAssigner.assign());
+        memberRepository.save(member);
         socialAccountRepository.save(
                 SocialAccount.builder()
                         .member(member)

@@ -27,7 +27,7 @@ public class Member extends BaseEntity {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    /** 닉네임은 가입 시엔 비어 있고 온보딩에서 설정한다. */
+    /** 닉네임은 가입 시 후보 풀에서 무작위로 부여한다(회원 간 유일). */
     @Column(unique = true, length = 30)
     private String nickname;
 
@@ -70,6 +70,11 @@ public class Member extends BaseEntity {
     /** 복구 — 탈퇴 요청 취소(유예기간 내에서만 의미 있음). */
     public void restore() {
         this.deletedAt = null;
+    }
+
+    /** 가입 시 후보 풀에서 고른 닉네임을 부여한다. */
+    public void assignNickname(String nickname) {
+        this.nickname = nickname;
     }
 
     /** 온보딩 완료 — 클라이언트가 계산한 레벨과 운전 목표를 반영한다. */

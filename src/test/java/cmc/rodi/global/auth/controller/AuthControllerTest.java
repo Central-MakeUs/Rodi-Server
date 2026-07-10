@@ -53,7 +53,8 @@ class AuthControllerTest {
     void 소셜_로그인_성공() throws Exception {
         when(authService.login(eq(SocialProvider.KAKAO), eq("kakao-token")))
                 .thenReturn(
-                        SocialLoginResponse.success(new Tokens("access-jwt", "refresh-raw"), true));
+                        SocialLoginResponse.success(
+                                new Tokens("access-jwt", "refresh-raw"), true, "차근차근 토끼"));
 
         mockMvc.perform(
                         post("/api/v1/auth/oauth/kakao")
@@ -65,7 +66,8 @@ class AuthControllerTest {
                 .andExpect(jsonPath("$.data.status").value("SUCCESS"))
                 .andExpect(jsonPath("$.data.accessToken").value("access-jwt"))
                 .andExpect(jsonPath("$.data.refreshToken").value("refresh-raw"))
-                .andExpect(jsonPath("$.data.isNewMember").value(true));
+                .andExpect(jsonPath("$.data.isNewMember").value(true))
+                .andExpect(jsonPath("$.data.nickname").value("차근차근 토끼"));
     }
 
     @Test
