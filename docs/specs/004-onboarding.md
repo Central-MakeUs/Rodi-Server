@@ -6,6 +6,8 @@
 |------|--------|-----------|
 | 2026-07-10 | Draft | 최초 작성 |
 | 2026-07-10 | Draft | 리뷰 반영 — 레벨 5단계·차종 사진기준·재제출 불가 확정. 추천 연습 유형 매핑만 대기 |
+| 2026-07-11 | Draft | 저장구조 확정 — member_onboarding 1:1 분리, 복수응답 jsonb 리스트, 점수 미저장, driving_goal은 member, 닉네임 리소스 기반(테이블 없음) |
+| 2026-07-11 | Draft | 요청을 점수 대신 **레벨**로 변경(클라가 점수→레벨 변환·전송, 서버는 enum 검증 후 저장) |
 
 ## 배경 / 목적
 
@@ -21,11 +23,11 @@
    - **로그인 응답에 닉네임을 포함**해 내려준다(기존 응답 필드 + `nickname`).
 
 2. **온보딩 제출(운전 경험 + 추가 정보)** — 한 번의 요청으로 전송
-   - **운전 경험**(사진 1, 점수 산정 대상): 실제 운전 기간 · 최근 운전 빈도 · 도로 주행 경험(복수) · 혼자 운전 범위 · 혼자 주차 수준.
+   - **운전 경험**(사진 1, 클라이언트 레벨 산정 근거): 실제 운전 기간 · 최근 운전 빈도 · 도로 주행 경험(복수) · 혼자 운전 범위 · 혼자 주차 수준.
    - **추가 정보**(사진 2): 더 연습하고 싶은 상황(연습 유형, 최대 3개·순위) · 주로 타는 차종 · 운전 목표(자유 텍스트).
-   - **최종 점수는 클라이언트가 계산**해 함께 전송한다(문항별 배점은 클라이언트 소유).
-   - 서버는 각 정보를 저장하고, **최종 점수로 레벨을 배정**한다.
-   - 응답으로 **레벨**과 **추천 연습 유형**(레벨별 고정값, 사용자 선택과 무관)을 내려준다.
+   - **레벨은 클라이언트가 계산**한다: 문항별 점수 → 최종 점수 → 레벨 변환(Navigator 강제 규칙 포함)까지 클라이언트가 수행하고, **레벨만 전송**한다(점수는 안 보냄).
+   - 서버는 각 정보와 **전달받은 레벨을 저장**한다(점수·변환 로직 없음, 레벨 enum 유효성만 검증).
+   - 응답으로 **레벨**(에코)과 **추천 연습 유형**(레벨별 고정값, 사용자 선택과 무관)을 내려준다.
 
 ### 비기능 요구사항
 
@@ -34,27 +36,38 @@
 
 ## 도메인 모델
 
-### 닉네임 후보 풀
+### 닉네임 부여
 
-- 테이블 `nickname_candidate` — CSV의 `nickname` 열만 Flyway 마이그레이션으로 시드(부가 열 `type/modifier/animal`은 저장 안 함). `nickname` unique.
-- 배정: 회원 `nickname`에 아직 없는 후보를 무작위 선택 → `member.nickname`에 저장. `member.nickname` unique 제약으로 경합 방지(충돌 시 재시도).
+- **후보 풀은 리소스 파일**(CSV `nickname` 990개)로 번들 → 기동 시 `NicknamePool` 빈이 메모리에 로드(불변). **별도 테이블 없음.**
+- 부여(신규 가입 시): 사용 중 닉네임(`SELECT nickname FROM member WHERE nickname IS NOT NULL`)을 제외한 미사용 후보에서 무작위 1개 선택 → `member.nickname`에 저장.
+- **정합성**: `member.nickname` UNIQUE가 최종 방어선. 동시 가입 충돌 시 1~2회 재시도(다른 후보 선택).
+- 소진(>990)·닉네임 변경은 다음 업데이트 범위.
 
-### member 확장 (신규 컬럼 — 마이그레이션 V5 예정)
+### member 확장 (마이그레이션 V5) — 노출·활용되는 값만 member에
 
 | 필드 | 타입 | 설명 |
 |------|------|------|
-| `driving_period` | enum | Q1 실제 운전 기간(단일) |
-| `recent_frequency` | enum | Q2 최근 운전 빈도(단일) |
-| `solo_driving_range` | enum | Q4 혼자 운전 범위(단일) |
-| `solo_parking_level` | enum | Q5 혼자 주차 수준(단일) |
-| `driving_experience_score` | int | 클라이언트 최종 점수(0~14) |
-| `level` | enum | 배정 레벨 |
-| `car_type` | enum | 차종(단일, nullable) |
-| `driving_goal` | varchar(30) | 운전 목표(nullable) |
-| `onboarded_at` | timestamptz | 온보딩 완료 시각(nullable). **재제출 거부 판정용**(응답에는 노출 안 함) |
+| `level` | varchar(enum) | 배정 레벨(마이페이지·추천에 사용) |
+| `driving_goal` | varchar(30), null | 운전 목표(마이페이지 노출) |
 
-- **Q3 도로 주행 경험(복수)**: `member_road_experience(member_id, road_experience)` 조인 테이블(또는 element collection).
-- **연습 유형(순위)**: 기존 `member_practice_type`에 `priority`(smallint, 1~3) 추가 — 1순위부터 순서 저장. (ERD의 `practice_type` 테이블 재사용.)
+### member_onboarding (신규 1:1 테이블 — 저장 목적, 마이페이지 미노출)
+
+`member_id`가 PK이자 FK(member와 1:1). 온보딩 원자료를 보관한다.
+
+| 필드 | 타입 | 설명 |
+|------|------|------|
+| `member_id` | bigint | PK, FK→member |
+| `driving_period` | varchar(enum) | Q1 실제 운전 기간(단일) |
+| `recent_frequency` | varchar(enum) | Q2 최근 운전 빈도(단일) |
+| `solo_driving_range` | varchar(enum) | Q4 혼자 운전 범위(단일) |
+| `solo_parking_level` | varchar(enum) | Q5 혼자 주차 수준(단일) |
+| `road_experiences` | jsonb | Q3 도로 주행 경험(복수) — 예: `["SOLO"]` |
+| `practice_types` | jsonb | 선호 연습유형 — **순서=우선순위**, 예: `["LANE_CHANGE","ROUNDABOUT","NARROW_ROAD"]`(최대 3) |
+| `car_type` | varchar(enum), null | 차종(단일) |
+| `onboarded_at` | timestamptz | 온보딩 완료 시각. 행 존재=완료 → **재제출 거부** 판정 |
+
+- **점수는 저장·수신하지 않는다.** 레벨은 클라이언트가 계산해 전송하며, 서버는 `member.level`에 저장한다.
+- 복수/순위 응답은 별도 테이블 없이 **jsonb 리스트로 한 행에** 저장(순서 보존). Hibernate `@JdbcTypeCode(SqlTypes.JSON) List<Enum>` 매핑.
 
 ### Enum
 
@@ -69,7 +82,9 @@
 | `car_type` | LIGHT(경차) / COMPACT(소형차) / MIDSIZE(중형차) / SEMI_LARGE(준대형) / LARGE(대형차) / SUV |
 | `level` | SEED / ROOKIE / OWNER / EXPLORER / NAVIGATOR |
 
-### 레벨 배정 규칙 (사진 3)
+### 레벨 변환 규칙 (사진 3 — 클라이언트 수행, 참고)
+
+레벨 변환은 **클라이언트가** 하며(서버는 결과 레벨만 저장), 아래는 클라이언트와 합의한 규칙이다.
 
 - **강제 배정**: Q1(`driving_period`) ∈ { `YEARS_2_10`, `OVER_10_YEARS` } → **NAVIGATOR** (점수 무관).
 - 그 외 최종 점수 기준:
@@ -81,7 +96,7 @@
 | 6~9 | OWNER |
 | 10~14 | EXPLORER |
 
-- 서버는 클라이언트 점수를 신뢰해 매핑하되(배점표는 클라이언트 소유, 서버는 범위 검증만), **NAVIGATOR 강제 규칙은 서버가 Q1로 판정**한다.
+- **서버**: 변환 로직 없음. 요청의 `level`이 유효한 enum인지만 검증하고 그대로 저장.
 - **ERD 갱신 필요(구현 시)**: 기존 ERD의 7단계(DRIVER·MENTOR)·점수식 서술과 `car_type`(VAN 포함/준대형 없음)을 본 스펙 기준(레벨 5단계, 차종 사진 기준)으로 정정한다.
 
 ## API 명세
@@ -114,7 +129,7 @@
   "roadDrivingExperiences": ["SOLO"],
   "soloDrivingRange": "HIGHWAY_LONG",
   "soloParkingLevel": "MOSTLY_POSSIBLE",
-  "finalScore": 12,
+  "level": "NAVIGATOR",
   "practiceTypes": ["LANE_CHANGE", "ROUNDABOUT", "NARROW_ROAD"],
   "carType": "MIDSIZE",
   "drivingGoal": "강남 운전 자신있게 하기!"
@@ -128,17 +143,16 @@
 ```
 
 - `practiceTypes`: 순서 = 우선순위(1~3순위), 최대 3개. **추가 정보(연습 유형·차종·목표)는 선택**(건너뛰기 가능), 운전 경험 5문항은 필수.
-- `finalScore`: 0~14 범위 검증.
+- `level`: 유효한 레벨 enum(SEED/ROOKIE/OWNER/EXPLORER/NAVIGATOR)인지 검증. 클라이언트가 변환해 전송(점수는 안 받음).
 - **재제출 불가**: 이미 온보딩한 회원(`onboarded_at` 존재)이 다시 제출하면 거부(409 등)한다. 정보 수정은 별도(마이페이지) 기능.
 
 ## 완료 조건 (Acceptance Criteria)
 
 - [ ] 신규 가입 시 후보 풀에서 미사용 닉네임이 배정되고, 로그인 응답에 `nickname`이 포함된다.
 - [ ] 서로 다른 두 회원에게 같은 닉네임이 배정되지 않는다(unique).
-- [ ] 온보딩 제출 시 운전 경험·추가 정보가 저장되고, `driving_experience_score`가 기록된다.
-- [ ] Q1이 `YEARS_2_10`/`OVER_10_YEARS`면 점수와 무관하게 `level=NAVIGATOR`가 배정된다.
-- [ ] 그 외에는 점수대(0-2/3-5/6-9/10-14)에 따라 SEED/ROOKIE/OWNER/EXPLORER가 배정된다.
-- [ ] 응답으로 배정된 레벨과 레벨별 고정 추천 연습 유형이 반환된다.
+- [ ] 온보딩 제출 시 운전 경험·추가 정보가 `member_onboarding`에 저장되고, `member.level`·`member.driving_goal`이 저장된다(점수 자체는 미저장).
+- [ ] 요청으로 받은 `level`이 `member.level`에 저장되고, 유효하지 않은 레벨이면 검증 오류를 반환한다.
+- [ ] 응답으로 저장된 레벨과 레벨별 고정 추천 연습 유형이 반환된다.
 - [ ] 연습 유형이 1~3순위 순서대로 저장된다.
 - [ ] 이미 온보딩한 회원의 재제출은 거부된다.
 - [ ] 관련 테스트 통과 (`./gradlew test`).
@@ -163,7 +177,10 @@
 
 - 레벨 **5단계**(SEED/ROOKIE/OWNER/EXPLORER/NAVIGATOR), 점수대 0-2/3-5/6-9/10-14, Q1 `2~10년`/`10년 이상` → NAVIGATOR 강제.
 - 차종은 **사진 기준**(경차/소형차/중형차/준대형/대형차/SUV) — ERD 갱신.
-- 서버는 `finalScore`를 신뢰(범위 검증만).
+- **레벨 변환은 클라이언트가 수행**(점수→레벨, Navigator 규칙 포함). 요청은 점수가 아닌 **`level`**을 받고, 서버는 enum 유효성만 검증해 저장.
 - 추가 정보(연습 유형·차종·목표)는 **선택**, 운전 경험만 필수.
 - 온보딩 **재제출 불가**(거부). 로그인 응답에 온보딩 완료 플래그 **불필요**.
-- 닉네임 후보는 `nickname` 열만 시드(부가 열 저장 안 함).
+- **저장 구조**: `member`에는 노출·활용 값만(`level`·`driving_goal`), 나머지 온보딩 원자료는 **`member_onboarding` 1:1 테이블**로 분리.
+- **복수/순위 응답은 별도 테이블 없이 `jsonb` 리스트**로 한 행에 저장(`practice_types`는 순서=우선순위).
+- **운전 경험 점수는 미저장**(레벨 계산에만 사용).
+- **닉네임 후보 테이블 없음** — CSV를 리소스로 번들해 메모리 로드, `member.nickname` UNIQUE로 유일성 보장.
