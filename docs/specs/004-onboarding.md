@@ -8,6 +8,7 @@
 | 2026-07-10 | Draft | 리뷰 반영 — 레벨 5단계·차종 사진기준·재제출 불가 확정. 추천 연습 유형 매핑만 대기 |
 | 2026-07-11 | Draft | 저장구조 확정 — member_onboarding 1:1 분리, 복수응답 jsonb 리스트, 점수 미저장, driving_goal은 member, 닉네임 리소스 기반(테이블 없음) |
 | 2026-07-11 | Draft | 요청을 점수 대신 **레벨**로 변경(클라가 점수→레벨 변환·전송, 서버는 enum 검증 후 저장) |
+| 2026-07-11 | Draft | 온보딩 API 구현 — 응답 200만(데이터 없음), 추천유형 매핑은 클라 소유로 확정, `LEFT_TURN`→`LEFT_RIGHT_TURN`, 홈 정렬은 별도 기능 |
 
 ## 배경 / 목적
 
@@ -27,7 +28,7 @@
    - **추가 정보**(사진 2): 더 연습하고 싶은 상황(연습 유형, 최대 3개·순위) · 주로 타는 차종 · 운전 목표(자유 텍스트).
    - **레벨은 클라이언트가 계산**한다: 문항별 점수 → 최종 점수 → 레벨 변환(Navigator 강제 규칙 포함)까지 클라이언트가 수행하고, **레벨만 전송**한다(점수는 안 보냄).
    - 서버는 각 정보와 **전달받은 레벨을 저장**한다(점수·변환 로직 없음, 레벨 enum 유효성만 검증).
-   - 응답으로 **레벨**(에코)과 **추천 연습 유형**(레벨별 고정값, 사용자 선택과 무관)을 내려준다.
+   - **응답 데이터는 없다(200만).** 추천 연습유형·레벨은 클라이언트 로컬 값이라 서버가 돌려주지 않는다.
 
 ### 비기능 요구사항
 
@@ -78,7 +79,7 @@
 | `road_experience` (Q3, 복수) | NONE / ACCOMPANIED / PROFESSIONAL_TRAINING / SOLO |
 | `solo_driving_range` (Q4) | NEAR_HOME / FAMILIAR_ROAD / UNFAMILIAR_ROAD / HIGHWAY_LONG |
 | `solo_parking_level` (Q5) | NONE / WIDE_ONLY / FAMILIAR_PLACE / MOSTLY_POSSIBLE |
-| `practice_type` (13종) | U_TURN / LEFT_TURN / PARKING / LANE_CHANGE / INTERSECTION / ROUNDABOUT / UNPROTECTED_LEFT_TURN / HIGHWAY_ENTRY / CORNERING / NARROW_ROAD / MULTILANE / MERGING / STRAIGHT |
+| `practice_type` (13종) | U_TURN / LEFT_RIGHT_TURN / PARKING / LANE_CHANGE / INTERSECTION / ROUNDABOUT / UNPROTECTED_LEFT_TURN / HIGHWAY_ENTRY / CORNERING / NARROW_ROAD / MULTILANE / MERGING / STRAIGHT |
 | `car_type` | LIGHT(경차) / COMPACT(소형차) / MIDSIZE(중형차) / SEMI_LARGE(준대형) / LARGE(대형차) / SUV |
 | `level` | SEED / ROOKIE / OWNER / EXPLORER / NAVIGATOR |
 
@@ -104,7 +105,7 @@
 | Method | Path | 설명 | 인증 |
 |--------|------|------|------|
 | POST | /api/v1/auth/oauth/{provider} | 소셜 로그인(기존) — 응답에 `nickname` 추가 | 소셜 |
-| POST | /api/v1/members/me/onboarding | 온보딩 제출 → 레벨·추천 연습 유형 반환 | JWT |
+| POST | /api/v1/members/me/onboarding | 온보딩 제출(저장). 성공 시 200, 응답 데이터 없음 | JWT |
 
 ### 로그인 응답 변경 (발췌)
 
@@ -126,7 +127,7 @@
 {
   "drivingPeriod": "YEARS_2_10",
   "recentFrequency": "MONTHLY_1_2",
-  "roadDrivingExperiences": ["SOLO"],
+  "roadExperiences": ["SOLO"],
   "soloDrivingRange": "HIGHWAY_LONG",
   "soloParkingLevel": "MOSTLY_POSSIBLE",
   "level": "NAVIGATOR",
@@ -135,11 +136,8 @@
   "drivingGoal": "강남 운전 자신있게 하기!"
 }
 
-// Response
-{
-  "level": "NAVIGATOR",
-  "recommendedPracticeType": "LANE_CHANGE"   // 레벨별 고정값(미해결: 매핑 확정 필요)
-}
+// Response — 200, data 없음 (추천유형·레벨은 클라 로컬 값이라 서버는 저장만)
+{ "isSuccess": true, "code": "COMMON_200", "data": null }
 ```
 
 - `practiceTypes`: 순서 = 우선순위(1~3순위), 최대 3개. **추가 정보(연습 유형·차종·목표)는 선택**(건너뛰기 가능), 운전 경험 5문항은 필수.
@@ -151,23 +149,29 @@
 - [ ] 신규 가입 시 후보 풀에서 미사용 닉네임이 배정되고, 로그인 응답에 `nickname`이 포함된다.
 - [ ] 서로 다른 두 회원에게 같은 닉네임이 배정되지 않는다(unique).
 - [ ] 온보딩 제출 시 운전 경험·추가 정보가 `member_onboarding`에 저장되고, `member.level`·`member.driving_goal`이 저장된다(점수 자체는 미저장).
-- [ ] 요청으로 받은 `level`이 `member.level`에 저장되고, 유효하지 않은 레벨이면 검증 오류를 반환한다.
-- [ ] 응답으로 저장된 레벨과 레벨별 고정 추천 연습 유형이 반환된다.
-- [ ] 연습 유형이 1~3순위 순서대로 저장된다.
+- [ ] 요청으로 받은 `level`이 `member.level`에 저장되고, 필수 항목 누락·유효하지 않은 값이면 400을 반환한다.
+- [ ] 제출 성공 시 200을 반환한다(응답 데이터 없음).
+- [ ] 연습 유형이 1~3순위 순서대로 저장된다(jsonb 순서 보존).
 - [ ] 이미 온보딩한 회원의 재제출은 거부된다.
 - [ ] 관련 테스트 통과 (`./gradlew test`).
 
 ## 미해결 질문
 
-1. **레벨별 추천 연습 유형 매핑(값 미정, 구현 전 필요)** — 사용자가 추후 전달. (레벨당 1개인지 복수인지 포함)
+- (없음) — 남았던 추천 연습유형 매핑은 아래처럼 **클라이언트 소유**로 확정되어 서버 응답과 무관해졌다.
 
-   | 레벨 | 추천 연습 유형 |
-   |------|----------------|
-   | SEED | (대기) |
-   | ROOKIE | (대기) |
-   | OWNER | (대기) |
-   | EXPLORER | (대기) |
-   | NAVIGATOR | (대기) |
+## 레벨별 추천 연습유형 (참고 — 클라이언트 소유)
+
+카드 팝업(ON-EX-02)에서 보여주는 고정 태그. **서버는 저장·반환하지 않는다**(클라 로컬 값). 홈 필터 카테고리와는 별개.
+
+| 레벨 | 추천 연습유형 |
+|------|----------------|
+| SEED | STRAIGHT · LEFT_RIGHT_TURN · LANE_CHANGE |
+| ROOKIE | U_TURN · INTERSECTION · PARKING |
+| OWNER | HIGHWAY_ENTRY · MERGING · MULTILANE |
+| EXPLORER | UNPROTECTED_LEFT_TURN · ROUNDABOUT · NARROW_ROAD · CORNERING |
+| NAVIGATOR | (연습유형 없음 — 코스 등록/리뷰/공유 등 액션, 클라가 안내) |
+
+> **홈 바텀시트 정렬(카테고리·filter_tags·코스 노출 순서)은 별도 기능**이다. Course 도메인이 필요해 이 스펙 범위 밖이며, filter_tags 기본값은 그때 저장된 `level`·`practice_types`로 파생한다.
 
 ## 다음 업데이트 (이번 범위 밖)
 
