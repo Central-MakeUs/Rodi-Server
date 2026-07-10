@@ -24,7 +24,8 @@ public class SecurityConfig {
         "/actuator/health",
         "/swagger-ui/**",
         "/swagger-ui.html",
-        "/v3/api-docs/**",
+        "/v3/api-docs", // OpenAPI JSON 루트(Apidog 등에서 스펙 import). PathPattern이 아래 /** 로 안 잡는 정확 경로
+        "/v3/api-docs/**", // /v3/api-docs/swagger-config 등 하위
         "/error",
         "/api/v1/auth/**" // 소셜 로그인·토큰 재발급·로그아웃(토큰 없이 접근)
     };
