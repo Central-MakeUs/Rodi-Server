@@ -3,6 +3,8 @@ package cmc.rodi.domain.member.entity;
 import cmc.rodi.global.common.entity.BaseEntity;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
@@ -31,6 +33,15 @@ public class Member extends BaseEntity {
 
     @Column(length = 255)
     private String email;
+
+    /** 배정 레벨. 온보딩에서 클라이언트가 변환해 보낸 값을 저장(마이페이지·추천에 사용). 온보딩 전 NULL. */
+    @Enumerated(EnumType.STRING)
+    @Column(length = 20)
+    private Level level;
+
+    /** 운전 목표(마이페이지 노출). 온보딩 추가 정보라 선택(NULL 가능). */
+    @Column(name = "driving_goal", length = 30)
+    private String drivingGoal;
 
     /** 탈퇴 요청 시각(soft delete). 유예기간 동안 복구 대상(ADR 0004). */
     @Column(name = "deleted_at")
@@ -61,10 +72,17 @@ public class Member extends BaseEntity {
         this.deletedAt = null;
     }
 
+    /** 온보딩 완료 — 클라이언트가 계산한 레벨과 운전 목표를 반영한다. */
+    public void applyOnboarding(Level level, String drivingGoal) {
+        this.level = level;
+        this.drivingGoal = drivingGoal;
+    }
+
     /** 익명화 — 유예기간 경과 후 개인정보 제거. */
     public void anonymize(LocalDateTime now) {
         this.nickname = null;
         this.email = null;
+        this.drivingGoal = null;
         this.anonymizedAt = now;
     }
 
