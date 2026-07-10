@@ -62,5 +62,5 @@ TTL 만료 관리가 편하다. 그러나 초기 단계에서 **새 인프라와
 
 ## 참조
 
-- [스펙: 회원 인증](../specs/member-auth.md)
+- [스펙: 회원 인증](../specs/001-member-auth.md)
 - [ADR 0008](0008-social-login.md) (소셜 로그인 — 신원 확인 방법)
