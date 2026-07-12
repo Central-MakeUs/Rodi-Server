@@ -81,11 +81,11 @@ erDiagram
 
     member_onboarding {
         bigint member_id PK,FK "member와 1:1(공유 PK)"
-        varchar driving_period "Q1 실제 운전기간"
-        varchar recent_frequency "Q2 최근 운전빈도"
-        varchar solo_driving_range "Q4 혼자 운전범위"
-        varchar solo_parking_level "Q5 혼자 주차수준"
-        jsonb road_experiences "Q3 도로주행 경험(복수)"
+        varchar driving_period "Q1 실제 운전기간(필수)"
+        varchar recent_frequency "Q2 최근 운전빈도(선택)"
+        varchar solo_driving_range "Q4-1 혼자 운전범위(Q3=혼자연습일 때, 선택)"
+        varchar solo_parking_level "Q4-2 혼자 주차수준(Q3=혼자연습일 때, 선택)"
+        jsonb road_experiences "Q3 도로주행 경험(복수, 선택)"
         jsonb practice_types "선호 연습유형(순서=우선순위, 최대 3)"
         varchar car_type "차종(단일). null 가능"
         timestamptz onboarded_at "온보딩 완료 시각(재제출 거부 판정)"
