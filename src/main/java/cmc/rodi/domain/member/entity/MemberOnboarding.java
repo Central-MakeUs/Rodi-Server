@@ -40,23 +40,23 @@ public class MemberOnboarding extends BaseEntity {
 
     @Enumerated(EnumType.STRING)
     @Column(name = "driving_period", nullable = false, length = 20)
-    private DrivingPeriod drivingPeriod; // Q1
+    private DrivingPeriod drivingPeriod; // Q1 (필수)
 
     @Enumerated(EnumType.STRING)
-    @Column(name = "recent_frequency", nullable = false, length = 20)
-    private RecentFrequency recentFrequency; // Q2
+    @Column(name = "recent_frequency", length = 20)
+    private RecentFrequency recentFrequency; // Q2 (선택)
 
     @Enumerated(EnumType.STRING)
-    @Column(name = "solo_driving_range", nullable = false, length = 20)
-    private SoloDrivingRange soloDrivingRange; // Q4
+    @Column(name = "solo_driving_range", length = 20)
+    private SoloDrivingRange soloDrivingRange; // Q4-1 (Q3=혼자 연습일 때, 선택)
 
     @Enumerated(EnumType.STRING)
-    @Column(name = "solo_parking_level", nullable = false, length = 20)
-    private SoloParkingLevel soloParkingLevel; // Q5
+    @Column(name = "solo_parking_level", length = 20)
+    private SoloParkingLevel soloParkingLevel; // Q4-2 (Q3=혼자 연습일 때, 선택)
 
-    /** Q3 도로 주행 경험(복수). jsonb 배열 예: ["SOLO"]. */
+    /** Q3 도로 주행 경험(복수, 선택). jsonb 배열 예: ["SOLO"]. 미입력 시 null. */
     @JdbcTypeCode(SqlTypes.JSON)
-    @Column(name = "road_experiences", nullable = false, columnDefinition = "jsonb")
+    @Column(name = "road_experiences", columnDefinition = "jsonb")
     private List<RoadExperience> roadExperiences;
 
     /** 선호 연습유형. jsonb 배열이며 순서=우선순위(index 0 = 1순위), 최대 3개. 선택 안 하면 빈 배열. */
