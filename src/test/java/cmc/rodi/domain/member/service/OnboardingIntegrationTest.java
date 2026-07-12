@@ -79,6 +79,39 @@ class OnboardingIntegrationTest {
     }
 
     @Test
+    @DisplayName("최소 입력(Navigator 등): Q1·레벨만으로 저장되고 나머지는 null 허용")
+    void 최소입력_저장() {
+        Member member = memberRepository.save(Member.createBySocial("nav@kakao.com"));
+
+        // Q1이 10년 이상 → 클라가 후속 질문 건너뛰고 Navigator로 배정, Q2~Q4·추가정보 없음
+        OnboardingRequest minimal =
+                new OnboardingRequest(
+                        DrivingPeriod.OVER_10_YEARS,
+                        null,
+                        null,
+                        null,
+                        null,
+                        Level.NAVIGATOR,
+                        null,
+                        null,
+                        null);
+
+        onboardingService.submit(member.getId(), minimal);
+
+        assertThat(memberRepository.findById(member.getId()).orElseThrow().getLevel())
+                .isEqualTo(Level.NAVIGATOR);
+        MemberOnboarding onboarding =
+                memberOnboardingRepository.findById(member.getId()).orElseThrow();
+        assertThat(onboarding.getDrivingPeriod()).isEqualTo(DrivingPeriod.OVER_10_YEARS);
+        assertThat(onboarding.getRecentFrequency()).isNull();
+        assertThat(onboarding.getRoadExperiences()).isNull();
+        assertThat(onboarding.getSoloDrivingRange()).isNull();
+        assertThat(onboarding.getSoloParkingLevel()).isNull();
+        assertThat(onboarding.getPracticeTypes()).isEmpty(); // 미선택 → 기본 []
+        assertThat(onboarding.getOnboardedAt()).isNotNull();
+    }
+
+    @Test
     @DisplayName("재제출: 이미 온보딩한 회원이면 ALREADY_ONBOARDED")
     void 재제출_거부() {
         Member member = memberRepository.save(Member.createBySocial("resubmit@kakao.com"));

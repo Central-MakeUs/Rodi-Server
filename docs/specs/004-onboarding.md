@@ -9,6 +9,7 @@
 | 2026-07-11 | Draft | 저장구조 확정 — member_onboarding 1:1 분리, 복수응답 jsonb 리스트, 점수 미저장, driving_goal은 member, 닉네임 리소스 기반(테이블 없음) |
 | 2026-07-11 | Draft | 요청을 점수 대신 **레벨**로 변경(클라가 점수→레벨 변환·전송, 서버는 enum 검증 후 저장) |
 | 2026-07-11 | Draft | 온보딩 API 구현 — 응답 200만(데이터 없음), 추천유형 매핑은 클라 소유로 확정, `LEFT_TURN`→`LEFT_RIGHT_TURN`, 홈 정렬은 별도 기능 |
+| 2026-07-12 | Draft | 문항 필수 재정의(V6) — 필수는 Q1·level뿐, Q2~Q4 선택(Q1 상위값→Navigator skip, Q4-1·Q4-2는 Q3=혼자연습일 때만). soloDrivingRange=Q4-1, soloParkingLevel=Q4-2 |
 
 ## 배경 / 목적
 
@@ -58,11 +59,11 @@
 | 필드 | 타입 | 설명 |
 |------|------|------|
 | `member_id` | bigint | PK, FK→member |
-| `driving_period` | varchar(enum) | Q1 실제 운전 기간(단일) |
-| `recent_frequency` | varchar(enum) | Q2 최근 운전 빈도(단일) |
-| `solo_driving_range` | varchar(enum) | Q4 혼자 운전 범위(단일) |
-| `solo_parking_level` | varchar(enum) | Q5 혼자 주차 수준(단일) |
-| `road_experiences` | jsonb | Q3 도로 주행 경험(복수) — 예: `["SOLO"]` |
+| `driving_period` | varchar(enum) | Q1 실제 운전 기간(단일, **필수**) |
+| `recent_frequency` | varchar(enum), null | Q2 최근 운전 빈도(단일, 선택) |
+| `solo_driving_range` | varchar(enum), null | Q4-1 혼자 운전 범위(Q3=혼자 연습일 때, 선택) |
+| `solo_parking_level` | varchar(enum), null | Q4-2 혼자 주차 수준(Q3=혼자 연습일 때, 선택) |
+| `road_experiences` | jsonb, null | Q3 도로 주행 경험(복수, 선택) — 예: `["SOLO"]` |
 | `practice_types` | jsonb | 선호 연습유형 — **순서=우선순위**, 예: `["LANE_CHANGE","ROUNDABOUT","NARROW_ROAD"]`(최대 3) |
 | `car_type` | varchar(enum), null | 차종(단일) |
 | `onboarded_at` | timestamptz | 온보딩 완료 시각. 행 존재=완료 → **재제출 거부** 판정 |
@@ -77,8 +78,8 @@
 | `driving_period` (Q1) | UNDER_1_MONTH / MONTHS_1_3 / MONTHS_3_6 / MONTHS_6_12 / YEARS_1_2 / YEARS_2_10 / OVER_10_YEARS |
 | `recent_frequency` (Q2) | RARELY / MONTHLY_1_2 / WEEKLY_1 / WEEKLY_2_3 / WEEKLY_4_PLUS |
 | `road_experience` (Q3, 복수) | NONE / ACCOMPANIED / PROFESSIONAL_TRAINING / SOLO |
-| `solo_driving_range` (Q4) | NEAR_HOME / FAMILIAR_ROAD / UNFAMILIAR_ROAD / HIGHWAY_LONG |
-| `solo_parking_level` (Q5) | NONE / WIDE_ONLY / FAMILIAR_PLACE / MOSTLY_POSSIBLE |
+| `solo_driving_range` (Q4-1) | NEAR_HOME / FAMILIAR_ROAD / UNFAMILIAR_ROAD / HIGHWAY_LONG |
+| `solo_parking_level` (Q4-2) | NONE / WIDE_ONLY / FAMILIAR_PLACE / MOSTLY_POSSIBLE |
 | `practice_type` (13종) | U_TURN / LEFT_RIGHT_TURN / PARKING / LANE_CHANGE / INTERSECTION / ROUNDABOUT / UNPROTECTED_LEFT_TURN / HIGHWAY_ENTRY / CORNERING / NARROW_ROAD / MULTILANE / MERGING / STRAIGHT |
 | `car_type` | LIGHT(경차) / COMPACT(소형차) / MIDSIZE(중형차) / SEMI_LARGE(준대형) / LARGE(대형차) / SUV |
 | `level` | SEED / ROOKIE / OWNER / EXPLORER / NAVIGATOR |
@@ -140,7 +141,10 @@
 { "isSuccess": true, "code": "COMMON_200", "data": null }
 ```
 
-- `practiceTypes`: 순서 = 우선순위(1~3순위), 최대 3개. **추가 정보(연습 유형·차종·목표)는 선택**(건너뛰기 가능), 운전 경험 5문항은 필수.
+- **필수는 Q1(`drivingPeriod`)·`level`뿐.** Q2·Q3·Q4-1·Q4-2·추가정보는 모두 선택. 문항 흐름(클라이언트):
+  - Q1이 `YEARS_2_10`/`OVER_10_YEARS` → 후속 질문 건너뛰고 Navigator 배정(다음 버튼 즉시 활성) → Q2~Q4 값 없음
+  - Q4-1·Q4-2는 **Q3에서 `SOLO`(혼자 연습)를 골랐을 때만** 입력
+- `practiceTypes`: 순서 = 우선순위(1~3순위), 최대 3개(선택).
 - `level`: 유효한 레벨 enum(SEED/ROOKIE/OWNER/EXPLORER/NAVIGATOR)인지 검증. 클라이언트가 변환해 전송(점수는 안 받음).
 - **재제출 불가**: 이미 온보딩한 회원(`onboarded_at` 존재)이 다시 제출하면 거부(409 등)한다. 정보 수정은 별도(마이페이지) 기능.
 
@@ -182,7 +186,7 @@
 - 레벨 **5단계**(SEED/ROOKIE/OWNER/EXPLORER/NAVIGATOR), 점수대 0-2/3-5/6-9/10-14, Q1 `2~10년`/`10년 이상` → NAVIGATOR 강제.
 - 차종은 **사진 기준**(경차/소형차/중형차/준대형/대형차/SUV) — ERD 갱신.
 - **레벨 변환은 클라이언트가 수행**(점수→레벨, Navigator 규칙 포함). 요청은 점수가 아닌 **`level`**을 받고, 서버는 enum 유효성만 검증해 저장.
-- 추가 정보(연습 유형·차종·목표)는 **선택**, 운전 경험만 필수.
+- **필수는 Q1(운전 기간)·`level`뿐.** Q2·Q3·Q4-1·Q4-2·추가정보는 선택(Q1 상위값→Navigator로 후속 skip, Q4-1·Q4-2는 Q3=혼자 연습일 때만). soloDrivingRange=Q4-1, soloParkingLevel=Q4-2로 표기.
 - 온보딩 **재제출 불가**(거부). 로그인 응답에 온보딩 완료 플래그 **불필요**.
 - **저장 구조**: `member`에는 노출·활용 값만(`level`·`driving_goal`), 나머지 온보딩 원자료는 **`member_onboarding` 1:1 테이블**로 분리.
 - **복수/순위 응답은 별도 테이블 없이 `jsonb` 리스트**로 한 행에 저장(`practice_types`는 순서=우선순위).
