@@ -8,6 +8,8 @@ import cmc.rodi.global.auth.dto.TokenResponse;
 import cmc.rodi.global.common.response.ApiResponse;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.media.Content;
+import io.swagger.v3.oas.annotations.media.ExampleObject;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -18,6 +20,10 @@ import org.springframework.web.bind.annotation.RequestBody;
 @Tag(name = "Auth", description = "소셜 로그인/토큰 재발급/로그아웃")
 public interface AuthControllerDocs {
 
+    // provider·credential 모두 카카오/애플 예시를 드롭다운으로 제공한다(카카오=access token, 애플=authorizationCode)
+    String KAKAO_BODY = "{\n  \"credential\": \"kakao-access-token-xxx\"\n}";
+    String APPLE_BODY = "{\n  \"credential\": \"apple-authorization-code-xxx\"\n}";
+
     @Operation(
             summary = "소셜 로그인",
             description =
@@ -26,8 +32,30 @@ public interface AuthControllerDocs {
                             + "status=WITHDRAWAL_PENDING이면 탈퇴 유예기간 내 재로그인이라 토큰 대신 복구 안내를 준다. "
                             + "미지원 provider는 AUTH_400_1, 검증 실패는 AUTH_401_5, 재가입 대기(유예 경과)는 MEMBER_409_1.")
     ApiResponse<SocialLoginResponse> login(
-            @Parameter(description = "소셜 공급자", example = "kakao") @PathVariable String provider,
-            @RequestBody SocialLoginRequest request);
+            @Parameter(
+                            description = "소셜 공급자",
+                            examples = {
+                                @ExampleObject(name = "카카오", value = "kakao"),
+                                @ExampleObject(name = "애플", value = "apple")
+                            })
+                    @PathVariable
+                    String provider,
+            @io.swagger.v3.oas.annotations.parameters.RequestBody(
+                            content =
+                                    @Content(
+                                            mediaType = "application/json",
+                                            examples = {
+                                                @ExampleObject(
+                                                        name = "카카오",
+                                                        description = "카카오 access token",
+                                                        value = KAKAO_BODY),
+                                                @ExampleObject(
+                                                        name = "애플",
+                                                        description = "애플 authorizationCode",
+                                                        value = APPLE_BODY)
+                                            }))
+                    @RequestBody
+                    SocialLoginRequest request);
 
     @Operation(
             summary = "계정 복구",
@@ -35,8 +63,30 @@ public interface AuthControllerDocs {
                     "탈퇴 유예기간(3일) 내에 동일 소셜 credential로 계정을 복구하고 토큰을 발급한다. "
                             + "유예 경과(LOCKED)는 MEMBER_409_1, 복구 대상이 없으면 MEMBER_404_1.")
     ApiResponse<SocialLoginResponse> restore(
-            @Parameter(description = "소셜 공급자", example = "kakao") @PathVariable String provider,
-            @RequestBody SocialLoginRequest request);
+            @Parameter(
+                            description = "소셜 공급자",
+                            examples = {
+                                @ExampleObject(name = "카카오", value = "kakao"),
+                                @ExampleObject(name = "애플", value = "apple")
+                            })
+                    @PathVariable
+                    String provider,
+            @io.swagger.v3.oas.annotations.parameters.RequestBody(
+                            content =
+                                    @Content(
+                                            mediaType = "application/json",
+                                            examples = {
+                                                @ExampleObject(
+                                                        name = "카카오",
+                                                        description = "카카오 access token",
+                                                        value = KAKAO_BODY),
+                                                @ExampleObject(
+                                                        name = "애플",
+                                                        description = "애플 authorizationCode",
+                                                        value = APPLE_BODY)
+                                            }))
+                    @RequestBody
+                    SocialLoginRequest request);
 
     @Operation(
             summary = "토큰 재발급",

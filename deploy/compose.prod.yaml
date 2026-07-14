@@ -1,4 +1,6 @@
 # 운영 배포용 Compose (서버 /opt/rodi/ 에 위치). 로컬 개발용 compose.yaml과 별개.
+# 단일 서버에 Caddy → Spring Boot(app) → PostGIS(db)를 올린다.
+# main·develop 어느 브랜치를 push하든 같은 app에 배포된다(별도 스테이징 없음 — 서버 메모리 제약).
 # 같은 디렉터리의 .env 에서 값 주입 (.env 는 git 커밋 금지).
 services:
   db:
@@ -37,6 +39,10 @@ services:
       KAKAO_ADMIN_KEY: ${KAKAO_ADMIN_KEY:-}                        # 탈퇴 시 카카오 unlink
       DISCORD_ERROR_WEBHOOK_URL: ${DISCORD_ERROR_WEBHOOK_URL:-}     # 5xx 오류 알림
       DISCORD_HEALTH_WEBHOOK_URL: ${DISCORD_HEALTH_WEBHOOK_URL:-}   # 기동/종료(재배포) 알림
+      DEPLOY_BRANCH: ${DEPLOY_BRANCH:-}                             # 기동 알림용 배포 메타데이터(CD 주입)
+      DEPLOY_COMMIT: ${DEPLOY_COMMIT:-}
+      DEPLOY_MESSAGE: ${DEPLOY_MESSAGE:-}
+      DEPLOY_REPO: ${DEPLOY_REPO:-}
       JAVA_OPTS: "-XX:MaxRAMPercentage=70.0"
     mem_limit: 600m          # 1GB 중 앱 상한 (DB·OS 여유 확보, 필요 시 조정)
     # 8080 외부 노출 없음 — Caddy가 내부로 프록시

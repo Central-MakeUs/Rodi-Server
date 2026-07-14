@@ -10,7 +10,7 @@ Rodi의 기능 스펙을 `docs/specs/`에 작성·보강하는 절차다. 구현
 ## 절차
 
 1. **맥락 파악**: `docs/specs/`의 기존 스펙, 관련 도메인 코드, `CLAUDE.md`를 읽어 컨벤션·현재 구조를 파악한다.
-2. **양식 복사**: `docs/specs/TEMPLATE.md` 구조로 `docs/specs/<기능-슬러그>.md`를 작성한다 (예: `member-auth.md`, `place-search.md`).
+2. **양식 복사**: `docs/specs/TEMPLATE.md` 구조로 `docs/specs/NNN-<기능-슬러그>.md`를 작성한다. `NNN`은 기존 스펙 최대 번호 +1(3자리, 예: `004-onboarding.md`). `TEMPLATE.md`·`README.md`는 번호를 붙이지 않는다.
 3. **인덱스 갱신**: `docs/specs/README.md` 목록 표에 한 줄(기능 | 설명 | Status) 추가.
 4. **리뷰 대기**: 작성 후 사용자 리뷰·승인을 기다린다. 승인 없이 구현 단계로 넘어가지 않는다.
 

@@ -29,6 +29,13 @@ notification:
     error-webhook-url: ${DISCORD_ERROR_WEBHOOK_URL:}    # 5xx 서버 오류 알림. 미설정 시 전송 안 함(로컬 등)
     health-webhook-url: ${DISCORD_HEALTH_WEBHOOK_URL:}  # 서버 기동/종료(재배포) 알림
 
+# 배포 메타데이터 — CD가 배포 시점에 env로 주입(로컬은 비어 있음). 기동 알림·환경 라벨에 사용.
+deploy:
+  branch: ${DEPLOY_BRANCH:}     # 배포된 브랜치명(main/develop)
+  commit: ${DEPLOY_COMMIT:}     # 배포 커밋 SHA
+  message: ${DEPLOY_MESSAGE:}   # 배포 커밋 제목(스쿼시 머지면 끝에 (#PR번호))
+  repo: ${DEPLOY_REPO:}         # owner/repo — PR 링크 구성용
+
 management:
   endpoints:
     web:

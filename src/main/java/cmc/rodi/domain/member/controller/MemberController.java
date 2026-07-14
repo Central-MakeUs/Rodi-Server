@@ -1,10 +1,15 @@
 package cmc.rodi.domain.member.controller;
 
+import cmc.rodi.domain.member.dto.OnboardingRequest;
 import cmc.rodi.domain.member.service.MemberWithdrawalService;
+import cmc.rodi.domain.member.service.OnboardingService;
 import cmc.rodi.global.auth.resolver.CurrentMember;
 import cmc.rodi.global.common.response.ApiResponse;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.DeleteMapping;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -15,11 +20,20 @@ import org.springframework.web.bind.annotation.RestController;
 public class MemberController implements MemberControllerDocs {
 
     private final MemberWithdrawalService memberWithdrawalService;
+    private final OnboardingService onboardingService;
 
     @Override
     @DeleteMapping("/me")
     public ApiResponse<Void> withdraw(@CurrentMember Long memberId) {
         memberWithdrawalService.withdraw(memberId);
+        return ApiResponse.success(null);
+    }
+
+    @Override
+    @PostMapping("/me/onboarding")
+    public ApiResponse<Void> submitOnboarding(
+            @CurrentMember Long memberId, @Valid @RequestBody OnboardingRequest request) {
+        onboardingService.submit(memberId, request);
         return ApiResponse.success(null);
     }
 }

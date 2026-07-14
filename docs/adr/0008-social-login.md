@@ -47,7 +47,7 @@ Accepted (2026-07-03)
 
 ## 갱신 (2026-07-05) — 애플 추가·프로필·탈퇴 결정
 
-카카오 구현·운영 배포 후, 애플 도입과 회원탈퇴를 준비하며 다음을 결정했다(상세는 [애플 로그인 스펙](../specs/apple-login.md)·[회원 탈퇴 스펙](../specs/member-withdrawal.md)).
+카카오 구현·운영 배포 후, 애플 도입과 회원탈퇴를 준비하며 다음을 결정했다(상세는 [애플 로그인 스펙](../specs/002-apple-login.md)·[회원 탈퇴 스펙](../specs/003-member-withdrawal.md)).
 
 **5. 공급자별 검증 방식은 목적에 맞게 다르게 둔다(전략 뒤에서).**
 카카오는 access token 검증(`/v2/user/me`), **애플은 `authorizationCode` 교환**을 택한다. 애플을 code 교환으로 하는 이유는 **탈퇴 시 애플 토큰 revoke가 필수**(App Store 심사)이고 그러려면 **refresh token 확보**가 필요하기 때문이다. 두 방식 모두 `SocialClient` 전략 뒤에 캡슐화되어 코어 흐름은 불변.
@@ -74,7 +74,7 @@ Accepted (2026-07-03)
 
 ## 참조
 
-- [스펙: 회원 인증](../specs/member-auth.md)
-- [스펙: 애플 로그인](../specs/apple-login.md)
-- [스펙: 회원 탈퇴](../specs/member-withdrawal.md)
+- [스펙: 회원 인증](../specs/001-member-auth.md)
+- [스펙: 애플 로그인](../specs/002-apple-login.md)
+- [스펙: 회원 탈퇴](../specs/003-member-withdrawal.md)
 - [ADR 0009](0009-authentication-authorization.md) (인증/인가 — 식별 후 서버 토큰)
