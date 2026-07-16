@@ -28,7 +28,8 @@ public class SecurityConfig {
         "/v3/api-docs/**", // /v3/api-docs/swagger-config 등 하위
         "/error",
         "/api/v1/auth/**", // 소셜 로그인·토큰 재발급·로그아웃(토큰 없이 접근)
-        "/api/v1/places/coordinates" // 지도 마커 좌표(공개). 상세·북마크는 JWT
+        "/api/v1/places/coordinates", // 지도 마커 좌표(공개)
+        "/api/v1/places" // 현위치 목록(공개). 상세·북마크는 JWT
     };
 
     private final JwtAuthenticationFilter jwtAuthenticationFilter;

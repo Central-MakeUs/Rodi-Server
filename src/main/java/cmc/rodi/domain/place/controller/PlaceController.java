@@ -1,12 +1,15 @@
 package cmc.rodi.domain.place.controller;
 
 import cmc.rodi.domain.place.dto.PlaceCoordinateResponse;
+import cmc.rodi.domain.place.dto.PlaceListRequest;
+import cmc.rodi.domain.place.dto.PlaceListResponse;
 import cmc.rodi.domain.place.service.PlaceQueryService;
 import cmc.rodi.global.common.response.ApiResponse;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 /** 장소 API. 문서 스펙은 {@link PlaceControllerDocs}. */
@@ -21,5 +24,21 @@ public class PlaceController implements PlaceControllerDocs {
     @GetMapping("/coordinates")
     public ApiResponse<List<PlaceCoordinateResponse>> getCoordinates() {
         return ApiResponse.success(placeQueryService.getAllCoordinates());
+    }
+
+    @Override
+    @GetMapping
+    public ApiResponse<PlaceListResponse> getPlaces(
+            @RequestParam double swLat,
+            @RequestParam double swLng,
+            @RequestParam double neLat,
+            @RequestParam double neLng,
+            @RequestParam double lat,
+            @RequestParam double lng,
+            @RequestParam(defaultValue = "20") int size,
+            @RequestParam(required = false) String cursor) {
+        return ApiResponse.success(
+                placeQueryService.getPlaces(
+                        new PlaceListRequest(swLat, swLng, neLat, neLng, lat, lng, size, cursor)));
     }
 }
