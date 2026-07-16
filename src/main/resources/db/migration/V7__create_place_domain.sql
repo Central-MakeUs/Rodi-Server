@@ -7,6 +7,7 @@ CREATE TABLE place (
     place_type  VARCHAR(20)          NOT NULL,   -- 구분자: PARKING | COURSE
     name        VARCHAR(255)         NOT NULL,
     description TEXT,
+    address     VARCHAR(100),                    -- 시군구 단위 주소(예: "서울특별시 강남구")
     location    geometry(Point,4326) NOT NULL,   -- 대표 좌표(코스=시작점, 주차장=위치)
     created_at  TIMESTAMP            NOT NULL,
     updated_at  TIMESTAMP            NOT NULL

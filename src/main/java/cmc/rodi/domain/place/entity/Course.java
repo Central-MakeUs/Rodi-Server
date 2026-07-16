@@ -55,10 +55,11 @@ public class Course extends Place {
     private Course(
             String name,
             String description,
+            String address,
             Point location,
             Integer distanceMeters,
             String cautions) {
-        super(name, description, location);
+        super(name, description, address, location);
         this.distanceMeters = distanceMeters;
         this.cautions = cautions;
     }

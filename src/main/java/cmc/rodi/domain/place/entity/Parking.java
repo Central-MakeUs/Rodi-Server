@@ -90,6 +90,7 @@ public class Parking extends Place {
     private Parking(
             String name,
             String description,
+            String address,
             Point location,
             String roadAddress,
             String lotAddress,
@@ -112,7 +113,7 @@ public class Parking extends Place {
             String weekdayHours,
             String saturdayHours,
             String holidayHours) {
-        super(name, description, location);
+        super(name, description, address, location);
         this.roadAddress = roadAddress;
         this.lotAddress = lotAddress;
         this.managementNo = managementNo;
