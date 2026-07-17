@@ -8,6 +8,7 @@
 | 2026-07-17 | In Progress | #1·#2 구현. 공통 `CursorPage`(hasNext·첫 페이지 한정 totalCount) 도입, place에 `address`(시군구) 추가·`description`을 course 전용으로 이동, #2 아이템 필드 확정(practiceTypes·capacity·openTime) |
 | 2026-07-17 | In Progress | #3 코스 상세 구현. `cautions`를 문자열 리스트(`course_caution`)로 변경, 북마크 여부 JSON 키를 `isBookmarked`로 통일 |
 | 2026-07-17 | In Progress | #3·#4 상세를 `GET /places/{placeId}` **단일 엔드포인트로 통합**(공통 + course/parking 블록). 주차장 블록(feeInfo·operatingHours) 구현, `isFree`는 무료만 true, `payment_methods`는 응답 미노출 |
+| 2026-07-17 | **Done** | #5 북마크 저장·해제 구현(ON CONFLICT DO NOTHING으로 멱등·경합 안전). **스펙의 5개 API 전부 구현 완료** |
 
 ## 배경 / 목적
 
@@ -212,14 +213,14 @@ GET /api/v1/places?swLat=&swLng=&neLat=&neLng=&lat=&lng=&size=20&cursor=
 - **`isFree`는 무료만 `true`**. 유료·요금 혼합(DB `null`)은 `false`.
 - 주차장 저장은 개별 컬럼이지만 응답에선 `feeInfo`·`operatingHours`로 묶는다. `payment_methods`는 저장만 하고 **응답엔 미노출**.
 - 없는 id면 404. 타입 불일치 404는 통합으로 **사라짐**.
-저장은 개별 컬럼, 응답만 `feeInfo`/`operatingHours`로 묶음.
-
 ### 5. 북마크 저장·해제 (JWT)
 ```
 POST   /api/v1/places/{placeId}/bookmark   // 저장(멱등: 이미 있으면 200)
-DELETE /api/v1/places/{placeId}/bookmark   // 해제
+DELETE /api/v1/places/{placeId}/bookmark   // 해제(멱등: 없어도 200)
 ```
-응답 데이터 없음(200). 코스·주차장 공통(place 단위).
+- 응답 데이터 없음(200). 코스·주차장 공통(place 단위).
+- 저장은 `INSERT ... ON CONFLICT (member_id, place_id) DO NOTHING` — **동시 요청(더블탭)에도 유니크 충돌 없이 멱등**. 없는 장소면 404.
+- 해제는 없어도 no-op(멱등). 북마크는 **회원별 독립**이며 북마크수는 COUNT로 계산(비정규화 컬럼 없음).
 
 ## 지오·쿼리 접근
 - 뷰포트 필터: `place.location && ST_MakeEnvelope(:swLng,:swLat,:neLng,:neLat,4326)`.
@@ -235,7 +236,7 @@ DELETE /api/v1/places/{placeId}/bookmark   // 해제
 - [x] `#3` 상세의 코스 블록이 `practiceTypes`·`cautions`(리스트)·waypoint(순서대로)와 공통 `bookmarkCount`·`isBookmarked`를 반환한다.
 - [x] `#4` 상세의 주차장 블록이 `feeInfo`·`operatingHours`로 묶인 구조로 반환하고, `isFree`는 무료만 true다.
 - [x] 상세는 `placeId` 하나로 타입에 맞는 블록을 채우고 반대 블록은 null이다(타입 불일치 404 없음). 없는 id면 404.
-- [ ] `#5` 저장 시 `bookmarked=true`·count 증가, 재저장은 멱등, 해제 시 원복.
+- [x] `#5` 저장 시 `isBookmarked=true`·count 증가, 재저장은 멱등, 해제 시 원복(재해제도 멱등). 북마크는 회원별 독립.
 - [ ] 관련 테스트 통과 (`./gradlew test`).
 
 ## 미해결 질문
