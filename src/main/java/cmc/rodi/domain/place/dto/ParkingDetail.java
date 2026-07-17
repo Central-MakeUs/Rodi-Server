@@ -15,10 +15,6 @@ public record ParkingDetail(
         @Schema(description = "주차장 유형", example = "노외") String parkingType,
         @Schema(description = "총 주차면수") Integer capacity,
         @Schema(description = "무료 여부(무료만 true, 유료·혼합은 false)") @JsonProperty("isFree") boolean free,
-        @Schema(description = "장애인 주차구역 여부") Boolean hasAccessibleSpace,
-        @Schema(description = "전화") String phone,
-        @Schema(description = "운영기관") String operator,
-        @Schema(description = "비고") String note,
         @Schema(description = "요금 정보") FeeInfo feeInfo,
         @Schema(description = "영업시간") OperatingHours operatingHours) {
 
@@ -47,10 +43,6 @@ public record ParkingDetail(
                 parking.getCapacity(),
                 // 무료만 true. 유료(false)·요금 혼합(null)은 false
                 Boolean.TRUE.equals(parking.getIsFree()),
-                parking.getHasAccessibleSpace(),
-                parking.getPhone(),
-                parking.getOperator(),
-                parking.getNote(),
                 new FeeInfo(
                         parking.getBaseMinutes(),
                         parking.getBaseFee(),

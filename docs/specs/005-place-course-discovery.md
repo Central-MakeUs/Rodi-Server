@@ -167,18 +167,19 @@ GET /api/v1/places?swLat=&swLng=&neLat=&neLng=&lat=&lng=&size=20&cursor=
 
 `GET /api/v1/places/{placeId}` — 공통 필드 + `type`에 따라 `course` 또는 `parking` 블록을 채운다. 해당 없는 블록은 `null`이라 클라이언트는 `type`으로 분기한다.
 
-**공통**: `id·type·name·address·lat·lng·bookmarkCount·isBookmarked`
+**공통**: `id·type·name·address·lat·lng·practiceTypes·bookmarkCount·isBookmarked`
+— **연습 유형은 공통**이다(코스=등록 태그, 주차장=`["PARKING"]` 고정). 목록(#2)과 동일 표기.
 
 **type=COURSE**
 ```json
 {
   "id": 1, "type": "COURSE", "name": "한강 코스", "address": "서울특별시 영등포구",
   "lat": 37.51, "lng": 127.03,
+  "practiceTypes": ["STRAIGHT","LANE_CHANGE"],
   "bookmarkCount": 12, "isBookmarked": true,
   "course": {
     "description": "…",
     "cautions": ["일반통행골목", "비보호좌회전"],
-    "practiceTypes": ["STRAIGHT","LANE_CHANGE"],
     "distanceMeters": 2100,
     "waypoints": [
       { "type": "START", "sequence": 0, "lat": 37.51, "lng": 127.03, "name": null },
@@ -195,13 +196,13 @@ GET /api/v1/places?swLat=&swLng=&neLat=&neLng=&lat=&lng=&size=20&cursor=
 {
   "id": 7, "type": "PARKING", "name": "세종로 공영", "address": "서울특별시 종로구",
   "lat": 37.5734, "lng": 126.9759,
+  "practiceTypes": ["PARKING"],
   "bookmarkCount": 3, "isBookmarked": false,
   "course": null,
   "parking": {
     "roadAddress": null, "lotAddress": "서울특별시 종로구 세종로 80-1(지하)",
     "managementNo": "100-2-000006", "parkingType": "노외", "capacity": 1260,
-    "isFree": false, "hasAccessibleSpace": true, "phone": "02-2290-6567",
-    "operator": "서울시설공단", "note": null,
+    "isFree": false,
     "feeInfo": { "baseMinutes": 5, "baseFee": 430, "addUnitMinutes": 5, "addUnitFee": 430,
                  "dayTicketHours": 0, "dayTicketFee": 0, "monthlyFee": 176000 },
     "operatingHours": { "weekday": "00:00-23:59", "saturday": "00:00-23:59", "holiday": "00:00-23:59" }
@@ -211,7 +212,8 @@ GET /api/v1/places?swLat=&swLng=&neLat=&neLng=&lat=&lng=&size=20&cursor=
 - `cautions`는 **문자열 리스트**(칩), 입력 순서 유지. `practiceTypes`는 목록(#2)과 동일 표기.
 - 북마크 여부 JSON 키는 **`isBookmarked`**(`ApiResponse.isSuccess`와 동일 규칙). `bookmarkCount`는 COUNT 계산.
 - **`isFree`는 무료만 `true`**. 유료·요금 혼합(DB `null`)은 `false`.
-- 주차장 저장은 개별 컬럼이지만 응답에선 `feeInfo`·`operatingHours`로 묶는다. `payment_methods`는 저장만 하고 **응답엔 미노출**.
+- 주차장 저장은 개별 컬럼이지만 응답에선 `feeInfo`·`operatingHours`로 묶는다.
+- `payment_methods`·`has_accessible_space`·`phone`·`operator`·`note`는 **저장만 하고 응답엔 미노출**(필요해지면 노출).
 - 없는 id면 404. 타입 불일치 404는 통합으로 **사라짐**.
 ### 5. 북마크 저장·해제 (JWT)
 ```
