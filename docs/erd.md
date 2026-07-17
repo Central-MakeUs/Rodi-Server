@@ -20,6 +20,7 @@ erDiagram
     member ||--o{ social_account : ""
     member ||--o{ refresh_token : ""
     course ||--o{ course_practice_type : ""
+    course ||--o{ course_caution : ""
     course ||--o{ waypoint : ""
     member ||--o{ bookmark : ""
     place ||--o{ bookmark : ""
@@ -87,7 +88,12 @@ erDiagram
         bigint place_id PK "place 상속(공유 PK)"
         text description "코스 설명(주차장엔 없음)"
         int distance_meters "주행거리(m)"
-        text cautions "주의사항"
+    }
+
+    course_caution {
+        bigint course_id PK,FK "코스"
+        int seq PK "순서(@OrderColumn)"
+        varchar caution "주의사항 문구(칩)"
     }
 
     parking {
@@ -166,8 +172,9 @@ erDiagram
 | `member_onboarding` | 온보딩 원자료(운전경험·추가정보). member와 1:1(member_id 공유 PK). 복수/순위 응답은 jsonb 리스트. 저장 목적(마이페이지 미노출). |
 | `place` | 주차장·코스 공통 슈퍼클래스. 시군구 주소·대표 좌표. (난이도·추천도·찜개수·region_id 없음 — 북마크수는 COUNT) |
 | `parking` | 주차장(place 상속). 개별 컬럼(주소·주차면수·영업시간·요금 등, 공영주차장 open DB와 1:1). |
-| `course` | 코스(place 상속). 설명·주행거리·주의사항. |
+| `course` | 코스(place 상속). 설명·주행거리. |
 | `course_practice_type` | 코스 ↔ 연습 유형 (N:M). `PracticeType` enum을 varchar로 저장(참조 테이블 없음). |
+| `course_caution` | 코스 주의사항(1:N). 칩 형태 문구를 `seq` 순서로 저장. |
 | `waypoint` | 코스 경유지(1:N). 출발/경유/목적지 + 순서 + 좌표. |
 | `bookmark` | 북마크. 회원 ↔ place(코스·주차장 공통). `(member_id, place_id)` 유니크. |
 

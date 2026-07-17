@@ -57,8 +57,8 @@ class PlaceDomainMappingIntegrationTest {
                         .description("초보 연습용")
                         .location(point(37.51, 127.03))
                         .distanceMeters(2100)
-                        .cautions("야간 조명 부족")
                         .build();
+        course.addCaution("야간 조명 부족");
         course.addTag(PracticeType.STRAIGHT);
         course.addTag(PracticeType.LANE_CHANGE);
         course.addWaypoint(WaypointType.START, (short) 0, point(37.51, 127.03), null);
