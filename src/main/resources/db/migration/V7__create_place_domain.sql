@@ -17,8 +17,15 @@ CREATE INDEX idx_place_location ON place USING GIST (location);
 CREATE TABLE course (
     place_id        BIGINT PRIMARY KEY REFERENCES place (id),
     description     TEXT,       -- 코스 설명(주차장엔 없음)
-    distance_meters INT,        -- 주행거리
-    cautions        TEXT        -- 주의사항
+    distance_meters INT         -- 주행거리
+);
+
+-- 코스 주의사항(1:N, 순서 있음) — 칩 형태로 여러 개
+CREATE TABLE course_caution (
+    course_id BIGINT       NOT NULL REFERENCES course (place_id),
+    caution   VARCHAR(100) NOT NULL,
+    seq       INT          NOT NULL,   -- @OrderColumn(INTEGER)
+    PRIMARY KEY (course_id, seq)
 );
 
 -- 코스 연습태그(N:M) — PracticeType enum 저장(참조 테이블 없음)
