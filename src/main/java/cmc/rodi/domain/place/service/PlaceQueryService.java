@@ -1,12 +1,13 @@
 package cmc.rodi.domain.place.service;
 
 import cmc.rodi.domain.member.entity.PracticeType;
-import cmc.rodi.domain.place.dto.CourseDetailResponse;
 import cmc.rodi.domain.place.dto.PlaceCoordinateResponse;
+import cmc.rodi.domain.place.dto.PlaceDetailResponse;
 import cmc.rodi.domain.place.dto.PlaceListItem;
 import cmc.rodi.domain.place.dto.PlaceListRequest;
 import cmc.rodi.domain.place.entity.Course;
 import cmc.rodi.domain.place.entity.Parking;
+import cmc.rodi.domain.place.entity.Place;
 import cmc.rodi.domain.place.entity.PlaceType;
 import cmc.rodi.domain.place.repository.BookmarkRepository;
 import cmc.rodi.domain.place.repository.CourseRepository;
@@ -85,17 +86,24 @@ public class PlaceQueryService {
         return CursorPage.next(items, hasNext, nextCursor);
     }
 
-    /** 코스 상세(#3). placeId가 코스가 아니거나 없으면 404. 북마크수·현재 회원 북마크 여부 포함. */
+    /** 장소 상세(#3·#4 통합). placeId가 타입을 결정하므로 조회 후 타입별 블록으로 응답한다. 없으면 404. */
     @Transactional(readOnly = true)
-    public CourseDetailResponse getCourseDetail(Long placeId, Long memberId) {
-        // JOINED 상속: 주차장 id면 course 행이 없어 empty → 404 (엔드포인트-타입 검증)
-        Course course =
-                courseRepository
+    public PlaceDetailResponse getPlaceDetail(Long placeId, Long memberId) {
+        // JOINED 상속이라 findById가 Course/Parking 구현체로 반환된다
+        Place place =
+                placeRepository
                         .findById(placeId)
                         .orElseThrow(() -> new BusinessException(ErrorCode.ENTITY_NOT_FOUND));
         long bookmarkCount = bookmarkRepository.countByPlaceId(placeId);
         boolean bookmarked = bookmarkRepository.existsByMemberIdAndPlaceId(memberId, placeId);
-        return CourseDetailResponse.from(course, bookmarkCount, bookmarked);
+
+        if (place instanceof Course course) {
+            return PlaceDetailResponse.ofCourse(course, bookmarkCount, bookmarked);
+        }
+        if (place instanceof Parking parking) {
+            return PlaceDetailResponse.ofParking(parking, bookmarkCount, bookmarked);
+        }
+        throw new IllegalStateException("알 수 없는 place 타입: " + place.getClass());
     }
 
     /** 페이지의 코스들만 로드(태그·주행거리·설명 채우기용). */
