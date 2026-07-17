@@ -33,6 +33,9 @@ import org.locationtech.jts.geom.Point;
 @PrimaryKeyJoinColumn(name = "place_id")
 public class Course extends Place {
 
+    @Column(columnDefinition = "text")
+    private String description;
+
     @Column(name = "distance_meters")
     private Integer distanceMeters;
 
@@ -59,7 +62,8 @@ public class Course extends Place {
             Point location,
             Integer distanceMeters,
             String cautions) {
-        super(name, description, address, location);
+        super(name, address, location);
+        this.description = description;
         this.distanceMeters = distanceMeters;
         this.cautions = cautions;
     }

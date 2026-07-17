@@ -1,7 +1,8 @@
 package cmc.rodi.domain.place.controller;
 
 import cmc.rodi.domain.place.dto.PlaceCoordinateResponse;
-import cmc.rodi.domain.place.dto.PlaceListResponse;
+import cmc.rodi.domain.place.dto.PlaceListItem;
+import cmc.rodi.global.common.pagination.CursorPage;
 import cmc.rodi.global.common.response.ApiResponse;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
@@ -22,7 +23,7 @@ public interface PlaceControllerDocs {
             description =
                     "지도 뷰포트(남서/북동) 안의 place(코스+주차장)를 현위치 거리순으로 커서 페이징한다. "
                             + "코스는 태그·주행거리 포함, 주차장은 공통 필드만. totalCount는 뷰포트 총계. 공개.")
-    ApiResponse<PlaceListResponse> getPlaces(
+    ApiResponse<CursorPage<PlaceListItem>> getPlaces(
             @Parameter(description = "남서 위도") double swLat,
             @Parameter(description = "남서 경도") double swLng,
             @Parameter(description = "북동 위도") double neLat,

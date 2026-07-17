@@ -36,9 +36,6 @@ public abstract class Place extends BaseEntity {
     @Column(nullable = false, length = 255)
     private String name;
 
-    @Column(columnDefinition = "text")
-    private String description;
-
     /** 시군구 단위 주소(예: "서울특별시 강남구"). 목록·좌표 응답 표시용. */
     @Column(length = 100)
     private String address;
@@ -47,9 +44,8 @@ public abstract class Place extends BaseEntity {
     @Column(nullable = false, columnDefinition = "geometry(Point,4326)")
     private Point location;
 
-    protected Place(String name, String description, String address, Point location) {
+    protected Place(String name, String address, Point location) {
         this.name = name;
-        this.description = description;
         this.address = address;
         this.location = location;
     }

@@ -8,13 +8,13 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import cmc.rodi.domain.member.entity.PracticeType;
 import cmc.rodi.domain.place.dto.PlaceListItem;
 import cmc.rodi.domain.place.dto.PlaceListRequest;
-import cmc.rodi.domain.place.dto.PlaceListResponse;
 import cmc.rodi.domain.place.entity.Course;
 import cmc.rodi.domain.place.entity.Parking;
 import cmc.rodi.domain.place.entity.PlaceType;
 import cmc.rodi.domain.place.repository.CourseRepository;
 import cmc.rodi.domain.place.repository.ParkingRepository;
 import cmc.rodi.domain.place.service.PlaceQueryService;
+import cmc.rodi.global.common.pagination.CursorPage;
 import cmc.rodi.support.TestcontainersConfiguration;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -89,9 +89,10 @@ class PlaceListIntegrationTest {
     void 거리순_커서() {
         seed();
 
-        PlaceListResponse page1 = placeQueryService.getPlaces(request(2, null));
+        CursorPage<PlaceListItem> page1 = placeQueryService.getPlaces(request(2, null));
 
-        assertThat(page1.totalCount()).isEqualTo(3); // 밖코스 제외
+        assertThat(page1.totalCount()).isEqualTo(3L); // 첫 페이지에만 채워짐, 밖코스 제외
+        assertThat(page1.hasNext()).isTrue();
         assertThat(page1.items())
                 .extracting(PlaceListItem::name)
                 .containsExactly("부산-가까운코스", "부산-중간주차장");
@@ -110,9 +111,12 @@ class PlaceListIntegrationTest {
         assertThat(parking.tags()).isNull();
         assertThat(parking.distanceMeters()).isNull();
 
-        PlaceListResponse page2 = placeQueryService.getPlaces(request(2, page1.nextCursor()));
+        CursorPage<PlaceListItem> page2 =
+                placeQueryService.getPlaces(request(2, page1.nextCursor()));
         assertThat(page2.items()).extracting(PlaceListItem::name).containsExactly("부산-먼코스");
+        assertThat(page2.hasNext()).isFalse();
         assertThat(page2.nextCursor()).isNull();
+        assertThat(page2.totalCount()).isNull(); // 다음 페이지엔 totalCount 생략
     }
 
     @Test

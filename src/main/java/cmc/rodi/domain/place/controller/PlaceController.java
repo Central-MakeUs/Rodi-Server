@@ -1,9 +1,10 @@
 package cmc.rodi.domain.place.controller;
 
 import cmc.rodi.domain.place.dto.PlaceCoordinateResponse;
+import cmc.rodi.domain.place.dto.PlaceListItem;
 import cmc.rodi.domain.place.dto.PlaceListRequest;
-import cmc.rodi.domain.place.dto.PlaceListResponse;
 import cmc.rodi.domain.place.service.PlaceQueryService;
+import cmc.rodi.global.common.pagination.CursorPage;
 import cmc.rodi.global.common.response.ApiResponse;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
@@ -28,7 +29,7 @@ public class PlaceController implements PlaceControllerDocs {
 
     @Override
     @GetMapping
-    public ApiResponse<PlaceListResponse> getPlaces(
+    public ApiResponse<CursorPage<PlaceListItem>> getPlaces(
             @RequestParam double swLat,
             @RequestParam double swLng,
             @RequestParam double neLat,

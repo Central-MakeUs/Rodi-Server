@@ -3,13 +3,13 @@ package cmc.rodi.domain.place.service;
 import cmc.rodi.domain.place.dto.PlaceCoordinateResponse;
 import cmc.rodi.domain.place.dto.PlaceListItem;
 import cmc.rodi.domain.place.dto.PlaceListRequest;
-import cmc.rodi.domain.place.dto.PlaceListResponse;
 import cmc.rodi.domain.place.entity.Course;
 import cmc.rodi.domain.place.entity.PlaceType;
 import cmc.rodi.domain.place.repository.CourseRepository;
 import cmc.rodi.domain.place.repository.PlaceListRow;
 import cmc.rodi.domain.place.repository.PlaceRepository;
 import cmc.rodi.global.common.pagination.CursorCodec;
+import cmc.rodi.global.common.pagination.CursorPage;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
@@ -34,7 +34,7 @@ public class PlaceQueryService {
 
     /** 뷰포트 안 place(코스+주차장)를 현위치 거리순으로 커서 페이징(ADR 0010). */
     @Transactional(readOnly = true)
-    public PlaceListResponse getPlaces(PlaceListRequest req) {
+    public CursorPage<PlaceListItem> getPlaces(PlaceListRequest req) {
         CursorCodec.Cursor cursor = req.cursor() == null ? null : CursorCodec.decode(req.cursor());
         Double cursorDistance = cursor == null ? null : Double.parseDouble(cursor.sortValue());
         Long cursorId = cursor == null ? null : cursor.id();
@@ -64,9 +64,14 @@ public class PlaceQueryService {
             nextCursor = CursorCodec.encode(String.valueOf(last.getDistance()), last.getId());
         }
 
-        long totalCount =
-                placeRepository.countInViewport(req.swLat(), req.swLng(), req.neLat(), req.neLng());
-        return new PlaceListResponse(totalCount, items, nextCursor);
+        // totalCount는 첫 페이지(커서 없음)에서만 계산 — 매 페이지 count 쿼리 방지
+        if (cursor == null) {
+            long totalCount =
+                    placeRepository.countInViewport(
+                            req.swLat(), req.swLng(), req.neLat(), req.neLng());
+            return CursorPage.first(items, hasNext, nextCursor, totalCount);
+        }
+        return CursorPage.next(items, hasNext, nextCursor);
     }
 
     /** 페이지의 코스들만 로드(태그·주행거리 채우기용). */
@@ -89,7 +94,7 @@ public class PlaceQueryService {
                     row.getId(),
                     type,
                     row.getName(),
-                    row.getDescription(),
+                    course.getDescription(), // 설명은 코스 전용
                     row.getLat(),
                     row.getLng(),
                     distanceFromMe,
@@ -100,7 +105,7 @@ public class PlaceQueryService {
                 row.getId(),
                 type,
                 row.getName(),
-                row.getDescription(),
+                null, // 주차장은 설명 없음
                 row.getLat(),
                 row.getLng(),
                 distanceFromMe,

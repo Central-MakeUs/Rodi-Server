@@ -87,7 +87,6 @@ class PlaceDomainMappingIntegrationTest {
         Parking parking =
                 Parking.builder()
                         .name("세종로 공영")
-                        .description("노외 공영주차장")
                         .location(point(37.5734, 126.9759))
                         .lotAddress("서울특별시 종로구 세종로 80-1(지하)")
                         .parkingType("노외")
