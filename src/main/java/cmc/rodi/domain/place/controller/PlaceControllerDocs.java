@@ -1,7 +1,7 @@
 package cmc.rodi.domain.place.controller;
 
-import cmc.rodi.domain.place.dto.CourseDetailResponse;
 import cmc.rodi.domain.place.dto.PlaceCoordinateResponse;
+import cmc.rodi.domain.place.dto.PlaceDetailResponse;
 import cmc.rodi.domain.place.dto.PlaceListItem;
 import cmc.rodi.global.common.pagination.CursorPage;
 import cmc.rodi.global.common.response.ApiResponse;
@@ -35,11 +35,13 @@ public interface PlaceControllerDocs {
             @Parameter(description = "다음 페이지 커서(없으면 첫 페이지)") String cursor);
 
     @Operation(
-            summary = "코스 상세",
+            summary = "장소 상세(코스·주차장 통합)",
             description =
-                    "코스의 설명·주의사항·연습유형·경로점(순서)·주행거리와 북마크 수·현재 회원의 북마크 여부를 반환한다. "
-                            + "placeId가 코스가 아니거나 없으면 404. JWT 필요.")
-    ApiResponse<CourseDetailResponse> getCourseDetail(
-            @Parameter(description = "코스 place id") Long placeId,
+                    "placeId가 타입을 결정하므로 엔드포인트를 나누지 않는다. 공통 필드(이름·주소·좌표·북마크 수/여부)에 더해 "
+                            + "type=COURSE면 course 블록(설명·주의사항·연습유형·주행거리·경로점), "
+                            + "type=PARKING이면 parking 블록(주소·주차면수·요금·영업시간)을 채워 반환한다. "
+                            + "해당 없는 블록은 null. 없는 id면 404. JWT 필요.")
+    ApiResponse<PlaceDetailResponse> getPlaceDetail(
+            @Parameter(description = "장소 id(코스·주차장 공통)") Long placeId,
             @Parameter(hidden = true) Long memberId);
 }

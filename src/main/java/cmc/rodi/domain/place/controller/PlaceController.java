@@ -1,7 +1,7 @@
 package cmc.rodi.domain.place.controller;
 
-import cmc.rodi.domain.place.dto.CourseDetailResponse;
 import cmc.rodi.domain.place.dto.PlaceCoordinateResponse;
+import cmc.rodi.domain.place.dto.PlaceDetailResponse;
 import cmc.rodi.domain.place.dto.PlaceListItem;
 import cmc.rodi.domain.place.dto.PlaceListRequest;
 import cmc.rodi.domain.place.service.PlaceQueryService;
@@ -47,9 +47,9 @@ public class PlaceController implements PlaceControllerDocs {
     }
 
     @Override
-    @GetMapping("/courses/{placeId}")
-    public ApiResponse<CourseDetailResponse> getCourseDetail(
+    @GetMapping("/{placeId}")
+    public ApiResponse<PlaceDetailResponse> getPlaceDetail(
             @PathVariable Long placeId, @CurrentMember Long memberId) {
-        return ApiResponse.success(placeQueryService.getCourseDetail(placeId, memberId));
+        return ApiResponse.success(placeQueryService.getPlaceDetail(placeId, memberId));
     }
 }
