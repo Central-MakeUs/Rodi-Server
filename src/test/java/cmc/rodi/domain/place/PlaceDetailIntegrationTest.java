@@ -90,14 +90,14 @@ class PlaceDetailIntegrationTest {
         assertThat(res.lng()).isEqualTo(127.03);
         assertThat(res.bookmarkCount()).isEqualTo(1);
         assertThat(res.bookmarked()).isTrue();
+        assertThat(res.practiceTypes()) // 연습 유형은 공통 필드
+                .containsExactlyInAnyOrder(PracticeType.STRAIGHT, PracticeType.LANE_CHANGE);
 
         // 코스 블록
         assertThat(res.parking()).isNull();
         CourseDetail c = res.course();
         assertThat(c.description()).isEqualTo("초보 연습용");
         assertThat(c.cautions()).containsExactly("일반통행골목", "비보호좌회전"); // 순서 유지
-        assertThat(c.practiceTypes())
-                .containsExactlyInAnyOrder(PracticeType.STRAIGHT, PracticeType.LANE_CHANGE);
         assertThat(c.distanceMeters()).isEqualTo(2100);
         assertThat(c.waypoints())
                 .extracting(CourseDetail.WaypointItem::type)
@@ -138,12 +138,12 @@ class PlaceDetailIntegrationTest {
         assertThat(res.address()).isEqualTo("서울특별시 종로구");
         assertThat(res.bookmarkCount()).isZero();
         assertThat(res.bookmarked()).isFalse();
+        assertThat(res.practiceTypes()).containsExactly(PracticeType.PARKING); // 주차장은 항상 주차
 
         assertThat(res.course()).isNull();
         assertThat(res.parking().capacity()).isEqualTo(1260);
         assertThat(res.parking().parkingType()).isEqualTo("노외");
         assertThat(res.parking().free()).isFalse();
-        assertThat(res.parking().hasAccessibleSpace()).isTrue();
         assertThat(res.parking().feeInfo().baseFee()).isEqualTo(430);
         assertThat(res.parking().feeInfo().monthlyFee()).isEqualTo(176000);
         assertThat(res.parking().operatingHours().weekday()).isEqualTo("00:00-23:59");

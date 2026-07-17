@@ -1,6 +1,5 @@
 package cmc.rodi.domain.place.dto;
 
-import cmc.rodi.domain.member.entity.PracticeType;
 import cmc.rodi.domain.place.entity.Course;
 import cmc.rodi.domain.place.entity.WaypointType;
 import io.swagger.v3.oas.annotations.media.Schema;
@@ -10,7 +9,6 @@ import java.util.List;
 public record CourseDetail(
         @Schema(description = "설명") String description,
         @Schema(description = "주의사항(칩, 입력 순서)") List<String> cautions,
-        @Schema(description = "연습 유형") List<PracticeType> practiceTypes,
         @Schema(description = "주행거리(m)") Integer distanceMeters,
         @Schema(description = "경로점(sequence 오름차순)") List<WaypointItem> waypoints) {
 
@@ -37,7 +35,6 @@ public record CourseDetail(
         return new CourseDetail(
                 course.getDescription(),
                 List.copyOf(course.getCautions()),
-                List.copyOf(course.getTags()),
                 course.getDistanceMeters(),
                 waypoints);
     }
