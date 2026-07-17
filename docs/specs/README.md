@@ -25,3 +25,4 @@
 | [애플 로그인](002-apple-login.md) | Sign in with Apple(코드 교환·JWKS 검증) | Draft |
 | [회원 탈퇴](003-member-withdrawal.md) | 단계적 탈퇴·복구·익명화 배치 | Draft |
 | [온보딩](004-onboarding.md) | 닉네임 자동 부여·운전 경험/추가정보 수집·레벨 배정 | Draft |
+| [코스 탐색](005-place-course-discovery.md) | 장소/코스/주차장 조회(마커·거리순 목록·상세)·북마크 | Draft |
