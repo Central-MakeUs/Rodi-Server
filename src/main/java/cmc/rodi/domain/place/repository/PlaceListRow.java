@@ -8,6 +8,8 @@ public interface PlaceListRow {
 
     String getName();
 
+    String getAddress();
+
     Double getLat();
 
     Double getLng();

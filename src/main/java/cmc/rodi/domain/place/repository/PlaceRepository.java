@@ -19,6 +19,7 @@ public interface PlaceRepository extends JpaRepository<Place, Long> {
                         SELECT p.id AS id,
                                p.place_type AS "placeType",
                                p.name AS name,
+                               p.address AS address,
                                ST_Y(p.location) AS lat,
                                ST_X(p.location) AS lng,
                                ST_Distance(

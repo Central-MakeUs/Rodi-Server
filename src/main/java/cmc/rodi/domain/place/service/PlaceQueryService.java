@@ -1,11 +1,14 @@
 package cmc.rodi.domain.place.service;
 
+import cmc.rodi.domain.member.entity.PracticeType;
 import cmc.rodi.domain.place.dto.PlaceCoordinateResponse;
 import cmc.rodi.domain.place.dto.PlaceListItem;
 import cmc.rodi.domain.place.dto.PlaceListRequest;
 import cmc.rodi.domain.place.entity.Course;
+import cmc.rodi.domain.place.entity.Parking;
 import cmc.rodi.domain.place.entity.PlaceType;
 import cmc.rodi.domain.place.repository.CourseRepository;
+import cmc.rodi.domain.place.repository.ParkingRepository;
 import cmc.rodi.domain.place.repository.PlaceListRow;
 import cmc.rodi.domain.place.repository.PlaceRepository;
 import cmc.rodi.global.common.pagination.CursorCodec;
@@ -25,6 +28,7 @@ public class PlaceQueryService {
 
     private final PlaceRepository placeRepository;
     private final CourseRepository courseRepository;
+    private final ParkingRepository parkingRepository;
 
     /** 전체 place의 간단 좌표(마커용). 필터 없이 모두 반환한다. */
     @Transactional(readOnly = true)
@@ -56,7 +60,9 @@ public class PlaceQueryService {
         List<PlaceListRow> page = hasNext ? rows.subList(0, req.size()) : rows;
 
         Map<Long, Course> coursesById = loadCourses(page);
-        List<PlaceListItem> items = page.stream().map(row -> toItem(row, coursesById)).toList();
+        Map<Long, Parking> parkingsById = loadParkings(page);
+        List<PlaceListItem> items =
+                page.stream().map(row -> toItem(row, coursesById, parkingsById)).toList();
 
         String nextCursor = null;
         if (hasNext) {
@@ -74,18 +80,27 @@ public class PlaceQueryService {
         return CursorPage.next(items, hasNext, nextCursor);
     }
 
-    /** 페이지의 코스들만 로드(태그·주행거리 채우기용). */
+    /** 페이지의 코스들만 로드(태그·주행거리·설명 채우기용). */
     private Map<Long, Course> loadCourses(List<PlaceListRow> page) {
-        List<Long> courseIds =
-                page.stream()
-                        .filter(r -> PlaceType.COURSE.name().equals(r.getPlaceType()))
-                        .map(PlaceListRow::getId)
-                        .toList();
-        return courseRepository.findAllById(courseIds).stream()
+        return courseRepository.findAllById(idsOfType(page, PlaceType.COURSE)).stream()
                 .collect(Collectors.toMap(Course::getId, Function.identity()));
     }
 
-    private PlaceListItem toItem(PlaceListRow row, Map<Long, Course> coursesById) {
+    /** 페이지의 주차장들만 로드(주차면수·영업시간 채우기용). */
+    private Map<Long, Parking> loadParkings(List<PlaceListRow> page) {
+        return parkingRepository.findAllById(idsOfType(page, PlaceType.PARKING)).stream()
+                .collect(Collectors.toMap(Parking::getId, Function.identity()));
+    }
+
+    private List<Long> idsOfType(List<PlaceListRow> page, PlaceType type) {
+        return page.stream()
+                .filter(r -> type.name().equals(r.getPlaceType()))
+                .map(PlaceListRow::getId)
+                .toList();
+    }
+
+    private PlaceListItem toItem(
+            PlaceListRow row, Map<Long, Course> coursesById, Map<Long, Parking> parkingsById) {
         PlaceType type = PlaceType.valueOf(row.getPlaceType());
         long distanceFromMe = Math.round(row.getDistance());
         if (type == PlaceType.COURSE) {
@@ -94,22 +109,38 @@ public class PlaceQueryService {
                     row.getId(),
                     type,
                     row.getName(),
-                    course.getDescription(), // 설명은 코스 전용
+                    row.getAddress(),
                     row.getLat(),
                     row.getLng(),
                     distanceFromMe,
-                    List.copyOf(course.getTags()),
-                    course.getDistanceMeters());
+                    List.copyOf(course.getTags()), // 코스 연습 태그
+                    course.getDescription(),
+                    course.getDistanceMeters(),
+                    null,
+                    null);
         }
+        Parking parking = parkingsById.get(row.getId());
         return new PlaceListItem(
                 row.getId(),
                 type,
                 row.getName(),
-                null, // 주차장은 설명 없음
+                row.getAddress(),
                 row.getLat(),
                 row.getLng(),
                 distanceFromMe,
+                List.of(PracticeType.PARKING), // 주차장은 항상 주차
                 null,
-                null);
+                null,
+                parking.getCapacity(),
+                openTime(parking.getWeekdayHours()));
+    }
+
+    /** 영업시간("00:00-23:59")에서 시작 시각만 추출. 없으면 null. */
+    private String openTime(String weekdayHours) {
+        if (weekdayHours == null || weekdayHours.isBlank()) {
+            return null;
+        }
+        int dash = weekdayHours.indexOf('-');
+        return dash < 0 ? weekdayHours : weekdayHours.substring(0, dash);
     }
 }

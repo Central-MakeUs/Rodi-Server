@@ -60,6 +60,7 @@ class PlaceListIntegrationTest {
         Course near =
                 Course.builder()
                         .name("부산-가까운코스")
+                        .address("부산광역시 강서구")
                         .location(point(35.151, 129.051))
                         .distanceMeters(1500)
                         .build();
@@ -70,8 +71,10 @@ class PlaceListIntegrationTest {
         parkingRepository.save(
                 Parking.builder()
                         .name("부산-중간주차장")
+                        .address("부산광역시 남구")
                         .location(point(35.16, 129.06))
                         .capacity(100)
+                        .weekdayHours("09:00-18:00")
                         .build());
         courseRepository.save(
                 Course.builder()
@@ -102,14 +105,21 @@ class PlaceListIntegrationTest {
 
         PlaceListItem near = page1.items().get(0);
         assertThat(near.type()).isEqualTo(PlaceType.COURSE);
-        assertThat(near.tags())
+        assertThat(near.address()).isEqualTo("부산광역시 강서구");
+        assertThat(near.practiceTypes())
                 .containsExactlyInAnyOrder(PracticeType.STRAIGHT, PracticeType.LANE_CHANGE);
         assertThat(near.distanceMeters()).isEqualTo(1500);
+        assertThat(near.capacity()).isNull(); // 코스엔 주차 필드 없음
+        assertThat(near.openTime()).isNull();
 
         PlaceListItem parking = page1.items().get(1);
         assertThat(parking.type()).isEqualTo(PlaceType.PARKING);
-        assertThat(parking.tags()).isNull();
-        assertThat(parking.distanceMeters()).isNull();
+        assertThat(parking.address()).isEqualTo("부산광역시 남구");
+        assertThat(parking.practiceTypes()).containsExactly(PracticeType.PARKING); // 항상 주차
+        assertThat(parking.capacity()).isEqualTo(100);
+        assertThat(parking.openTime()).isEqualTo("09:00"); // "09:00-18:00" → 시작시각
+        assertThat(parking.distanceMeters()).isNull(); // 주차장엔 코스 필드 없음
+        assertThat(parking.description()).isNull();
 
         CursorPage<PlaceListItem> page2 =
                 placeQueryService.getPlaces(request(2, page1.nextCursor()));
