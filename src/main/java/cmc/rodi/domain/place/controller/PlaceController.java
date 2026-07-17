@@ -4,14 +4,17 @@ import cmc.rodi.domain.place.dto.PlaceCoordinateResponse;
 import cmc.rodi.domain.place.dto.PlaceDetailResponse;
 import cmc.rodi.domain.place.dto.PlaceListItem;
 import cmc.rodi.domain.place.dto.PlaceListRequest;
+import cmc.rodi.domain.place.service.BookmarkService;
 import cmc.rodi.domain.place.service.PlaceQueryService;
 import cmc.rodi.global.auth.resolver.CurrentMember;
 import cmc.rodi.global.common.pagination.CursorPage;
 import cmc.rodi.global.common.response.ApiResponse;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
@@ -23,6 +26,7 @@ import org.springframework.web.bind.annotation.RestController;
 public class PlaceController implements PlaceControllerDocs {
 
     private final PlaceQueryService placeQueryService;
+    private final BookmarkService bookmarkService;
 
     @Override
     @GetMapping("/coordinates")
@@ -51,5 +55,19 @@ public class PlaceController implements PlaceControllerDocs {
     public ApiResponse<PlaceDetailResponse> getPlaceDetail(
             @PathVariable Long placeId, @CurrentMember Long memberId) {
         return ApiResponse.success(placeQueryService.getPlaceDetail(placeId, memberId));
+    }
+
+    @Override
+    @PostMapping("/{placeId}/bookmark")
+    public ApiResponse<Void> bookmark(@PathVariable Long placeId, @CurrentMember Long memberId) {
+        bookmarkService.bookmark(placeId, memberId);
+        return ApiResponse.success(null);
+    }
+
+    @Override
+    @DeleteMapping("/{placeId}/bookmark")
+    public ApiResponse<Void> unbookmark(@PathVariable Long placeId, @CurrentMember Long memberId) {
+        bookmarkService.unbookmark(placeId, memberId);
+        return ApiResponse.success(null);
     }
 }

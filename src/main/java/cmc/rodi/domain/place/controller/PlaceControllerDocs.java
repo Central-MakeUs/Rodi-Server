@@ -44,4 +44,16 @@ public interface PlaceControllerDocs {
     ApiResponse<PlaceDetailResponse> getPlaceDetail(
             @Parameter(description = "장소 id(코스·주차장 공통)") Long placeId,
             @Parameter(hidden = true) Long memberId);
+
+    @Operation(
+            summary = "북마크 저장",
+            description = "장소를 북마크한다(코스·주차장 공통). 멱등 — 이미 저장돼 있어도 200. 없는 장소면 404. JWT 필요.")
+    ApiResponse<Void> bookmark(
+            @Parameter(description = "장소 id") Long placeId,
+            @Parameter(hidden = true) Long memberId);
+
+    @Operation(summary = "북마크 해제", description = "장소 북마크를 해제한다. 멱등 — 북마크가 없어도 200. JWT 필요.")
+    ApiResponse<Void> unbookmark(
+            @Parameter(description = "장소 id") Long placeId,
+            @Parameter(hidden = true) Long memberId);
 }
