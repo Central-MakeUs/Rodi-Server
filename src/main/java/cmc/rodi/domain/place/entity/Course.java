@@ -12,6 +12,7 @@ import jakarta.persistence.Enumerated;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.OneToMany;
 import jakarta.persistence.OrderBy;
+import jakarta.persistence.OrderColumn;
 import jakarta.persistence.PrimaryKeyJoinColumn;
 import jakarta.persistence.Table;
 import java.util.ArrayList;
@@ -39,8 +40,12 @@ public class Course extends Place {
     @Column(name = "distance_meters")
     private Integer distanceMeters;
 
-    @Column(columnDefinition = "text")
-    private String cautions;
+    /** 주의사항(칩). course_caution(course_id, caution, seq)에 순서대로 저장. */
+    @ElementCollection
+    @CollectionTable(name = "course_caution", joinColumns = @JoinColumn(name = "course_id"))
+    @OrderColumn(name = "seq")
+    @Column(name = "caution", length = 100)
+    private List<String> cautions = new ArrayList<>();
 
     /** 연습 태그. course_practice_type(course_id, practice_type)에 enum 이름으로 저장. */
     @ElementCollection
@@ -60,16 +65,19 @@ public class Course extends Place {
             String description,
             String address,
             Point location,
-            Integer distanceMeters,
-            String cautions) {
+            Integer distanceMeters) {
         super(name, address, location);
         this.description = description;
         this.distanceMeters = distanceMeters;
-        this.cautions = cautions;
     }
 
     public void addTag(PracticeType tag) {
         this.tags.add(tag);
+    }
+
+    /** 주의사항 추가(입력 순서대로 저장). */
+    public void addCaution(String caution) {
+        this.cautions.add(caution);
     }
 
     /** 경로점 추가(cascade로 함께 저장). 양방향 연관을 여기서 세팅한다. */
