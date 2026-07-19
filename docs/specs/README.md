@@ -26,3 +26,4 @@
 | [회원 탈퇴](003-member-withdrawal.md) | 단계적 탈퇴·복구·익명화 배치 | Draft |
 | [온보딩](004-onboarding.md) | 닉네임 자동 부여·운전 경험/추가정보 수집·레벨 배정 | Draft |
 | [코스 탐색](005-place-course-discovery.md) | 장소/코스/주차장 조회(마커·거리순 목록·상세)·북마크 | Draft |
+| [마이페이지](006-mypage.md) | 프로필 요약(레벨·추천 태그·저장 수)·운전목표 수정·저장 목록 | Approved |
