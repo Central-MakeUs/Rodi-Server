@@ -1,5 +1,6 @@
 package cmc.rodi.domain.member.controller;
 
+import cmc.rodi.domain.member.dto.MemberUpdateRequest;
 import cmc.rodi.domain.member.dto.OnboardingRequest;
 import cmc.rodi.global.common.response.ApiResponse;
 import io.swagger.v3.oas.annotations.Operation;
@@ -16,6 +17,12 @@ public interface MemberControllerDocs {
                     "탈퇴를 요청한다(Day 0, soft delete). 서버 세션(refresh)이 전체 폐기된다. "
                             + "유예기간(3일) 내 동일 소셜 재로그인 시 복구 안내를 받는다.")
     ApiResponse<Void> withdraw(@Parameter(hidden = true) Long memberId);
+
+    @Operation(
+            summary = "회원 정보 수정(마이페이지)",
+            description = "회원 정보를 부분 수정한다. 현재 수정 가능 필드는 운전 목표(최대 30자, 빈값이면 삭제). JWT 필요.")
+    ApiResponse<Void> updateMe(
+            @Parameter(hidden = true) Long memberId, MemberUpdateRequest request);
 
     @Operation(
             summary = "온보딩 제출",

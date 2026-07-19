@@ -4,11 +4,14 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.verify;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import cmc.rodi.domain.member.dto.MemberUpdateRequest;
 import cmc.rodi.domain.member.dto.OnboardingRequest;
+import cmc.rodi.domain.member.service.MemberProfileService;
 import cmc.rodi.domain.member.service.MemberWithdrawalService;
 import cmc.rodi.domain.member.service.OnboardingService;
 import cmc.rodi.global.auth.jwt.JwtAuthenticationFilter;
@@ -53,6 +56,7 @@ class MemberControllerTest {
 
     @MockitoBean MemberWithdrawalService memberWithdrawalService;
     @MockitoBean OnboardingService onboardingService;
+    @MockitoBean MemberProfileService memberProfileService;
 
     private static final String ONBOARDING_BODY =
             """
@@ -90,6 +94,35 @@ class MemberControllerTest {
                 .andExpect(jsonPath("$.isSuccess").value(true));
 
         verify(memberWithdrawalService).withdraw(7L);
+    }
+
+    @Test
+    @DisplayName("회원 수정: 200 + @CurrentMember의 회원 id로 서비스 위임")
+    void 회원_수정() throws Exception {
+        authenticate(7L);
+
+        mockMvc.perform(
+                        patch("/api/v1/members/me")
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content("{\"drivingGoal\":\"골목길에 익숙해지기\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.isSuccess").value(true));
+
+        verify(memberProfileService).update(eq(7L), any(MemberUpdateRequest.class));
+    }
+
+    @Test
+    @DisplayName("회원 수정: 운전목표 30자 초과 시 400")
+    void 회원_수정_길이초과_400() throws Exception {
+        authenticate(7L);
+        String tooLong = "가".repeat(31);
+
+        mockMvc.perform(
+                        patch("/api/v1/members/me")
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content("{\"drivingGoal\":\"" + tooLong + "\"}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.isSuccess").value(false));
     }
 
     @Test
