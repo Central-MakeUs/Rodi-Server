@@ -1,6 +1,7 @@
 package cmc.rodi.domain.place;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -14,7 +15,9 @@ import cmc.rodi.domain.place.entity.PlaceType;
 import cmc.rodi.domain.place.repository.CourseRepository;
 import cmc.rodi.domain.place.repository.ParkingRepository;
 import cmc.rodi.domain.place.service.PlaceQueryService;
+import cmc.rodi.global.common.pagination.CursorCodec;
 import cmc.rodi.global.common.pagination.CursorPage;
+import cmc.rodi.global.exception.BusinessException;
 import cmc.rodi.support.TestcontainersConfiguration;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -127,6 +130,15 @@ class PlaceListIntegrationTest {
         assertThat(page2.hasNext()).isFalse();
         assertThat(page2.nextCursor()).isNull();
         assertThat(page2.totalCount()).isNull(); // 다음 페이지엔 totalCount 생략
+    }
+
+    @Test
+    @DisplayName("변조 커서(거리값 비정상)는 INVALID_INPUT_VALUE")
+    void 변조_커서() {
+        // 디코드는 되지만 sortValue가 숫자가 아닌 커서 → 400(파싱 예외가 500으로 새지 않음)
+        String tampered = CursorCodec.encode("abc", 1L);
+        assertThatThrownBy(() -> placeQueryService.getPlaces(request(2, tampered)))
+                .isInstanceOf(BusinessException.class);
     }
 
     @Test

@@ -46,7 +46,7 @@ public class PlaceQueryService {
     @Transactional(readOnly = true)
     public CursorPage<PlaceListItem> getPlaces(PlaceListRequest req) {
         CursorCodec.Cursor cursor = req.cursor() == null ? null : CursorCodec.decode(req.cursor());
-        Double cursorDistance = cursor == null ? null : Double.parseDouble(cursor.sortValue());
+        Double cursorDistance = cursor == null ? null : parseCursorDistance(cursor.sortValue());
         Long cursorId = cursor == null ? null : cursor.id();
 
         // size+1 조회로 다음 페이지 존재 판별
@@ -84,6 +84,20 @@ public class PlaceQueryService {
             return CursorPage.first(items, hasNext, nextCursor, totalCount);
         }
         return CursorPage.next(items, hasNext, nextCursor);
+    }
+
+    /** 커서의 거리값 파싱·검증. 변조로 숫자가 아니거나 비정상(NaN·무한·음수)이면 잘못된 커서로 본다. */
+    private static Double parseCursorDistance(String sortValue) {
+        double distance;
+        try {
+            distance = Double.parseDouble(sortValue);
+        } catch (NumberFormatException e) {
+            throw new BusinessException(ErrorCode.INVALID_INPUT_VALUE);
+        }
+        if (!Double.isFinite(distance) || distance < 0) {
+            throw new BusinessException(ErrorCode.INVALID_INPUT_VALUE);
+        }
+        return distance;
     }
 
     /** 장소 상세(#3·#4 통합). placeId가 타입을 결정하므로 조회 후 타입별 블록으로 응답한다. 없으면 404. */
