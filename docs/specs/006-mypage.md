@@ -31,13 +31,13 @@
 
 | Method | Path | 설명 | 인증 |
 |--------|------|------|------|
-| GET | /api/v1/members/me | 마이페이지 요약 | JWT |
+| GET | /api/v1/members/me | 마이페이지 조회 | JWT |
 | PATCH | /api/v1/members/me | 회원 부분 수정(현재: 운전목표) | JWT |
 | GET | /api/v1/places/bookmarks | 저장한 장소 목록(커서) | JWT |
 
-> **도메인 배치**: 마이페이지 요약·회원수정은 **member 도메인**(`/members/me`). 저장 목록은 반환 아이템이 place 요약(`PlaceListItem`)이라 **place 도메인**(`/places/bookmarks`)에 둔다. 저장 개수는 place 도메인의 북마크 조회 서비스(`countByMember`)를 member 요약 서비스가 호출해 조합한다(member → place 읽기 의존).
+> **도메인 배치**: 마이페이지 조회·회원수정은 **member 도메인**(`/members/me`). 저장 목록은 반환 아이템이 place 요약(`PlaceListItem`)이라 **place 도메인**(`/places/bookmarks`)에 둔다. 저장 개수는 place 도메인의 북마크 조회 서비스(`countByMember`)를 member 요약 서비스가 호출해 조합한다(member → place 읽기 의존).
 
-### 1. 마이페이지 요약
+### 1. 마이페이지 조회
 ```json
 // GET /api/v1/members/me   (JWT)
 // Response data

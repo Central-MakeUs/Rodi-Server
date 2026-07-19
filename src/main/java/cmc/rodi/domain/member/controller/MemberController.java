@@ -1,6 +1,7 @@
 package cmc.rodi.domain.member.controller;
 
 import cmc.rodi.domain.member.dto.MemberUpdateRequest;
+import cmc.rodi.domain.member.dto.MyPageResponse;
 import cmc.rodi.domain.member.dto.OnboardingRequest;
 import cmc.rodi.domain.member.service.MemberProfileService;
 import cmc.rodi.domain.member.service.MemberWithdrawalService;
@@ -10,6 +11,7 @@ import cmc.rodi.global.common.response.ApiResponse;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.DeleteMapping;
+import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -25,6 +27,12 @@ public class MemberController implements MemberControllerDocs {
     private final MemberWithdrawalService memberWithdrawalService;
     private final OnboardingService onboardingService;
     private final MemberProfileService memberProfileService;
+
+    @Override
+    @GetMapping("/me")
+    public ApiResponse<MyPageResponse> getMyPage(@CurrentMember Long memberId) {
+        return ApiResponse.success(memberProfileService.getMyPage(memberId));
+    }
 
     @Override
     @DeleteMapping("/me")

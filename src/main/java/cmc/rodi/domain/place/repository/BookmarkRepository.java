@@ -11,6 +11,9 @@ public interface BookmarkRepository extends JpaRepository<Bookmark, Long> {
     /** 장소의 북마크 수(상세 응답용). */
     long countByPlaceId(Long placeId);
 
+    /** 회원이 저장한 장소 수(마이페이지·저장 목록 totalCount용). */
+    long countByMemberId(Long memberId);
+
     /** 현재 회원이 이 장소를 북마크했는지. */
     boolean existsByMemberIdAndPlaceId(Long memberId, Long placeId);
 

@@ -1,6 +1,7 @@
 package cmc.rodi.domain.member.controller;
 
 import cmc.rodi.domain.member.dto.MemberUpdateRequest;
+import cmc.rodi.domain.member.dto.MyPageResponse;
 import cmc.rodi.domain.member.dto.OnboardingRequest;
 import cmc.rodi.global.common.response.ApiResponse;
 import io.swagger.v3.oas.annotations.Operation;
@@ -10,6 +11,13 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 /** 회원 API의 Swagger 문서 스펙. 매핑·구현은 {@link MemberController}. */
 @Tag(name = "Member", description = "회원")
 public interface MemberControllerDocs {
+
+    @Operation(
+            summary = "마이페이지 조회",
+            description =
+                    "닉네임·레벨·레벨별 추천 태그(표시용 코드)·운전목표·저장한 장소 수를 반환한다. "
+                            + "추천 태그는 레벨 고정 매핑(NAVIGATOR는 활동 태그). JWT 필요.")
+    ApiResponse<MyPageResponse> getMyPage(@Parameter(hidden = true) Long memberId);
 
     @Operation(
             summary = "회원 탈퇴 요청",
