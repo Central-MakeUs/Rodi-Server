@@ -8,6 +8,7 @@
 | 2026-07-17 | Draft | 미해결 질문 확정 반영(레벨별 추천 매핑, 저장=장소 전체, distanceFromMe null, 목표 빈값 허용, 회원 부분수정 일반화) |
 | 2026-07-17 | Draft | 추천을 라벨 없는 `recommendationTags: List<String>` 고정 매핑으로 확정(한글은 문서에만). 미해결 질문 전부 해소 |
 | 2026-07-17 | Approved | 사용자 승인 — 구현 가능 |
+| 2026-07-17 | Implemented | 3개 API 구현 완료. `PlaceListItem.distanceFromMe`를 `Long`(nullable)로 변경해 저장 목록과 공용, 저장 목록은 bookmark.id 내림차순 커서(저장 시각순 등가) |
 
 ## 배경 / 목적
 
@@ -114,14 +115,14 @@ GET /api/v1/places/bookmarks?size=20&cursor=   (JWT)
 
 ## 완료 조건 (Acceptance Criteria)
 
-- [ ] `GET /members/me`가 닉네임·레벨·추천 태그·운전목표·저장 수를 반환한다.
-- [ ] 레벨별 `recommendationTags`가 매핑표대로 반환된다(5개 레벨 각 검증, NAVIGATOR는 액션 코드).
-- [ ] `PATCH /members/me`로 운전목표가 변경되고 재조회 시 반영된다. 빈값으로 지울 수 있고, 30자 초과는 400.
-- [ ] `GET /places/bookmarks`가 저장 시각 최신순으로 코스+주차장을 반환하고 `size`만큼 끊어 `hasNext`·`nextCursor`로 이어진다(2페이지 연속성).
-- [ ] `totalCount`가 저장 수와 일치하고, 마이페이지 `savedPlaceCount`와 동일하다.
-- [ ] 저장 목록 아이템이 `PlaceListItem`과 동일 구조이고 `distanceFromMe`는 `null`이다.
-- [ ] 3개 API 모두 미인증 시 401.
-- [ ] 관련 테스트 통과 (`./gradlew test`).
+- [x] `GET /members/me`가 닉네임·레벨·추천 태그·운전목표·저장 수를 반환한다.
+- [x] 레벨별 `recommendationTags`가 매핑표대로 반환된다(5개 레벨 각 검증, NAVIGATOR는 액션 코드).
+- [x] `PATCH /members/me`로 운전목표가 변경되고 재조회 시 반영된다. 빈값으로 지울 수 있고, 30자 초과는 400.
+- [x] `GET /places/bookmarks`가 저장 시각 최신순으로 코스+주차장을 반환하고 `size`만큼 끊어 `hasNext`·`nextCursor`로 이어진다(2페이지 연속성).
+- [x] `totalCount`가 저장 수와 일치하고, 마이페이지 `savedPlaceCount`와 동일하다.
+- [x] 저장 목록 아이템이 `PlaceListItem`과 동일 구조이고 `distanceFromMe`는 `null`이다.
+- [x] 3개 API 모두 미인증 시 401.
+- [x] 관련 테스트 통과 (`./gradlew test`).
 
 ## 미해결 질문
 

@@ -4,6 +4,7 @@ import cmc.rodi.domain.place.dto.PlaceCoordinateResponse;
 import cmc.rodi.domain.place.dto.PlaceDetailResponse;
 import cmc.rodi.domain.place.dto.PlaceListItem;
 import cmc.rodi.domain.place.dto.PlaceListRequest;
+import cmc.rodi.domain.place.service.BookmarkQueryService;
 import cmc.rodi.domain.place.service.BookmarkService;
 import cmc.rodi.domain.place.service.PlaceQueryService;
 import cmc.rodi.global.auth.resolver.CurrentMember;
@@ -27,6 +28,7 @@ public class PlaceController implements PlaceControllerDocs {
 
     private final PlaceQueryService placeQueryService;
     private final BookmarkService bookmarkService;
+    private final BookmarkQueryService bookmarkQueryService;
 
     @Override
     @GetMapping("/coordinates")
@@ -48,6 +50,15 @@ public class PlaceController implements PlaceControllerDocs {
         return ApiResponse.success(
                 placeQueryService.getPlaces(
                         new PlaceListRequest(swLat, swLng, neLat, neLng, lat, lng, size, cursor)));
+    }
+
+    @Override
+    @GetMapping("/bookmarks")
+    public ApiResponse<CursorPage<PlaceListItem>> getSavedPlaces(
+            @CurrentMember Long memberId,
+            @RequestParam(defaultValue = "20") int size,
+            @RequestParam(required = false) String cursor) {
+        return ApiResponse.success(bookmarkQueryService.getSavedPlaces(memberId, size, cursor));
     }
 
     @Override
