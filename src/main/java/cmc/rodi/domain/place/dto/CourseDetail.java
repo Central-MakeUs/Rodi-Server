@@ -4,6 +4,7 @@ import cmc.rodi.domain.place.entity.Course;
 import cmc.rodi.domain.place.entity.WaypointType;
 import io.swagger.v3.oas.annotations.media.Schema;
 import java.util.List;
+import java.util.Objects;
 
 /** 장소 상세의 코스 전용 블록({@link PlaceDetailResponse#course()}). 주차장이면 null. */
 public record CourseDetail(
@@ -32,10 +33,9 @@ public record CourseDetail(
                                                 w.getLocation().getX(), // 경도
                                                 w.getName()))
                         .toList();
+        // @OrderColumn(seq)이 0-based가 아닌 데이터면 Hibernate가 빈 인덱스를 null로 채운다 → null 제거
+        List<String> cautions = course.getCautions().stream().filter(Objects::nonNull).toList();
         return new CourseDetail(
-                course.getDescription(),
-                List.copyOf(course.getCautions()),
-                course.getDistanceMeters(),
-                waypoints);
+                course.getDescription(), cautions, course.getDistanceMeters(), waypoints);
     }
 }
