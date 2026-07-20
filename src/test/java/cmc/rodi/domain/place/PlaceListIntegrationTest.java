@@ -30,13 +30,15 @@ import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMock
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.annotation.Import;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.transaction.annotation.Transactional;
 
 /**
  * U4: 현위치 목록(#2) — 뷰포트 bbox 필터·거리순·커서 2페이지·totalCount·코스/주차장 폴리모픽을 실제 DB로 검증. 다른 테스트(서울 좌표)와 겹치지 않게
- * 부산 좌표로 격리한다.
+ * 부산 좌표로 격리한다. {@code @Transactional}로 각 테스트를 롤백해 seed()가 누적되지 않게 한다(totalCount가 실행 순서에 무관).
  */
 @SpringBootTest
 @AutoConfigureMockMvc
+@Transactional
 @Import(TestcontainersConfiguration.class)
 class PlaceListIntegrationTest {
 
@@ -130,6 +132,24 @@ class PlaceListIntegrationTest {
         assertThat(page2.hasNext()).isFalse();
         assertThat(page2.nextCursor()).isNull();
         assertThat(page2.totalCount()).isNull(); // 다음 페이지엔 totalCount 생략
+    }
+
+    @Test
+    @DisplayName("잘못된 입력(size·좌표 범위·sw>ne)은 400(BusinessException)")
+    void 잘못된_입력() {
+        // size 범위 밖
+        assertThatThrownBy(() -> request(0, null)).isInstanceOf(BusinessException.class);
+        assertThatThrownBy(() -> request(101, null)).isInstanceOf(BusinessException.class);
+        // 위도 범위 밖
+        assertThatThrownBy(
+                        () -> new PlaceListRequest(35.1, 129.0, 35.2, 129.1, 200, 129.05, 20, null))
+                .isInstanceOf(BusinessException.class);
+        // 남서 > 북동
+        assertThatThrownBy(
+                        () ->
+                                new PlaceListRequest(
+                                        35.3, 129.0, 35.2, 129.1, 35.15, 129.05, 20, null))
+                .isInstanceOf(BusinessException.class);
     }
 
     @Test
