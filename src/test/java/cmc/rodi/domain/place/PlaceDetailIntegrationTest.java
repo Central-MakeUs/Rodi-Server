@@ -22,6 +22,8 @@ import cmc.rodi.domain.place.service.PlaceQueryService;
 import cmc.rodi.global.exception.BusinessException;
 import cmc.rodi.support.TestcontainersConfiguration;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import jakarta.persistence.EntityManager;
+import jakarta.persistence.PersistenceContext;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.locationtech.jts.geom.Coordinate;
@@ -33,6 +35,7 @@ import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMock
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.annotation.Import;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.transaction.annotation.Transactional;
 
 /** 장소 상세 통합(#3·#4) — placeId로 조회 후 타입별 블록(course/parking) 응답·북마크·404·401·경로 충돌 검증. */
 @SpringBootTest
@@ -49,6 +52,7 @@ class PlaceDetailIntegrationTest {
     @Autowired MemberRepository memberRepository;
     @Autowired MockMvc mockMvc;
     @Autowired ObjectMapper objectMapper;
+    @PersistenceContext EntityManager em;
 
     private static Point point(double lat, double lng) {
         return GEO.createPoint(new Coordinate(lng, lat));
@@ -71,6 +75,27 @@ class PlaceDetailIntegrationTest {
         course.addWaypoint(WaypointType.VIA, (short) 1, point(37.52, 127.04), "경유1");
         course.addWaypoint(WaypointType.DESTINATION, (short) 2, point(37.53, 127.05), null);
         return courseRepository.save(course);
+    }
+
+    @Test
+    @Transactional
+    @DisplayName("course_caution seq가 0-based 아니어도(널 채움) 상세가 NPE 없이 반환")
+    void 코스_주의사항_비0베이스_seq() {
+        Course course =
+                courseRepository.save(
+                        Course.builder().name("코스").location(point(37.5, 127.0)).build());
+        Member me = memberRepository.save(Member.createBySocial("caution@kakao.com"));
+        // seq=1만 삽입(0 없음) → @OrderColumn이 index 0을 null로 채워 List.copyOf가 NPE 나던 케이스
+        em.createNativeQuery(
+                        "INSERT INTO course_caution (course_id, caution, seq) VALUES (:id, :c, 1)")
+                .setParameter("id", course.getId())
+                .setParameter("c", "야간 조명 부족")
+                .executeUpdate();
+        em.flush();
+        em.clear();
+
+        PlaceDetailResponse res = placeQueryService.getPlaceDetail(course.getId(), me.getId());
+        assertThat(res.course().cautions()).containsExactly("야간 조명 부족"); // null 걸러짐, NPE 없음
     }
 
     @Test
