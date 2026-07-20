@@ -29,3 +29,4 @@
 | [0007](0007-flyway-db-migration.md) | DB 스키마 마이그레이션 — Flyway | Accepted |
 | [0008](0008-social-login.md) | 소셜 로그인 전략 | Accepted |
 | [0009](0009-authentication-authorization.md) | 사용자 인증/인가 전략 | Accepted |
+| [0010](0010-list-query-cursor-postgis.md) | 목록 조회 전략 — 커서 페이지네이션 (QueryDSL 배제) | Accepted |
