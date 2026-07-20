@@ -1,6 +1,5 @@
 package cmc.rodi.domain.place.service;
 
-import cmc.rodi.domain.member.entity.PracticeType;
 import cmc.rodi.domain.place.dto.PlaceCoordinateResponse;
 import cmc.rodi.domain.place.dto.PlaceDetailResponse;
 import cmc.rodi.domain.place.dto.PlaceListItem;
@@ -141,46 +140,10 @@ public class PlaceQueryService {
 
     private PlaceListItem toItem(
             PlaceListRow row, Map<Long, Course> coursesById, Map<Long, Parking> parkingsById) {
-        PlaceType type = PlaceType.valueOf(row.getPlaceType());
         long distanceFromMe = Math.round(row.getDistance());
-        if (type == PlaceType.COURSE) {
-            Course course = coursesById.get(row.getId());
-            return new PlaceListItem(
-                    row.getId(),
-                    type,
-                    row.getName(),
-                    row.getAddress(),
-                    row.getLat(),
-                    row.getLng(),
-                    distanceFromMe,
-                    List.copyOf(course.getTags()), // 코스 연습 태그
-                    course.getDescription(),
-                    course.getDistanceMeters(),
-                    null,
-                    null);
+        if (PlaceType.COURSE.name().equals(row.getPlaceType())) {
+            return PlaceListItem.ofCourse(coursesById.get(row.getId()), distanceFromMe);
         }
-        Parking parking = parkingsById.get(row.getId());
-        return new PlaceListItem(
-                row.getId(),
-                type,
-                row.getName(),
-                row.getAddress(),
-                row.getLat(),
-                row.getLng(),
-                distanceFromMe,
-                List.of(PracticeType.PARKING), // 주차장은 항상 주차
-                null,
-                null,
-                parking.getCapacity(),
-                openTime(parking.getWeekdayHours()));
-    }
-
-    /** 영업시간("00:00-23:59")에서 시작 시각만 추출. 없으면 null. */
-    private String openTime(String weekdayHours) {
-        if (weekdayHours == null || weekdayHours.isBlank()) {
-            return null;
-        }
-        int dash = weekdayHours.indexOf('-');
-        return dash < 0 ? weekdayHours : weekdayHours.substring(0, dash);
+        return PlaceListItem.ofParking(parkingsById.get(row.getId()), distanceFromMe);
     }
 }

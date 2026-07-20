@@ -35,6 +35,16 @@ public interface PlaceControllerDocs {
             @Parameter(description = "다음 페이지 커서(없으면 첫 페이지)") String cursor);
 
     @Operation(
+            summary = "저장한 장소 목록",
+            description =
+                    "현재 회원이 북마크한 장소(코스+주차장)를 최신 저장순으로 커서 페이징한다. 아이템은 현위치 목록과 동일하되 "
+                            + "현위치가 없어 distanceFromMe는 null. totalCount는 첫 페이지에서만. JWT 필요.")
+    ApiResponse<CursorPage<PlaceListItem>> getSavedPlaces(
+            @Parameter(hidden = true) Long memberId,
+            @Parameter(description = "페이지 크기(기본 20)") int size,
+            @Parameter(description = "다음 페이지 커서(없으면 첫 페이지)") String cursor);
+
+    @Operation(
             summary = "장소 상세(코스·주차장 통합)",
             description =
                     "placeId가 타입을 결정하므로 엔드포인트를 나누지 않는다. 공통 필드(이름·주소·좌표·북마크 수/여부)에 더해 "

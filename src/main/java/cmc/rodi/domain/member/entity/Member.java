@@ -83,6 +83,11 @@ public class Member extends BaseEntity {
         this.drivingGoal = drivingGoal;
     }
 
+    /** 운전 목표 수정(마이페이지). 빈값이면 목표 없음(null)으로 지운다. */
+    public void updateDrivingGoal(String drivingGoal) {
+        this.drivingGoal = (drivingGoal == null || drivingGoal.isBlank()) ? null : drivingGoal;
+    }
+
     /** 익명화 — 유예기간 경과 후 개인정보 제거. */
     public void anonymize(LocalDateTime now) {
         this.nickname = null;
