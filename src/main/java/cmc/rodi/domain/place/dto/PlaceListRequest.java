@@ -35,13 +35,13 @@ public record PlaceListRequest(
     }
 
     private static void checkLat(double v) {
-        if (v < -90 || v > 90) {
+        if (!(v >= -90 && v <= 90)) {
             throw new BusinessException(ErrorCode.INVALID_INPUT_VALUE);
         }
     }
 
     private static void checkLng(double v) {
-        if (v < -180 || v > 180) {
+        if (!(v >= -180 && v <= 180)) {
             throw new BusinessException(ErrorCode.INVALID_INPUT_VALUE);
         }
     }
