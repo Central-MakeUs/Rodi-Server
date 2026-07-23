@@ -4,6 +4,7 @@ import cmc.rodi.domain.place.dto.PlaceCoordinateResponse;
 import cmc.rodi.domain.place.dto.PlaceDetailResponse;
 import cmc.rodi.domain.place.dto.PlaceListItem;
 import cmc.rodi.domain.place.dto.PlaceListRequest;
+import cmc.rodi.domain.place.dto.PlaceSearchRequest;
 import cmc.rodi.domain.place.entity.Course;
 import cmc.rodi.domain.place.entity.Parking;
 import cmc.rodi.domain.place.entity.Place;
@@ -81,6 +82,41 @@ public class PlaceQueryService {
                     placeRepository.countInViewport(
                             req.swLat(), req.swLng(), req.neLat(), req.neLng());
             return CursorPage.first(items, hasNext, nextCursor, totalCount);
+        }
+        return CursorPage.next(items, hasNext, nextCursor);
+    }
+
+    /** 주소(시군구) 키워드 검색(스펙 007). 전국 대상, 현위치 거리순 커서 페이징 — 목록(#2)과 동일한 커서·아이템 규칙. */
+    @Transactional(readOnly = true)
+    public CursorPage<PlaceListItem> searchPlaces(PlaceSearchRequest req) {
+        CursorCodec.Cursor cursor = req.cursor() == null ? null : CursorCodec.decode(req.cursor());
+        Double cursorDistance = cursor == null ? null : parseCursorDistance(cursor.sortValue());
+        Long cursorId = cursor == null ? null : cursor.id();
+        String pattern = req.likePattern();
+
+        // size+1 조회로 다음 페이지 존재 판별
+        List<PlaceListRow> rows =
+                placeRepository.searchByAddress(
+                        pattern, req.lat(), req.lng(), cursorDistance, cursorId, req.size() + 1);
+
+        boolean hasNext = rows.size() > req.size();
+        List<PlaceListRow> page = hasNext ? rows.subList(0, req.size()) : rows;
+
+        Map<Long, Course> coursesById = loadCourses(page);
+        Map<Long, Parking> parkingsById = loadParkings(page);
+        List<PlaceListItem> items =
+                page.stream().map(row -> toItem(row, coursesById, parkingsById)).toList();
+
+        String nextCursor = null;
+        if (hasNext) {
+            PlaceListRow last = page.get(page.size() - 1);
+            nextCursor = CursorCodec.encode(String.valueOf(last.getDistance()), last.getId());
+        }
+
+        // totalCount는 첫 페이지(커서 없음)에서만 계산 — 매 페이지 count 쿼리 방지
+        if (cursor == null) {
+            return CursorPage.first(
+                    items, hasNext, nextCursor, placeRepository.countByAddress(pattern));
         }
         return CursorPage.next(items, hasNext, nextCursor);
     }

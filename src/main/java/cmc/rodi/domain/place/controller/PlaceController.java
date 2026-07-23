@@ -4,6 +4,7 @@ import cmc.rodi.domain.place.dto.PlaceCoordinateResponse;
 import cmc.rodi.domain.place.dto.PlaceDetailResponse;
 import cmc.rodi.domain.place.dto.PlaceListItem;
 import cmc.rodi.domain.place.dto.PlaceListRequest;
+import cmc.rodi.domain.place.dto.PlaceSearchRequest;
 import cmc.rodi.domain.place.service.BookmarkQueryService;
 import cmc.rodi.domain.place.service.BookmarkService;
 import cmc.rodi.domain.place.service.PlaceQueryService;
@@ -50,6 +51,19 @@ public class PlaceController implements PlaceControllerDocs {
         return ApiResponse.success(
                 placeQueryService.getPlaces(
                         new PlaceListRequest(swLat, swLng, neLat, neLng, lat, lng, size, cursor)));
+    }
+
+    @Override
+    @GetMapping("/search")
+    public ApiResponse<CursorPage<PlaceListItem>> searchPlaces(
+            @RequestParam String keyword,
+            @RequestParam double lat,
+            @RequestParam double lng,
+            @RequestParam(defaultValue = "20") int size,
+            @RequestParam(required = false) String cursor) {
+        return ApiResponse.success(
+                placeQueryService.searchPlaces(
+                        new PlaceSearchRequest(keyword, lat, lng, size, cursor)));
     }
 
     @Override
