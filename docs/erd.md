@@ -150,7 +150,7 @@ erDiagram
 |------|-----|
 | `member.level` | SEED / ROOKIE / OWNER / EXPLORER / NAVIGATOR |
 | `member_onboarding.car_type` | LIGHT(경차) / COMPACT(소형차) / MIDSIZE(중형차) / SEMI_LARGE(준대형) / LARGE(대형차) / SUV |
-| `member_onboarding.driving_period` (Q1) | UNDER_1_MONTH / MONTHS_1_3 / MONTHS_3_6 / MONTHS_6_12 / YEARS_1_2 / YEARS_2_10 / OVER_10_YEARS |
+| `member_onboarding.driving_period` (Q1) | UNDER_1_MONTH / MONTHS_1_2 / MONTHS_3_5 / MONTHS_6_11 / YEARS_1_2 / YEARS_3_9 / OVER_10_YEARS |
 | `member_onboarding.recent_frequency` (Q2) | RARELY / MONTHLY_1_2 / WEEKLY_1 / WEEKLY_2_3 / WEEKLY_4_PLUS |
 | `member_onboarding.road_experiences` (Q3, jsonb 복수) | NONE / ACCOMPANIED / PROFESSIONAL_TRAINING / SOLO |
 | `member_onboarding.solo_driving_range` (Q4) | NEAR_HOME / FAMILIAR_ROAD / UNFAMILIAR_ROAD / HIGHWAY_LONG |
@@ -160,7 +160,7 @@ erDiagram
 | `waypoint.waypoint_type` | START(출발지) / VIA(경유지) / DESTINATION(목적지) |
 | `course_practice_type.practice_type` | `PracticeType` 재사용(U_TURN … STRAIGHT, 13종) |
 
-> `member.level`: **클라이언트가** 운전 경험 점수(0~14)를 5단계로 변환해 전송(Q1 `2~10년`/`10년 이상`→NAVIGATOR 강제 포함). 서버는 enum 검증 후 `member.level`에 저장(점수는 미저장). 상세: [스펙 004-onboarding](specs/004-onboarding.md).
+> `member.level`: **클라이언트가** 운전 경험 점수(0~14)를 5단계로 변환해 전송(Q1 `3~9년`/`10년 이상`→NAVIGATOR 강제 포함). 서버는 enum 검증 후 `member.level`에 저장(점수는 미저장). 상세: [스펙 004-onboarding](specs/004-onboarding.md).
 
 ## 엔티티 요약
 

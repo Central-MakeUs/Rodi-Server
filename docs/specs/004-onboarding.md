@@ -10,6 +10,7 @@
 | 2026-07-11 | Draft | 요청을 점수 대신 **레벨**로 변경(클라가 점수→레벨 변환·전송, 서버는 enum 검증 후 저장) |
 | 2026-07-11 | Draft | 온보딩 API 구현 — 응답 200만(데이터 없음), 추천유형 매핑은 클라 소유로 확정, `LEFT_TURN`→`LEFT_RIGHT_TURN`, 홈 정렬은 별도 기능 |
 | 2026-07-12 | Draft | 문항 필수 재정의(V6) — 필수는 Q1·level뿐, Q2~Q4 선택(Q1 상위값→Navigator skip, Q4-1·Q4-2는 Q3=혼자연습일 때만). soloDrivingRange=Q4-1, soloParkingLevel=Q4-2 |
+| 2026-07-23 | Draft | Q1 구간 개편 — MONTHS_1_2/MONTHS_3_5/MONTHS_6_11/YEARS_3_9로 재정의(1개월 미만·1~2년·10년 이상 유지), Navigator 강제 기준 `YEARS_3_9`+`OVER_10_YEARS`. 기존 데이터는 V8에서 근사 backfill(1~3개월→1~2개월, 3~6개월→3~5개월, 6~12개월→6~11개월, 2~10년→3~9년) |
 
 ## 배경 / 목적
 
@@ -75,7 +76,7 @@
 
 | Enum | 값 |
 |------|-----|
-| `driving_period` (Q1) | UNDER_1_MONTH / MONTHS_1_3 / MONTHS_3_6 / MONTHS_6_12 / YEARS_1_2 / YEARS_2_10 / OVER_10_YEARS |
+| `driving_period` (Q1) | UNDER_1_MONTH / MONTHS_1_2 / MONTHS_3_5 / MONTHS_6_11 / YEARS_1_2 / YEARS_3_9 / OVER_10_YEARS |
 | `recent_frequency` (Q2) | RARELY / MONTHLY_1_2 / WEEKLY_1 / WEEKLY_2_3 / WEEKLY_4_PLUS |
 | `road_experience` (Q3, 복수) | NONE / ACCOMPANIED / PROFESSIONAL_TRAINING / SOLO |
 | `solo_driving_range` (Q4-1) | NEAR_HOME / FAMILIAR_ROAD / UNFAMILIAR_ROAD / HIGHWAY_LONG |
@@ -88,7 +89,7 @@
 
 레벨 변환은 **클라이언트가** 하며(서버는 결과 레벨만 저장), 아래는 클라이언트와 합의한 규칙이다.
 
-- **강제 배정**: Q1(`driving_period`) ∈ { `YEARS_2_10`, `OVER_10_YEARS` } → **NAVIGATOR** (점수 무관).
+- **강제 배정**: Q1(`driving_period`) ∈ { `YEARS_3_9`, `OVER_10_YEARS` } → **NAVIGATOR** (점수 무관).
 - 그 외 최종 점수 기준:
 
 | 총점 | 레벨 |
@@ -126,7 +127,7 @@
 ```json
 // Request
 {
-  "drivingPeriod": "YEARS_2_10",
+  "drivingPeriod": "YEARS_3_9",
   "recentFrequency": "MONTHLY_1_2",
   "roadExperiences": ["SOLO"],
   "soloDrivingRange": "HIGHWAY_LONG",
@@ -142,7 +143,7 @@
 ```
 
 - **필수는 Q1(`drivingPeriod`)·`level`뿐.** Q2·Q3·Q4-1·Q4-2·추가정보는 모두 선택. 문항 흐름(클라이언트):
-  - Q1이 `YEARS_2_10`/`OVER_10_YEARS` → 후속 질문 건너뛰고 Navigator 배정(다음 버튼 즉시 활성) → Q2~Q4 값 없음
+  - Q1이 `YEARS_3_9`/`OVER_10_YEARS` → 후속 질문 건너뛰고 Navigator 배정(다음 버튼 즉시 활성) → Q2~Q4 값 없음
   - Q4-1·Q4-2는 **Q3에서 `SOLO`(혼자 연습)를 골랐을 때만** 입력
 - `practiceTypes`: 순서 = 우선순위(1~3순위), 최대 3개(선택).
 - `level`: 유효한 레벨 enum(SEED/ROOKIE/OWNER/EXPLORER/NAVIGATOR)인지 검증. 클라이언트가 변환해 전송(점수는 안 받음).
@@ -183,7 +184,7 @@
 
 ## 확정된 결정 (리뷰 반영)
 
-- 레벨 **5단계**(SEED/ROOKIE/OWNER/EXPLORER/NAVIGATOR), 점수대 0-2/3-5/6-9/10-14, Q1 `2~10년`/`10년 이상` → NAVIGATOR 강제.
+- 레벨 **5단계**(SEED/ROOKIE/OWNER/EXPLORER/NAVIGATOR), 점수대 0-2/3-5/6-9/10-14, Q1 `3~9년`/`10년 이상` → NAVIGATOR 강제.
 - 차종은 **사진 기준**(경차/소형차/중형차/준대형/대형차/SUV) — ERD 갱신.
 - **레벨 변환은 클라이언트가 수행**(점수→레벨, Navigator 규칙 포함). 요청은 점수가 아닌 **`level`**을 받고, 서버는 enum 유효성만 검증해 저장.
 - **필수는 Q1(운전 기간)·`level`뿐.** Q2·Q3·Q4-1·Q4-2·추가정보는 선택(Q1 상위값→Navigator로 후속 skip, Q4-1·Q4-2는 Q3=혼자 연습일 때만). soloDrivingRange=Q4-1, soloParkingLevel=Q4-2로 표기.
