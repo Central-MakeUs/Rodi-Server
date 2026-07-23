@@ -65,7 +65,7 @@ class MemberControllerTest {
     private static final String ONBOARDING_BODY =
             """
             {
-              "drivingPeriod": "YEARS_2_10",
+              "drivingPeriod": "YEARS_3_9",
               "recentFrequency": "MONTHLY_1_2",
               "roadExperiences": ["SOLO"],
               "soloDrivingRange": "HIGHWAY_LONG",

@@ -37,7 +37,7 @@ class OnboardingIntegrationTest {
 
     private OnboardingRequest request() {
         return new OnboardingRequest(
-                DrivingPeriod.YEARS_2_10,
+                DrivingPeriod.YEARS_3_9,
                 RecentFrequency.MONTHLY_1_2,
                 List.of(RoadExperience.SOLO, RoadExperience.PROFESSIONAL_TRAINING),
                 SoloDrivingRange.HIGHWAY_LONG,
@@ -66,7 +66,7 @@ class OnboardingIntegrationTest {
         // 원자료는 member_onboarding(1:1)에 저장, jsonb 리스트는 순서 보존
         MemberOnboarding onboarding =
                 memberOnboardingRepository.findById(member.getId()).orElseThrow();
-        assertThat(onboarding.getDrivingPeriod()).isEqualTo(DrivingPeriod.YEARS_2_10);
+        assertThat(onboarding.getDrivingPeriod()).isEqualTo(DrivingPeriod.YEARS_3_9);
         assertThat(onboarding.getRoadExperiences())
                 .containsExactly(RoadExperience.SOLO, RoadExperience.PROFESSIONAL_TRAINING);
         assertThat(onboarding.getPracticeTypes())
