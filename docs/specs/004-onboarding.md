@@ -10,6 +10,7 @@
 | 2026-07-11 | Draft | 요청을 점수 대신 **레벨**로 변경(클라가 점수→레벨 변환·전송, 서버는 enum 검증 후 저장) |
 | 2026-07-11 | Draft | 온보딩 API 구현 — 응답 200만(데이터 없음), 추천유형 매핑은 클라 소유로 확정, `LEFT_TURN`→`LEFT_RIGHT_TURN`, 홈 정렬은 별도 기능 |
 | 2026-07-12 | Draft | 문항 필수 재정의(V6) — 필수는 Q1·level뿐, Q2~Q4 선택(Q1 상위값→Navigator skip, Q4-1·Q4-2는 Q3=혼자연습일 때만). soloDrivingRange=Q4-1, soloParkingLevel=Q4-2 |
+| 2026-07-23 | Draft | Q1 구간 개편 — MONTHS_1_2/MONTHS_3_5/MONTHS_6_11/YEARS_3_9로 재정의(1개월 미만·1~2년·10년 이상 유지), Navigator 강제 기준 `YEARS_3_9`+`OVER_10_YEARS`. 기존 데이터는 V8에서 근사 backfill(1~3개월→1~2개월, 3~6개월→3~5개월, 6~12개월→6~11개월, 2~10년→3~9년) |
 
 ## 배경 / 목적
 
