@@ -47,10 +47,12 @@ public class PlaceController implements PlaceControllerDocs {
             @RequestParam double lat,
             @RequestParam double lng,
             @RequestParam(defaultValue = "20") int size,
-            @RequestParam(required = false) String cursor) {
+            @RequestParam(required = false) String cursor,
+            @CurrentMember(required = false) Long memberId) {
         return ApiResponse.success(
                 placeQueryService.getPlaces(
-                        new PlaceListRequest(swLat, swLng, neLat, neLng, lat, lng, size, cursor)));
+                        new PlaceListRequest(swLat, swLng, neLat, neLng, lat, lng, size, cursor),
+                        memberId));
     }
 
     @Override
@@ -60,10 +62,11 @@ public class PlaceController implements PlaceControllerDocs {
             @RequestParam double lat,
             @RequestParam double lng,
             @RequestParam(defaultValue = "20") int size,
-            @RequestParam(required = false) String cursor) {
+            @RequestParam(required = false) String cursor,
+            @CurrentMember Long memberId) {
         return ApiResponse.success(
                 placeQueryService.searchPlaces(
-                        new PlaceSearchRequest(keyword, lat, lng, size, cursor)));
+                        new PlaceSearchRequest(keyword, lat, lng, size, cursor), memberId));
     }
 
     @Override

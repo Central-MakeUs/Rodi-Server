@@ -3,7 +3,6 @@ package cmc.rodi.domain.place;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import cmc.rodi.domain.member.entity.PracticeType;
@@ -102,7 +101,8 @@ class PlaceSearchIntegrationTest {
     void 주소_부분일치_거리순_커서() {
         seed();
 
-        CursorPage<PlaceListItem> page1 = placeQueryService.searchPlaces(request("대구", 2, null));
+        CursorPage<PlaceListItem> page1 =
+                placeQueryService.searchPlaces(request("대구", 2, null), null);
 
         assertThat(page1.totalCount()).isEqualTo(3L); // 광주·무주소 제외
         assertThat(page1.hasNext()).isTrue();
@@ -125,7 +125,7 @@ class PlaceSearchIntegrationTest {
         assertThat(parking.openTime()).isEqualTo("08:00");
 
         CursorPage<PlaceListItem> page2 =
-                placeQueryService.searchPlaces(request("대구", 2, page1.nextCursor()));
+                placeQueryService.searchPlaces(request("대구", 2, page1.nextCursor()), null);
         assertThat(page2.items()).extracting(PlaceListItem::name).containsExactly("대구-먼코스");
         assertThat(page2.hasNext()).isFalse();
         assertThat(page2.nextCursor()).isNull();
@@ -137,7 +137,8 @@ class PlaceSearchIntegrationTest {
     void 시군구_검색() {
         seed();
 
-        CursorPage<PlaceListItem> page = placeQueryService.searchPlaces(request("수성구", 20, null));
+        CursorPage<PlaceListItem> page =
+                placeQueryService.searchPlaces(request("수성구", 20, null), null);
 
         assertThat(page.items()).extracting(PlaceListItem::name).containsExactly("대구-가까운코스");
         assertThat(page.totalCount()).isEqualTo(1L);
@@ -149,11 +150,13 @@ class PlaceSearchIntegrationTest {
         seed();
 
         // '먼코스'는 어떤 주소에도 없고 name에만 있다 → name 매칭
-        CursorPage<PlaceListItem> byName = placeQueryService.searchPlaces(request("먼코스", 20, null));
+        CursorPage<PlaceListItem> byName =
+                placeQueryService.searchPlaces(request("먼코스", 20, null), null);
         assertThat(byName.items()).extracting(PlaceListItem::name).containsExactly("대구-먼코스");
 
         // 주소가 없는 place도 name으로 검색된다
-        CursorPage<PlaceListItem> noAddr = placeQueryService.searchPlaces(request("무주소", 20, null));
+        CursorPage<PlaceListItem> noAddr =
+                placeQueryService.searchPlaces(request("무주소", 20, null), null);
         assertThat(noAddr.items()).extracting(PlaceListItem::name).containsExactly("무주소-코스");
     }
 
@@ -176,7 +179,8 @@ class PlaceSearchIntegrationTest {
         courseRepository.save(addrHit);
         courseRepository.save(nameHit);
 
-        CursorPage<PlaceListItem> page = placeQueryService.searchPlaces(request("믹스토큰", 20, null));
+        CursorPage<PlaceListItem> page =
+                placeQueryService.searchPlaces(request("믹스토큰", 20, null), null);
         assertThat(page.items())
                 .extracting(PlaceListItem::name)
                 .containsExactlyInAnyOrder("연습장A", "믹스토큰 직선코스");
@@ -188,7 +192,8 @@ class PlaceSearchIntegrationTest {
     void 결과_없음() {
         seed();
 
-        CursorPage<PlaceListItem> page = placeQueryService.searchPlaces(request("제주", 20, null));
+        CursorPage<PlaceListItem> page =
+                placeQueryService.searchPlaces(request("제주", 20, null), null);
 
         assertThat(page.items()).isEmpty();
         assertThat(page.hasNext()).isFalse();
@@ -201,8 +206,8 @@ class PlaceSearchIntegrationTest {
     void 와일드카드_이스케이프() {
         seed();
 
-        assertThat(placeQueryService.searchPlaces(request("%", 20, null)).items()).isEmpty();
-        assertThat(placeQueryService.searchPlaces(request("_", 20, null)).items()).isEmpty();
+        assertThat(placeQueryService.searchPlaces(request("%", 20, null), null).items()).isEmpty();
+        assertThat(placeQueryService.searchPlaces(request("_", 20, null), null).items()).isEmpty();
     }
 
     @Test
@@ -226,7 +231,8 @@ class PlaceSearchIntegrationTest {
     void 키워드_트림() {
         seed();
 
-        CursorPage<PlaceListItem> page = placeQueryService.searchPlaces(request(" 대구 ", 20, null));
+        CursorPage<PlaceListItem> page =
+                placeQueryService.searchPlaces(request(" 대구 ", 20, null), null);
         assertThat(page.totalCount()).isEqualTo(3L);
 
         // 트림 후 50자는 허용(경계값)
@@ -234,18 +240,13 @@ class PlaceSearchIntegrationTest {
     }
 
     @Test
-    @DisplayName("공개: 인증 없이 GET /places/search 200")
-    void 공개_접근() throws Exception {
-        seed();
-
+    @DisplayName("미인증: 토큰 없이 GET /places/search 401 (검색은 로그인 전용)")
+    void 미인증_401() throws Exception {
         mockMvc.perform(
                         get("/api/v1/places/search")
                                 .param("keyword", "대구")
                                 .param("lat", String.valueOf(ME_LAT))
                                 .param("lng", String.valueOf(ME_LNG)))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.isSuccess").value(true))
-                .andExpect(jsonPath("$.data.items").isArray())
-                .andExpect(jsonPath("$.data.totalCount").value(3));
+                .andExpect(status().isUnauthorized());
     }
 }

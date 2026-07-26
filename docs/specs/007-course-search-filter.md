@@ -13,6 +13,8 @@
 | 2026-07-23 | In Progress | **FilterCategory enum 제거** — 카테고리는 클라 전용 UX 개념으로 확정. 정렬 파라미터는 `filterTags` 대신 기존 `PracticeType` 리스트(`practiceTypes`)로 단순화(혼합 선택=합집합) |
 | 2026-07-26 | In Progress | 회의 반영 — **장소명(name) 검색 추가**(주소 OR 장소명 부분 일치, 구현·테스트 완료). **필터는 로그인 전용**으로 변경(비로그인은 bbox 거리순만) |
 | 2026-07-26 | In Progress | 필터 저장 **A안(서버) 확정** — `member.filter_tags`에 `List<PracticeType>` 저장(V9), 카테고리는 클라 전용 유지, **backfill 없음**, 적용은 인증 시에만. Unit 2에서 구현 |
+| 2026-07-26 | In Progress | **Unit 2 필터 정렬 구현** — V9 컬럼·`PUT /members/me/filter-tags`·`@CurrentMember(required=false)` 옵셔널 JWT·목록/검색 매칭 우선 정렬·커서 확장·전역 400 핸들러(무효 본문). 필터는 저장값에서만(쿼리 파라미터 없음). 남은 건 클러스터링뿐 |
+| 2026-07-26 | In Progress | 회의 반영 — **검색을 로그인 전용으로 변경**(GET /places/search JWT 필수, 비로그인 401). 뷰포트 목록은 옵셔널 JWT 유지 |
 
 ## 배경 / 목적
 
@@ -76,23 +78,24 @@
 
 | Method | Path | 설명 | 인증 |
 |--------|------|------|------|
-| GET | /api/v1/places/search | 주소·장소명 검색(전국·필터 우선·거리순·커서) | 옵셔널 JWT |
+| GET | /api/v1/places/search | 주소·장소명 검색(전국·필터 우선·거리순·커서) | **JWT 필수** |
 | GET | /api/v1/places | 뷰포트 목록 — 정렬 필터 확장 | 옵셔널 JWT |
 | PUT | /api/v1/members/me/filter-tags | 홈 정렬 필터(연습유형 리스트) 저장 | JWT |
 
-> **인증 표기**: 검색·목록은 토큰 없이도 동작(거리순)하지만, 필터 정렬은 **인증된 요청에서만** 적용된다(비로그인 필터 불가). 장소명 검색만 쓰는 지금 단계는 사실상 공개와 동일.
+> **인증 표기**: **검색은 로그인 전용**(비로그인 401, 2026-07-26 회의). 뷰포트 목록은 토큰 없이도 동작(거리순, 비로그인 둘러보기)하되 필터 정렬은 인증된 요청에서만 적용된다.
 
-### 1. 코스 검색 (신규)
+### 1. 코스 검색 (신규, **JWT 필수**)
 
-**구현 완료 (장소명 검색 포함, 필터 정렬은 Unit 2)**
+**구현 완료 (장소명 검색·필터 정렬). 비로그인은 401.**
 
 ```
 GET /api/v1/places/search?keyword=강남&lat=37.50&lng=127.03&size=20&cursor=
+Authorization: Bearer <JWT>
 ```
 
 - `keyword` **필수**: 트림 후 1~50자. `place.address`(시군구) **또는** `place.name`(장소명) **부분 일치**(`ILIKE '%kw%'`, `%`·`_`·`\`는 이스케이프). 해당 컬럼이 null인 place는 그 컬럼으론 매칭 안 됨. bbox 없음(전국 대상).
 - `lat`/`lng` **필수**: 현위치(거리 정렬 기준). `size` 기본 20(1~100), `cursor` 다음 페이지 토큰. 검증 규칙은 기존 목록과 동일(위경도 범위, size 범위 밖 400).
-- `practiceTypes` **선택(Unit 2)**: `PracticeType` 목록(콤마 구분). **인증된 요청에서만 적용**(비로그인은 무시). 없거나 빈 값이면 거리순만. 무효 enum 값은 400.
+- **정렬 필터**: 회원의 저장 `filter_tags`가 있으면 매칭 우선→거리순, 없으면 거리순만(쿼리 파라미터 없음). 검색은 로그인 전용이라 항상 회원 컨텍스트가 있다.
 
 ```json
 // Response data — 공통 CursorPage<PlaceListItem> 그대로 (필드 추가 없음)
@@ -120,23 +123,26 @@ GET /api/v1/places/search?keyword=강남&lat=37.50&lng=127.03&size=20&cursor=
 
 ## 정렬 · 쿼리 접근
 
-- **필터 매칭 판정**(place 단위): 받은 `practiceTypes`와
-  - 코스: `course_practice_type` 태그의 교집합 존재 시 매칭.
-  - 주차장: 연습유형이 `["PARKING"]` 고정이므로 리스트에 `PARKING` 포함 시 매칭.
-  - native query에서 `CASE WHEN EXISTS(...) OR (place_type='PARKING' AND :parkingIncluded) THEN 1 ELSE 0 END AS matched`.
-- **커서 keyset 확장**: 정렬 `(matched DESC, distance ASC, id ASC)` → 커서 토큰 `(matched, distance, id)`. 기존 `CursorCodec` 확장. 필터 미적용 시엔 matched를 상수(0)로 두어 기존 커서 의미와 동일하게 동작.
-- 검색 주소 매칭: `address ILIKE :pattern` — 데이터가 수백~수천 건 규모라 인덱스 없이 시작(느려지면 trigram 인덱스 검토).
+- **필터 매칭 판정**(place 단위): 회원의 저장 `filter_tags`(연습유형 집합)와
+  - 코스: `course_practice_type` 태그의 교집합 존재 시 매칭(`EXISTS ... practice_type IN (:practiceTypes)`).
+  - 주차장: 연습유형이 `["PARKING"]` 고정이므로 필터에 `PARKING` 포함 시 매칭(`:parkingFlag`).
+  - native query에서 `CASE WHEN place_type='PARKING' THEN :parkingFlag WHEN EXISTS(...) THEN 1 ELSE 0 END AS matched`.
+- **커서 keyset 확장**: 필터 적용 시 정렬 `(matched DESC, distance ASC, id ASC)`, 커서 토큰은 `CursorCodec`의 sortValue에 `"matched|distance"` 합성(코덱 변경 없이 재사용). 필터 미적용(비로그인·빈 필터)이면 기존 거리순 쿼리·`(distance, id)` 커서를 그대로 써 하위 호환.
+- 필터는 **저장된 값에서만** 온다(쿼리 파라미터 없음) — 인증된 요청이면 `member.filter_tags`, 비로그인이면 빈 필터. `@CurrentMember(required=false)`로 옵셔널 주입.
+- 검색 매칭: `address ILIKE :pattern OR name ILIKE :pattern` — 데이터가 수백~수천 건 규모라 인덱스 없이 시작(느려지면 trigram 인덱스 검토).
+- **무효 요청 본문 400**: PUT의 무효 enum 등 `HttpMessageNotReadableException`을 전역 핸들러가 400으로 매핑(기존엔 500으로 새던 갭 보강).
 
 ## 완료 조건 (Acceptance Criteria)
 
 - [x] 검색: `keyword=강남`이면 address 또는 name에 "강남"이 포함된 place(코스+주차장)만 전국에서 반환한다. 부분 일치·결과 없으면 빈 목록.
 - [x] 검색: 주소에 없고 장소명(name)에만 있는 키워드도 매칭된다(주소 없는 place는 name으로만 매칭). 주소·장소명 혼합 매칭 결과는 합쳐서 반환.
-- [ ] 검색: 결과가 (필터 매칭 우선, 동점 시 현위치 거리순, id순)으로 정렬되고, `size`로 끊어 `hasNext`·`nextCursor`로 이어진다(2페이지 연속성). `totalCount`는 첫 페이지만. *(거리순·커서·totalCount 구현 완료 — 필터 매칭 우선은 다음 단위)*
+- [x] 검색: 결과가 (필터 매칭 우선, 동점 시 현위치 거리순, id순)으로 정렬되고, `size`로 끊어 `hasNext`·`nextCursor`로 이어진다(2페이지 연속성). `totalCount`는 첫 페이지만.
 - [x] 검색: keyword 누락/공백/50자 초과, 위경도 범위 밖, size 범위 밖은 400.
-- [ ] `practiceTypes` 적용 시(목록·검색 공통): 매칭 place가 먼저, 비매칭도 후순위로 전부 노출된다(개수 불변 — 숨김 없음). 파라미터 없거나 빈 값이면 기존과 동일한 거리순(하위 호환). 무효 enum은 400.
-- [ ] 주차장은 `practiceTypes`에 PARKING 포함 시 매칭으로 취급된다.
-- [ ] 필터+커서: 2페이지 연속성이 (matched, distance, id) 기준으로 유지된다(매칭 경계에서 누락·중복 없음).
-- [ ] 관련 테스트 통과 (`./gradlew test`).
+- [x] 필터 적용 시(목록·검색 공통, 인증 회원): 매칭 place가 먼저, 비매칭도 후순위로 전부 노출된다(개수 불변 — 숨김 없음). 필터 없으면(비로그인·빈 필터) 기존과 동일한 거리순(하위 호환).
+- [x] 주차장은 `filter_tags`에 PARKING 포함 시 매칭으로 취급된다.
+- [x] 필터+커서: 2페이지 연속성이 (matched, distance, id) 기준으로 유지된다(매칭 경계에서 누락·중복 없음).
+- [x] 필터 저장(PUT): 연습유형 리스트 전체 교체, 빈 배열은 해제(200), 무효 enum·filterTags 누락은 400.
+- [x] 관련 테스트 통과 (`./gradlew test`).
 
 ## 미해결 질문
 

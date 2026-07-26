@@ -11,10 +11,13 @@ import jakarta.persistence.Id;
 import jakarta.persistence.Table;
 import java.time.Duration;
 import java.time.LocalDateTime;
+import java.util.List;
 import lombok.AccessLevel;
 import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 
 /** 회원. 소셜 로그인으로 가입하며, 신원은 {@code social_account}가 별도 관리한다. 탈퇴는 soft delete(ADR 0004). */
 @Getter
@@ -42,6 +45,14 @@ public class Member extends BaseEntity {
     /** 운전 목표(마이페이지 노출). 온보딩 추가 정보라 선택(NULL 가능). */
     @Column(name = "driving_goal", length = 30)
     private String drivingGoal;
+
+    /**
+     * 홈 정렬 필터(스펙 007). 회원이 선택한 연습유형 집합(카테고리는 클라 전용이라 풀린 값만 저장). NULL/빈 값 = 필터 없음(거리순). 인증된 목록·검색에서만
+     * 적용된다.
+     */
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(name = "filter_tags", columnDefinition = "jsonb")
+    private List<PracticeType> filterTags;
 
     /** 탈퇴 요청 시각(soft delete). 유예기간 동안 복구 대상(ADR 0004). */
     @Column(name = "deleted_at")
@@ -86,6 +97,12 @@ public class Member extends BaseEntity {
     /** 운전 목표 수정(마이페이지). 빈값이면 목표 없음(null)으로 지운다. */
     public void updateDrivingGoal(String drivingGoal) {
         this.drivingGoal = (drivingGoal == null || drivingGoal.isBlank()) ? null : drivingGoal;
+    }
+
+    /** 홈 정렬 필터 전체 교체. 빈 값이면 필터 없음(null)으로 지운다. */
+    public void updateFilterTags(List<PracticeType> filterTags) {
+        this.filterTags =
+                (filterTags == null || filterTags.isEmpty()) ? null : List.copyOf(filterTags);
     }
 
     /** 익명화 — 유예기간 경과 후 개인정보 제거. */

@@ -31,6 +31,10 @@ public class CurrentMemberArgumentResolver implements HandlerMethodArgumentResol
         if (authentication == null
                 || !authentication.isAuthenticated()
                 || !(authentication.getPrincipal() instanceof Long memberId)) {
+            CurrentMember annotation = parameter.getParameterAnnotation(CurrentMember.class);
+            if (annotation != null && !annotation.required()) {
+                return null; // 옵셔널: 비로그인이면 null 주입(공개 목록·검색에서 거리순 분기)
+            }
             throw new BusinessException(AuthErrorCode.AUTHENTICATION_REQUIRED);
         }
         return memberId;

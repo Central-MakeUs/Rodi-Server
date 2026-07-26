@@ -8,6 +8,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -15,6 +16,8 @@ import cmc.rodi.domain.member.dto.MemberUpdateRequest;
 import cmc.rodi.domain.member.dto.MyPageResponse;
 import cmc.rodi.domain.member.dto.OnboardingRequest;
 import cmc.rodi.domain.member.entity.Level;
+import cmc.rodi.domain.member.entity.PracticeType;
+import cmc.rodi.domain.member.service.MemberFilterService;
 import cmc.rodi.domain.member.service.MemberProfileService;
 import cmc.rodi.domain.member.service.MemberWithdrawalService;
 import cmc.rodi.domain.member.service.OnboardingService;
@@ -61,6 +64,7 @@ class MemberControllerTest {
     @MockitoBean MemberWithdrawalService memberWithdrawalService;
     @MockitoBean OnboardingService onboardingService;
     @MockitoBean MemberProfileService memberProfileService;
+    @MockitoBean MemberFilterService memberFilterService;
 
     private static final String ONBOARDING_BODY =
             """
@@ -173,6 +177,68 @@ class MemberControllerTest {
 
         mockMvc.perform(
                         post("/api/v1/members/me/onboarding")
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content("{}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.isSuccess").value(false));
+    }
+
+    @Test
+    @DisplayName("필터 저장: 200 + @CurrentMember의 회원 id로 연습유형 리스트 위임")
+    void 필터_저장() throws Exception {
+        authenticate(7L);
+
+        mockMvc.perform(
+                        put("/api/v1/members/me/filter-tags")
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content(
+                                        "{\"filterTags\":[\"U_TURN\",\"INTERSECTION\",\"PARKING\"]}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.isSuccess").value(true));
+
+        verify(memberFilterService)
+                .updateFilterTags(
+                        7L,
+                        List.of(
+                                PracticeType.U_TURN,
+                                PracticeType.INTERSECTION,
+                                PracticeType.PARKING));
+    }
+
+    @Test
+    @DisplayName("필터 저장: 빈 배열도 200(필터 해제)")
+    void 필터_저장_빈배열() throws Exception {
+        authenticate(7L);
+
+        mockMvc.perform(
+                        put("/api/v1/members/me/filter-tags")
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content("{\"filterTags\":[]}"))
+                .andExpect(status().isOk());
+
+        verify(memberFilterService).updateFilterTags(7L, List.of());
+    }
+
+    @Test
+    @DisplayName("필터 저장: 무효 enum 값은 400")
+    void 필터_저장_무효값_400() throws Exception {
+        authenticate(7L);
+
+        mockMvc.perform(
+                        put("/api/v1/members/me/filter-tags")
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content("{\"filterTags\":[\"NOT_A_TYPE\"]}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.isSuccess").value(false));
+    }
+
+    @Test
+    @DisplayName("필터 저장: filterTags 누락(null)은 400")
+    void 필터_저장_누락_400() throws Exception {
+        authenticate(7L);
+
+        mockMvc.perform(
+                        put("/api/v1/members/me/filter-tags")
                                 .contentType(MediaType.APPLICATION_JSON)
                                 .content("{}"))
                 .andExpect(status().isBadRequest())
