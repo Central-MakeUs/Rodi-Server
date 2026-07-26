@@ -47,8 +47,8 @@ public interface PlaceRepository extends JpaRepository<Place, Long> {
             @Param("limit") int limit);
 
     /**
-     * 주소(시군구) 키워드 검색(스펙 007). 전국 대상(bbox 없음), 현위치 거리순 커서 페이징 — 정렬·커서 규칙은 {@link #findInViewport}와
-     * 동일. 패턴은 이스케이프된 %kw% (ESCAPE '\'), address가 null인 place는 매칭되지 않는다.
+     * 키워드 검색(스펙 007). 주소(시군구) 또는 장소명 부분 일치. 전국 대상(bbox 없음), 현위치 거리순 커서 페이징 — 정렬·커서 규칙은 {@link
+     * #findInViewport}와 동일. 패턴은 이스케이프된 %kw% (ESCAPE '\'), 해당 컬럼이 null인 place는 그 컬럼으로 매칭되지 않는다.
      */
     @Query(
             value =
@@ -65,6 +65,7 @@ public interface PlaceRepository extends JpaRepository<Place, Long> {
                                    ST_SetSRID(ST_MakePoint(:lng, :lat), 4326)::geography) AS distance
                         FROM place p
                         WHERE p.address ILIKE :pattern ESCAPE '\\'
+                           OR p.name ILIKE :pattern ESCAPE '\\'
                     ) t
                     WHERE (:cursorDistance IS NULL
                            OR t.distance > :cursorDistance
@@ -73,7 +74,7 @@ public interface PlaceRepository extends JpaRepository<Place, Long> {
                     LIMIT :limit
                     """,
             nativeQuery = true)
-    List<PlaceListRow> searchByAddress(
+    List<PlaceListRow> searchByKeyword(
             @Param("pattern") String pattern,
             @Param("lat") double lat,
             @Param("lng") double lng,
@@ -81,15 +82,16 @@ public interface PlaceRepository extends JpaRepository<Place, Long> {
             @Param("cursorId") Long cursorId,
             @Param("limit") int limit);
 
-    /** 주소 키워드 검색 총 건수(totalCount, 첫 페이지 전용). */
+    /** 키워드 검색 총 건수(totalCount, 첫 페이지 전용). 주소 또는 장소명 부분 일치. */
     @Query(
             value =
                     """
                     SELECT COUNT(*) FROM place p
                     WHERE p.address ILIKE :pattern ESCAPE '\\'
+                       OR p.name ILIKE :pattern ESCAPE '\\'
                     """,
             nativeQuery = true)
-    long countByAddress(@Param("pattern") String pattern);
+    long countByKeyword(@Param("pattern") String pattern);
 
     /** 뷰포트 안 총 장소 수(totalCount). */
     @Query(

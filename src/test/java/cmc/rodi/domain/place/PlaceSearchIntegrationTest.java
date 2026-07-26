@@ -85,14 +85,14 @@ class PlaceSearchIntegrationTest {
                         .location(point(35.93, 128.66))
                         .distanceMeters(2500)
                         .build());
-        // 다른 지역 → 검색 결과에서 제외돼야 함
+        // 다른 지역 → '대구' 검색에서 제외돼야 함(주소·장소명 모두 불일치)
         courseRepository.save(
                 Course.builder()
                         .name("광주-코스")
                         .address("광주광역시 서구")
                         .location(point(35.15, 126.85))
                         .build());
-        // 주소 없는 place → 매칭 안 됨
+        // 주소 없는 place → 주소로는 매칭 안 됨(장소명으로만 매칭 가능)
         courseRepository.save(
                 Course.builder().name("무주소-코스").location(point(35.872, 128.602)).build());
     }
@@ -141,6 +141,46 @@ class PlaceSearchIntegrationTest {
 
         assertThat(page.items()).extracting(PlaceListItem::name).containsExactly("대구-가까운코스");
         assertThat(page.totalCount()).isEqualTo(1L);
+    }
+
+    @Test
+    @DisplayName("장소명 검색: 주소에 없는 키워드도 name으로 매칭(주소 없는 place 포함)")
+    void 장소명_검색() {
+        seed();
+
+        // '먼코스'는 어떤 주소에도 없고 name에만 있다 → name 매칭
+        CursorPage<PlaceListItem> byName = placeQueryService.searchPlaces(request("먼코스", 20, null));
+        assertThat(byName.items()).extracting(PlaceListItem::name).containsExactly("대구-먼코스");
+
+        // 주소가 없는 place도 name으로 검색된다
+        CursorPage<PlaceListItem> noAddr = placeQueryService.searchPlaces(request("무주소", 20, null));
+        assertThat(noAddr.items()).extracting(PlaceListItem::name).containsExactly("무주소-코스");
+    }
+
+    @Test
+    @DisplayName("주소·장소명 혼합 매칭: 키워드가 한 place는 주소, 다른 place는 name으로 걸려도 합쳐서 반환")
+    void 주소_장소명_혼합() {
+        // 시드 데이터와 충돌하지 않도록 실제 지명이 아닌 고유 토큰 사용
+        Course addrHit =
+                Course.builder()
+                        .name("연습장A")
+                        .address("대구광역시 믹스토큰구") // 주소에 '믹스토큰'
+                        .location(point(35.871, 128.601))
+                        .build();
+        Course nameHit =
+                Course.builder()
+                        .name("믹스토큰 직선코스") // name에 '믹스토큰'
+                        .address("부산광역시 사하구")
+                        .location(point(35.90, 128.63))
+                        .build();
+        courseRepository.save(addrHit);
+        courseRepository.save(nameHit);
+
+        CursorPage<PlaceListItem> page = placeQueryService.searchPlaces(request("믹스토큰", 20, null));
+        assertThat(page.items())
+                .extracting(PlaceListItem::name)
+                .containsExactlyInAnyOrder("연습장A", "믹스토큰 직선코스");
+        assertThat(page.totalCount()).isEqualTo(2L);
     }
 
     @Test

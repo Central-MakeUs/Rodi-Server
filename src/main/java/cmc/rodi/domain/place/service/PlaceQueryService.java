@@ -86,7 +86,7 @@ public class PlaceQueryService {
         return CursorPage.next(items, hasNext, nextCursor);
     }
 
-    /** 주소(시군구) 키워드 검색(스펙 007). 전국 대상, 현위치 거리순 커서 페이징 — 목록(#2)과 동일한 커서·아이템 규칙. */
+    /** 키워드 검색(스펙 007). 주소(시군구) 또는 장소명 부분 일치, 전국 대상, 현위치 거리순 커서 페이징 — 목록(#2)과 동일한 커서·아이템 규칙. */
     @Transactional(readOnly = true)
     public CursorPage<PlaceListItem> searchPlaces(PlaceSearchRequest req) {
         CursorCodec.Cursor cursor = req.cursor() == null ? null : CursorCodec.decode(req.cursor());
@@ -96,7 +96,7 @@ public class PlaceQueryService {
 
         // size+1 조회로 다음 페이지 존재 판별
         List<PlaceListRow> rows =
-                placeRepository.searchByAddress(
+                placeRepository.searchByKeyword(
                         pattern, req.lat(), req.lng(), cursorDistance, cursorId, req.size() + 1);
 
         boolean hasNext = rows.size() > req.size();
@@ -116,7 +116,7 @@ public class PlaceQueryService {
         // totalCount는 첫 페이지(커서 없음)에서만 계산 — 매 페이지 count 쿼리 방지
         if (cursor == null) {
             return CursorPage.first(
-                    items, hasNext, nextCursor, placeRepository.countByAddress(pattern));
+                    items, hasNext, nextCursor, placeRepository.countByKeyword(pattern));
         }
         return CursorPage.next(items, hasNext, nextCursor);
     }

@@ -35,13 +35,13 @@ public interface PlaceControllerDocs {
             @Parameter(description = "다음 페이지 커서(없으면 첫 페이지)") String cursor);
 
     @Operation(
-            summary = "장소 검색(시군구 주소)",
+            summary = "장소 검색(주소·장소명)",
             description =
-                    "키워드로 place 주소(시군구)를 부분 일치 검색한다(전국 대상, 코스+주차장). "
+                    "키워드로 place의 주소(시군구) 또는 장소명을 부분 일치 검색한다(전국 대상, 코스+주차장). "
                             + "결과는 현위치 거리순 커서 페이징이며 아이템은 현위치 목록과 동일. "
                             + "키워드는 트림 후 1~50자, totalCount는 첫 페이지에서만. 공개.")
     ApiResponse<CursorPage<PlaceListItem>> searchPlaces(
-            @Parameter(description = "검색 키워드(시군구 주소 일부, 예: 강남)") String keyword,
+            @Parameter(description = "검색 키워드(주소 또는 장소명 일부, 예: 강남, 한강)") String keyword,
             @Parameter(description = "현위치 위도") double lat,
             @Parameter(description = "현위치 경도") double lng,
             @Parameter(description = "페이지 크기(기본 20)") int size,
