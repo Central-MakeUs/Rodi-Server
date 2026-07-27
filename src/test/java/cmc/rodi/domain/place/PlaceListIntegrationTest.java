@@ -178,4 +178,33 @@ class PlaceListIntegrationTest {
                 .andExpect(jsonPath("$.isSuccess").value(true))
                 .andExpect(jsonPath("$.data.items").isArray());
     }
+
+    @Test
+    @DisplayName("필수 파라미터 누락(swLat 없음)은 500 아닌 400")
+    void 파라미터_누락_400() throws Exception {
+        mockMvc.perform(
+                        get("/api/v1/places")
+                                .param("swLng", String.valueOf(SW_LNG))
+                                .param("neLat", String.valueOf(NE_LAT))
+                                .param("neLng", String.valueOf(NE_LNG))
+                                .param("lat", String.valueOf(ME_LAT))
+                                .param("lng", String.valueOf(ME_LNG)))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.isSuccess").value(false));
+    }
+
+    @Test
+    @DisplayName("파라미터 타입 불일치(swLat=abc)는 500 아닌 400")
+    void 파라미터_타입불일치_400() throws Exception {
+        mockMvc.perform(
+                        get("/api/v1/places")
+                                .param("swLat", "abc")
+                                .param("swLng", String.valueOf(SW_LNG))
+                                .param("neLat", String.valueOf(NE_LAT))
+                                .param("neLng", String.valueOf(NE_LNG))
+                                .param("lat", String.valueOf(ME_LAT))
+                                .param("lng", String.valueOf(ME_LNG)))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.isSuccess").value(false));
+    }
 }
