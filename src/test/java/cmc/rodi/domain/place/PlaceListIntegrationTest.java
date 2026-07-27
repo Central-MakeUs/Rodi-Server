@@ -97,7 +97,7 @@ class PlaceListIntegrationTest {
     void 거리순_커서() {
         seed();
 
-        CursorPage<PlaceListItem> page1 = placeQueryService.getPlaces(request(2, null));
+        CursorPage<PlaceListItem> page1 = placeQueryService.getPlaces(request(2, null), null);
 
         assertThat(page1.totalCount()).isEqualTo(3L); // 첫 페이지에만 채워짐, 밖코스 제외
         assertThat(page1.hasNext()).isTrue();
@@ -127,7 +127,7 @@ class PlaceListIntegrationTest {
         assertThat(parking.description()).isNull();
 
         CursorPage<PlaceListItem> page2 =
-                placeQueryService.getPlaces(request(2, page1.nextCursor()));
+                placeQueryService.getPlaces(request(2, page1.nextCursor()), null);
         assertThat(page2.items()).extracting(PlaceListItem::name).containsExactly("부산-먼코스");
         assertThat(page2.hasNext()).isFalse();
         assertThat(page2.nextCursor()).isNull();
@@ -157,7 +157,7 @@ class PlaceListIntegrationTest {
     void 변조_커서() {
         // 디코드는 되지만 sortValue가 숫자가 아닌 커서 → 400(파싱 예외가 500으로 새지 않음)
         String tampered = CursorCodec.encode("abc", 1L);
-        assertThatThrownBy(() -> placeQueryService.getPlaces(request(2, tampered)))
+        assertThatThrownBy(() -> placeQueryService.getPlaces(request(2, tampered), null))
                 .isInstanceOf(BusinessException.class);
     }
 
@@ -177,5 +177,34 @@ class PlaceListIntegrationTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.isSuccess").value(true))
                 .andExpect(jsonPath("$.data.items").isArray());
+    }
+
+    @Test
+    @DisplayName("필수 파라미터 누락(swLat 없음)은 500 아닌 400")
+    void 파라미터_누락_400() throws Exception {
+        mockMvc.perform(
+                        get("/api/v1/places")
+                                .param("swLng", String.valueOf(SW_LNG))
+                                .param("neLat", String.valueOf(NE_LAT))
+                                .param("neLng", String.valueOf(NE_LNG))
+                                .param("lat", String.valueOf(ME_LAT))
+                                .param("lng", String.valueOf(ME_LNG)))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.isSuccess").value(false));
+    }
+
+    @Test
+    @DisplayName("파라미터 타입 불일치(swLat=abc)는 500 아닌 400")
+    void 파라미터_타입불일치_400() throws Exception {
+        mockMvc.perform(
+                        get("/api/v1/places")
+                                .param("swLat", "abc")
+                                .param("swLng", String.valueOf(SW_LNG))
+                                .param("neLat", String.valueOf(NE_LAT))
+                                .param("neLng", String.valueOf(NE_LNG))
+                                .param("lat", String.valueOf(ME_LAT))
+                                .param("lng", String.valueOf(ME_LNG)))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.isSuccess").value(false));
     }
 }

@@ -1,5 +1,6 @@
 package cmc.rodi.domain.member.controller;
 
+import cmc.rodi.domain.member.dto.FilterTagsRequest;
 import cmc.rodi.domain.member.dto.MemberUpdateRequest;
 import cmc.rodi.domain.member.dto.MyPageResponse;
 import cmc.rodi.domain.member.dto.OnboardingRequest;
@@ -39,4 +40,12 @@ public interface MemberControllerDocs {
                             + "저장만 하며 응답 데이터는 없다(추천유형·레벨은 클라이언트 로컬 값). 이미 온보딩한 회원은 409.")
     ApiResponse<Void> submitOnboarding(
             @Parameter(hidden = true) Long memberId, OnboardingRequest request);
+
+    @Operation(
+            summary = "홈 정렬 필터 저장",
+            description =
+                    "홈 정렬 필터(연습유형 리스트)를 전체 교체 저장한다. 카테고리는 클라가 연습유형으로 풀어 보낸다. "
+                            + "빈 배열이면 필터 해제(전체 노출). 저장된 값은 인증된 목록·검색 정렬에 적용된다. JWT 필요.")
+    ApiResponse<Void> updateFilterTags(
+            @Parameter(hidden = true) Long memberId, FilterTagsRequest request);
 }

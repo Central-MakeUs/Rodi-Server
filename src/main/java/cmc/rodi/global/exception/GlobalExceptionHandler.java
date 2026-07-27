@@ -11,10 +11,13 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.slf4j.MDC;
 import org.springframework.http.ResponseEntity;
+import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
+import org.springframework.web.bind.MissingServletRequestParameterException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 
 /**
  * 전역 예외 처리. 모든 예외를 공통 응답 형식으로 변환하고 서버에 로그를 남긴다. 실패 응답에는 traceId가 자동 포함(ApiResponse.error)되고, 미처리
@@ -52,6 +55,25 @@ public class GlobalExceptionHandler {
         log.warn("Validation failed: {}", fieldErrors);
         return ResponseEntity.status(ErrorCode.INVALID_INPUT_VALUE.getHttpStatus())
                 .body(ApiResponse.error(ErrorCode.INVALID_INPUT_VALUE, fieldErrors));
+    }
+
+    /** 읽을 수 없는 요청 본문(잘못된 JSON·무효 enum 값 등) — 클라이언트 입력 오류라 400 + WARN. */
+    @ExceptionHandler(HttpMessageNotReadableException.class)
+    public ResponseEntity<ApiResponse<Void>> handleNotReadable(HttpMessageNotReadableException e) {
+        log.warn("Malformed request body: {}", e.getMostSpecificCause().getMessage());
+        return ResponseEntity.status(ErrorCode.INVALID_INPUT_VALUE.getHttpStatus())
+                .body(ApiResponse.error(ErrorCode.INVALID_INPUT_VALUE));
+    }
+
+    /** 요청 파라미터 누락·타입 불일치 — 클라이언트 입력 오류라 400 + WARN(서버 오류 알림 대상 아님). */
+    @ExceptionHandler({
+        MissingServletRequestParameterException.class,
+        MethodArgumentTypeMismatchException.class
+    })
+    public ResponseEntity<ApiResponse<Void>> handleInvalidRequestParam(Exception e) {
+        log.warn("Invalid request parameter: {}", e.getMessage());
+        return ResponseEntity.status(ErrorCode.INVALID_INPUT_VALUE.getHttpStatus())
+                .body(ApiResponse.error(ErrorCode.INVALID_INPUT_VALUE));
     }
 
     /** 미처리 예외 — 서버 ERROR 로깅 + Slack 알림, 응답엔 traceId만. */
