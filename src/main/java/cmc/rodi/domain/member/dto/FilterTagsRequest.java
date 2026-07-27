@@ -14,4 +14,4 @@ public record FilterTagsRequest(
                         description = "선택한 연습유형 목록(전체 교체, 빈 배열이면 필터 해제)",
                         example = "[\"U_TURN\",\"INTERSECTION\",\"PARKING\"]")
                 @NotNull
-                List<PracticeType> filterTags) {}
+                List<@NotNull PracticeType> filterTags) {}

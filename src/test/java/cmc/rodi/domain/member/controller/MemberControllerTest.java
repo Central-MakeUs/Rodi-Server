@@ -244,4 +244,17 @@ class MemberControllerTest {
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.isSuccess").value(false));
     }
+
+    @Test
+    @DisplayName("필터 저장: 리스트에 null 요소가 있으면 400(500 아님)")
+    void 필터_저장_null요소_400() throws Exception {
+        authenticate(7L);
+
+        mockMvc.perform(
+                        put("/api/v1/members/me/filter-tags")
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content("{\"filterTags\":[null]}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.isSuccess").value(false));
+    }
 }

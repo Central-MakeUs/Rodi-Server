@@ -57,10 +57,13 @@ public class GlobalExceptionHandler {
                 .body(ApiResponse.error(ErrorCode.INVALID_INPUT_VALUE, fieldErrors));
     }
 
-    /** 읽을 수 없는 요청 본문(잘못된 JSON·무효 enum 값 등) — 클라이언트 입력 오류라 400 + WARN. */
+    /**
+     * 읽을 수 없는 요청 본문(잘못된 JSON·무효 enum 값 등) — 클라이언트 입력 오류라 400 + WARN. 원인 메시지엔 요청 원문 값(민감정보 가능)이 섞일 수
+     * 있어 예외 타입만 로깅한다(traceId는 로그 패턴이 자동 부착).
+     */
     @ExceptionHandler(HttpMessageNotReadableException.class)
     public ResponseEntity<ApiResponse<Void>> handleNotReadable(HttpMessageNotReadableException e) {
-        log.warn("Malformed request body: {}", e.getMostSpecificCause().getMessage());
+        log.warn("Malformed request body: {}", e.getMostSpecificCause().getClass().getSimpleName());
         return ResponseEntity.status(ErrorCode.INVALID_INPUT_VALUE.getHttpStatus())
                 .body(ApiResponse.error(ErrorCode.INVALID_INPUT_VALUE));
     }

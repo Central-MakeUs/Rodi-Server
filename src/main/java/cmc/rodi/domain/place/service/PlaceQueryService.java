@@ -213,7 +213,7 @@ public class PlaceQueryService {
             matched = Integer.parseInt(sortValue.substring(0, sep));
             distance = Double.parseDouble(sortValue.substring(sep + 1));
         } catch (NumberFormatException e) {
-            throw new BusinessException(ErrorCode.INVALID_INPUT_VALUE);
+            throw new BusinessException(ErrorCode.INVALID_INPUT_VALUE, e);
         }
         if ((matched != 0 && matched != 1) || !Double.isFinite(distance) || distance < 0) {
             throw new BusinessException(ErrorCode.INVALID_INPUT_VALUE);
