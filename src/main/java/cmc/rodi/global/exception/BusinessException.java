@@ -16,4 +16,10 @@ public class BusinessException extends RuntimeException {
         super(errorCode.getMessage());
         this.errorCode = errorCode;
     }
+
+    /** 원인 예외를 보존해 던진다(디버깅용 stack chaining). */
+    public BusinessException(ResponseCode errorCode, Throwable cause) {
+        super(errorCode.getMessage(), cause);
+        this.errorCode = errorCode;
+    }
 }
