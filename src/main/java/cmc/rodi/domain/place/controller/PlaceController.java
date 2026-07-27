@@ -1,5 +1,6 @@
 package cmc.rodi.domain.place.controller;
 
+import cmc.rodi.domain.member.service.RecentSearchService;
 import cmc.rodi.domain.place.dto.PlaceCoordinateResponse;
 import cmc.rodi.domain.place.dto.PlaceDetailResponse;
 import cmc.rodi.domain.place.dto.PlaceListItem;
@@ -30,6 +31,7 @@ public class PlaceController implements PlaceControllerDocs {
     private final PlaceQueryService placeQueryService;
     private final BookmarkService bookmarkService;
     private final BookmarkQueryService bookmarkQueryService;
+    private final RecentSearchService recentSearchService;
 
     @Override
     @GetMapping("/coordinates")
@@ -64,9 +66,12 @@ public class PlaceController implements PlaceControllerDocs {
             @RequestParam(defaultValue = "20") int size,
             @RequestParam(required = false) String cursor,
             @CurrentMember Long memberId) {
-        return ApiResponse.success(
-                placeQueryService.searchPlaces(
-                        new PlaceSearchRequest(keyword, lat, lng, size, cursor), memberId));
+        PlaceSearchRequest request = new PlaceSearchRequest(keyword, lat, lng, size, cursor);
+        CursorPage<PlaceListItem> result = placeQueryService.searchPlaces(request, memberId);
+        if (cursor == null) { // 첫 페이지에서만 최근 검색어 기록(페이지네이션 재조회로 중복 기록 방지)
+            recentSearchService.record(memberId, request.keyword());
+        }
+        return ApiResponse.success(result);
     }
 
     @Override
