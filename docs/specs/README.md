@@ -27,5 +27,5 @@
 | [온보딩](004-onboarding.md) | 닉네임 자동 부여·운전 경험/추가정보 수집·레벨 배정 | Draft |
 | [코스 탐색](005-place-course-discovery.md) | 장소/코스/주차장 조회(마커·거리순 목록·상세)·북마크 | Draft |
 | [마이페이지](006-mypage.md) | 프로필 조회(레벨·추천 태그·저장 수)·운전목표 수정·저장 목록 | Implemented |
-| [코스 검색·정렬 필터](007-course-search-filter.md) | 시군구 주소 검색·홈 정렬 필터(filterTags 파라미터)·클러스터링(보류) | Draft |
+| [코스 검색·정렬 필터](007-course-search-filter.md) | 주소·장소명 검색(로그인 전용)·홈 정렬 필터(서버 저장 filter_tags)·클러스터링(보류) | In Progress |
 | [최근 검색어](008-recent-search.md) | 검색 시 자동 저장·최신순 조회·개별/전체 삭제(로그인 전용) | Draft |
