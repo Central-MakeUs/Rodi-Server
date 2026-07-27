@@ -39,7 +39,7 @@
 | keyword | varchar(50) | 검색 키워드(트림 후, 스펙 007과 동일 1~50자) |
 | searched_at | timestamptz | 마지막 검색 시각(중복 갱신 시 갱신) |
 
-- **unique(member_id, keyword)** — 회원 내 키워드 유일. 재검색은 `INSERT ... ON CONFLICT (member_id, keyword) DO UPDATE SET searched_at = now()`로 갱신(중복 없이 맨 앞으로).
+- **unique(member_id, keyword)** — 회원 내 키워드 유일. 재검색은 `INSERT ... ON CONFLICT (member_id, keyword) DO UPDATE SET searched_at = clock_timestamp()`로 갱신(중복 없이 맨 앞으로). `now()`는 트랜잭션 고정값이라 같은 트랜잭션 내 재검색이 앞으로 안 와서 벽시계 `clock_timestamp()`를 쓴다.
 - 조회 정렬: `searched_at DESC, id DESC`.
 - 상한 유지: 저장 후 상한(15) 초과분을 `searched_at` 오래된 순으로 삭제.
 - `member` 삭제(하드 삭제 시) 대비 FK는 `ON DELETE CASCADE`. (soft delete가 기본이라 실제 삭제는 익명화 배치에서만.)
