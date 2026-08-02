@@ -1,6 +1,5 @@
 package cmc.rodi.domain.place.controller;
 
-import cmc.rodi.domain.member.service.RecentSearchService;
 import cmc.rodi.domain.place.dto.PlaceCoordinateResponse;
 import cmc.rodi.domain.place.dto.PlaceDetailResponse;
 import cmc.rodi.domain.place.dto.PlaceListItem;
@@ -14,7 +13,6 @@ import cmc.rodi.global.common.pagination.CursorPage;
 import cmc.rodi.global.common.response.ApiResponse;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -27,13 +25,11 @@ import org.springframework.web.bind.annotation.RestController;
 @RestController
 @RequestMapping("/api/v1/places")
 @RequiredArgsConstructor
-@Slf4j
 public class PlaceController implements PlaceControllerDocs {
 
     private final PlaceQueryService placeQueryService;
     private final BookmarkService bookmarkService;
     private final BookmarkQueryService bookmarkQueryService;
-    private final RecentSearchService recentSearchService;
 
     @Override
     @GetMapping("/coordinates")
@@ -68,17 +64,9 @@ public class PlaceController implements PlaceControllerDocs {
             @RequestParam(defaultValue = "20") int size,
             @RequestParam(required = false) String cursor,
             @CurrentMember Long memberId) {
-        PlaceSearchRequest request = new PlaceSearchRequest(keyword, lat, lng, size, cursor);
-        CursorPage<PlaceListItem> result = placeQueryService.searchPlaces(request, memberId);
-        if (cursor == null) { // 첫 페이지에서만 최근 검색어 기록(페이지네이션 재조회로 중복 기록 방지)
-            try {
-                recentSearchService.record(memberId, request.keyword());
-            } catch (Exception e) {
-                // 최근 검색어 기록은 부수효과 — 실패해도 검색 결과 응답은 그대로 반환한다.
-                log.warn("최근 검색어 기록 실패(검색 응답엔 영향 없음): {}", e.getClass().getSimpleName());
-            }
-        }
-        return ApiResponse.success(result);
+        return ApiResponse.success(
+                placeQueryService.searchPlaces(
+                        new PlaceSearchRequest(keyword, lat, lng, size, cursor), memberId));
     }
 
     @Override
