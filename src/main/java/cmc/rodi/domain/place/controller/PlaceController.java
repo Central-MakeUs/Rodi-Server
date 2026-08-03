@@ -5,6 +5,8 @@ import cmc.rodi.domain.place.dto.PlaceDetailResponse;
 import cmc.rodi.domain.place.dto.PlaceListItem;
 import cmc.rodi.domain.place.dto.PlaceListRequest;
 import cmc.rodi.domain.place.dto.PlaceSearchRequest;
+import cmc.rodi.domain.place.dto.RelatedSearchRequest;
+import cmc.rodi.domain.place.dto.RelatedSearchResponse;
 import cmc.rodi.domain.place.service.BookmarkQueryService;
 import cmc.rodi.domain.place.service.BookmarkService;
 import cmc.rodi.domain.place.service.PlaceQueryService;
@@ -67,6 +69,17 @@ public class PlaceController implements PlaceControllerDocs {
         return ApiResponse.success(
                 placeQueryService.searchPlaces(
                         new PlaceSearchRequest(keyword, lat, lng, size, cursor), memberId));
+    }
+
+    @Override
+    @GetMapping("/related-search")
+    public ApiResponse<RelatedSearchResponse> relatedSearch(
+            @RequestParam String keyword,
+            @RequestParam(defaultValue = "20") int size,
+            @RequestParam(required = false) String cursor,
+            @CurrentMember Long memberId) {
+        return ApiResponse.success(
+                placeQueryService.relatedSearch(new RelatedSearchRequest(keyword, size, cursor)));
     }
 
     @Override

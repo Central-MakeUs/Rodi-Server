@@ -7,6 +7,9 @@ import cmc.rodi.domain.place.dto.PlaceDetailResponse;
 import cmc.rodi.domain.place.dto.PlaceListItem;
 import cmc.rodi.domain.place.dto.PlaceListRequest;
 import cmc.rodi.domain.place.dto.PlaceSearchRequest;
+import cmc.rodi.domain.place.dto.PlaceSuggestion;
+import cmc.rodi.domain.place.dto.RelatedSearchRequest;
+import cmc.rodi.domain.place.dto.RelatedSearchResponse;
 import cmc.rodi.domain.place.entity.Course;
 import cmc.rodi.domain.place.entity.Parking;
 import cmc.rodi.domain.place.entity.Place;
@@ -15,6 +18,7 @@ import cmc.rodi.domain.place.repository.BookmarkRepository;
 import cmc.rodi.domain.place.repository.CourseRepository;
 import cmc.rodi.domain.place.repository.ParkingRepository;
 import cmc.rodi.domain.place.repository.PlaceListRow;
+import cmc.rodi.domain.place.repository.PlaceNameMatchRow;
 import cmc.rodi.domain.place.repository.PlaceRepository;
 import cmc.rodi.global.common.pagination.CursorCodec;
 import cmc.rodi.global.common.pagination.CursorPage;
@@ -38,6 +42,7 @@ public class PlaceQueryService {
     private final ParkingRepository parkingRepository;
     private final BookmarkRepository bookmarkRepository;
     private final MemberFilterService memberFilterService;
+    private final RegionSearchIndex regionSearchIndex;
 
     /** 전체 place의 간단 좌표(마커용). 필터 없이 모두 반환한다. */
     @Transactional(readOnly = true)
@@ -144,6 +149,61 @@ public class PlaceQueryService {
                         req.size() + 1);
         return assemble(
                 rows, req.size(), firstPage, true, () -> placeRepository.countByKeyword(pattern));
+    }
+
+    /**
+     * 연관 검색어(스펙 009). 지역은 관련도순 최대 4개(첫 페이지에서만, 페이지네이션 없음), 장소명은 이름 관련도순(POSITION) 커서 페이지. 코스+주차장 전부
+     * 대상.
+     */
+    @Transactional(readOnly = true)
+    public RelatedSearchResponse relatedSearch(RelatedSearchRequest req) {
+        boolean firstPage = req.cursor() == null;
+        List<String> regions = firstPage ? regionSearchIndex.search(req.keyword()) : List.of();
+
+        String pattern = req.likePattern();
+        CursorCodec.Cursor cursor = firstPage ? null : CursorCodec.decode(req.cursor());
+        Integer cursorMatchPos = cursor == null ? null : parseCursorMatchPos(cursor.sortValue());
+        Long cursorId = cursor == null ? null : cursor.id();
+
+        List<PlaceNameMatchRow> rows =
+                placeRepository.searchByNameRelevance(
+                        pattern, req.keyword(), cursorMatchPos, cursorId, req.size() + 1);
+        boolean hasNext = rows.size() > req.size();
+        List<PlaceNameMatchRow> page = hasNext ? rows.subList(0, req.size()) : rows;
+        List<PlaceSuggestion> items =
+                page.stream()
+                        .map(r -> new PlaceSuggestion(r.getId(), r.getName(), r.getAddress()))
+                        .toList();
+
+        String nextCursor = null;
+        if (hasNext) {
+            PlaceNameMatchRow last = page.get(page.size() - 1);
+            nextCursor = CursorCodec.encode(String.valueOf(last.getMatchPos()), last.getId());
+        }
+
+        CursorPage<PlaceSuggestion> places =
+                firstPage
+                        ? CursorPage.first(
+                                items,
+                                hasNext,
+                                nextCursor,
+                                placeRepository.countByNameRelevance(pattern))
+                        : CursorPage.next(items, hasNext, nextCursor);
+        return new RelatedSearchResponse(regions, places);
+    }
+
+    /** 연관 검색어 커서의 matchPos 파싱·검증. 변조로 숫자가 아니거나 음수면 잘못된 커서로 본다. */
+    private static Integer parseCursorMatchPos(String sortValue) {
+        int matchPos;
+        try {
+            matchPos = Integer.parseInt(sortValue);
+        } catch (NumberFormatException e) {
+            throw new BusinessException(ErrorCode.INVALID_INPUT_VALUE, e);
+        }
+        if (matchPos < 0) {
+            throw new BusinessException(ErrorCode.INVALID_INPUT_VALUE);
+        }
+        return matchPos;
     }
 
     /** 인증된 회원의 저장 필터. 비로그인(memberId=null)이면 빈 목록 — 필터 없이 거리순(스펙 007: 필터는 로그인 전용). */
