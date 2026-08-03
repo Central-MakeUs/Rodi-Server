@@ -3,6 +3,7 @@ package cmc.rodi.domain.place.controller;
 import cmc.rodi.domain.place.dto.PlaceCoordinateResponse;
 import cmc.rodi.domain.place.dto.PlaceDetailResponse;
 import cmc.rodi.domain.place.dto.PlaceListItem;
+import cmc.rodi.domain.place.dto.RelatedSearchResponse;
 import cmc.rodi.global.common.pagination.CursorPage;
 import cmc.rodi.global.common.response.ApiResponse;
 import io.swagger.v3.oas.annotations.Operation;
@@ -48,6 +49,18 @@ public interface PlaceControllerDocs {
             @Parameter(description = "현위치 경도") double lng,
             @Parameter(description = "페이지 크기(기본 20)") int size,
             @Parameter(description = "다음 페이지 커서(없으면 첫 페이지)") String cursor,
+            @Parameter(hidden = true) Long memberId);
+
+    @Operation(
+            summary = "연관 검색어(지역·장소명 자동완성)",
+            description =
+                    "키워드로 지역명과 장소명을 구분해 자동완성 후보를 반환한다. regions는 관련도순 최대 4개(첫 페이지에서만, "
+                            + "페이지네이션 없음), places는 코스+주차장 이름 관련도순 커서 페이지(기본 20개). "
+                            + "지역 표기는 장소 검색(주소)과 연결되도록 정규화돼 있다. JWT 필요.")
+    ApiResponse<RelatedSearchResponse> relatedSearch(
+            @Parameter(description = "검색 키워드") String keyword,
+            @Parameter(description = "장소 목록 페이지 크기(기본 20)") int size,
+            @Parameter(description = "장소 목록 다음 페이지 커서(없으면 첫 페이지)") String cursor,
             @Parameter(hidden = true) Long memberId);
 
     @Operation(
