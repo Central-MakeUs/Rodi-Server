@@ -13,3 +13,9 @@ CREATE UNIQUE INDEX uq_recent_search_region
     ON member_recent_search (member_id, keyword)  WHERE type = 'REGION';
 CREATE UNIQUE INDEX uq_recent_search_place
     ON member_recent_search (member_id, place_id) WHERE type = 'PLACE';
+
+-- type·place_id 불변식을 DB 레벨에도 강제(REGION은 place_id 없음, PLACE는 반드시 있음).
+-- 애플리케이션 검증(@AssertTrue)과 동일 규칙을 최종 방어선으로 둔다.
+ALTER TABLE member_recent_search ADD CONSTRAINT ck_recent_search_type_place_id
+    CHECK ((type = 'REGION' AND place_id IS NULL)
+        OR (type = 'PLACE' AND place_id IS NOT NULL));

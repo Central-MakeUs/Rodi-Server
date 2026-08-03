@@ -28,5 +28,5 @@
 | [코스 탐색](005-place-course-discovery.md) | 장소/코스/주차장 조회(마커·거리순 목록·상세)·북마크 | Draft |
 | [마이페이지](006-mypage.md) | 프로필 조회(레벨·추천 태그·저장 수)·운전목표 수정·저장 목록 | Implemented |
 | [코스 검색·정렬 필터](007-course-search-filter.md) | 주소·장소명 검색(로그인 전용)·홈 정렬 필터(서버 저장 filter_tags)·클러스터링(보류) | In Progress |
-| [최근 검색어](008-recent-search.md) | 연관검색 선택 항목 등록(POST·type 구분)·최신순 조회·삭제(로그인 전용) | Draft |
+| [최근 검색어](008-recent-search.md) | 연관검색 선택 항목 등록(POST·type 구분)·최신순 조회·삭제(로그인 전용) | Implemented |
 | [연관 검색어](009-related-search.md) | 지역(관련도순 4개)·장소명(관련도순 20개 커서) 자동완성 구분 응답 | Implemented |

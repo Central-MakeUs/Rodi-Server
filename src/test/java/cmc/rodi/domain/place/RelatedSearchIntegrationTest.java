@@ -1,6 +1,7 @@
 package cmc.rodi.domain.place;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -13,6 +14,7 @@ import cmc.rodi.domain.place.repository.CourseRepository;
 import cmc.rodi.domain.place.repository.ParkingRepository;
 import cmc.rodi.domain.place.service.PlaceQueryService;
 import cmc.rodi.global.common.pagination.CursorPage;
+import cmc.rodi.global.exception.BusinessException;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.locationtech.jts.geom.Coordinate;
@@ -138,5 +140,14 @@ class RelatedSearchIntegrationTest {
     void 미인증_401() throws Exception {
         mockMvc.perform(get("/api/v1/places/related-search").param("keyword", "강남"))
                 .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    @DisplayName("size 경계: 1·100은 허용, 0·101은 400(BusinessException)")
+    void size_경계값() {
+        assertThat(request("강남", 1, null)).isNotNull(); // 최소 허용
+        assertThat(request("강남", 100, null)).isNotNull(); // 최대 허용
+        assertThatThrownBy(() -> request("강남", 0, null)).isInstanceOf(BusinessException.class);
+        assertThatThrownBy(() -> request("강남", 101, null)).isInstanceOf(BusinessException.class);
     }
 }

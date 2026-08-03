@@ -192,7 +192,10 @@ public class PlaceQueryService {
         return new RelatedSearchResponse(regions, places);
     }
 
-    /** 연관 검색어 커서의 matchPos 파싱·검증. 변조로 숫자가 아니거나 음수면 잘못된 커서로 본다. */
+    /**
+     * 연관 검색어 커서의 matchPos 파싱·검증. PostgreSQL POSITION()은 1-based라 유효한 매칭 위치는 항상 1 이상이다(0은 "매칭 안 됨"을
+     * 뜻해 실제 결과에 나올 수 없는 값). 변조로 숫자가 아니거나 1 미만이면 잘못된 커서로 본다.
+     */
     private static Integer parseCursorMatchPos(String sortValue) {
         int matchPos;
         try {
@@ -200,7 +203,7 @@ public class PlaceQueryService {
         } catch (NumberFormatException e) {
             throw new BusinessException(ErrorCode.INVALID_INPUT_VALUE, e);
         }
-        if (matchPos < 0) {
+        if (matchPos < 1) {
             throw new BusinessException(ErrorCode.INVALID_INPUT_VALUE);
         }
         return matchPos;
