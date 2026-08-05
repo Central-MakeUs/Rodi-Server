@@ -1,13 +1,16 @@
 package cmc.rodi.domain.review.controller;
 
 import cmc.rodi.domain.review.dto.ReviewCreateResponse;
+import cmc.rodi.domain.review.dto.ReviewReportRequest;
 import cmc.rodi.domain.review.dto.ReviewRequest;
 import cmc.rodi.domain.review.service.ReviewService;
 import cmc.rodi.global.auth.resolver.CurrentMember;
+import cmc.rodi.global.common.form.FormResponse;
 import cmc.rodi.global.common.response.ApiResponse;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.DeleteMapping;
+import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
@@ -51,6 +54,22 @@ public class ReviewController implements ReviewControllerDocs {
     public ApiResponse<Void> deleteReview(
             @PathVariable Long reviewId, @CurrentMember Long memberId) {
         reviewService.delete(reviewId, memberId);
+        return ApiResponse.success(null);
+    }
+
+    @Override
+    @GetMapping("/reviews/report-form")
+    public ApiResponse<FormResponse> getReportForm() {
+        return ApiResponse.success(reviewService.getReportForm());
+    }
+
+    @Override
+    @PostMapping("/reviews/{reviewId}/report")
+    public ApiResponse<Void> report(
+            @PathVariable Long reviewId,
+            @CurrentMember Long memberId,
+            @Valid @RequestBody ReviewReportRequest request) {
+        reviewService.report(reviewId, memberId, request);
         return ApiResponse.success(null);
     }
 }

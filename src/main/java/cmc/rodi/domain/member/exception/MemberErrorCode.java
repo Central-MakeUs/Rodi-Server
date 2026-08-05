@@ -12,7 +12,8 @@ public enum MemberErrorCode implements ResponseCode {
     WITHDRAWAL_NOT_RECOVERABLE(HttpStatus.NOT_FOUND, "MEMBER_404_1", "복구할 탈퇴 대기 계정이 없습니다."),
     NICKNAME_POOL_EXHAUSTED(
             HttpStatus.INTERNAL_SERVER_ERROR, "MEMBER_500_1", "배정 가능한 닉네임이 소진되었습니다."),
-    ALREADY_ONBOARDED(HttpStatus.CONFLICT, "MEMBER_409_2", "이미 온보딩을 완료한 회원입니다.");
+    ALREADY_ONBOARDED(HttpStatus.CONFLICT, "MEMBER_409_2", "이미 온보딩을 완료한 회원입니다."),
+    SELF_BLOCK_NOT_ALLOWED(HttpStatus.BAD_REQUEST, "MEMBER_400_1", "자기 자신은 차단할 수 없습니다.");
 
     private final HttpStatus httpStatus;
     private final String code;

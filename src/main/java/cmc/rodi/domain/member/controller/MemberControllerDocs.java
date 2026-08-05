@@ -48,4 +48,18 @@ public interface MemberControllerDocs {
                             + "빈 배열이면 필터 해제(전체 노출). 저장된 값은 인증된 목록·검색 정렬에 적용된다. JWT 필요.")
     ApiResponse<Void> updateFilterTags(
             @Parameter(hidden = true) Long memberId, FilterTagsRequest request);
+
+    @Operation(
+            summary = "회원 차단",
+            description =
+                    "해당 회원을 차단한다(멱등). 차단하면 내 후기 목록에서 그 회원의 후기가 빠진다(단방향, 후기 요약 수치는 그대로). "
+                            + "자기 자신은 400, 없는 회원은 404. JWT 필요.")
+    ApiResponse<Void> block(
+            @Parameter(description = "차단할 회원 id") Long memberId,
+            @Parameter(hidden = true) Long currentMemberId);
+
+    @Operation(summary = "회원 차단 해제", description = "차단을 해제한다(멱등, 차단 상태가 아니어도 200). JWT 필요.")
+    ApiResponse<Void> unblock(
+            @Parameter(description = "차단 해제할 회원 id") Long memberId,
+            @Parameter(hidden = true) Long currentMemberId);
 }

@@ -8,6 +8,7 @@
 | 2026-08-01 | Draft | 리뷰 반영 — 혼잡도 3단계(한산/보통/복잡) 확정, **한 장소에 후기 여러 개 허용**(1레벨 1후기 제약 폐기 → 요약은 후기 **건수** 집계), 레벨 필터 기본값 = **조회자 본인 레벨**(`level=ALL`로 전체), 탈퇴 회원 후기 유지, 차단은 목록에서만 제외, 코스 상세와 후기 조회는 API 분리 유지 |
 | 2026-08-03 | Draft | **후기 좋아요 취소** — 이번 범위에서 빼고 추후 구현으로 미룸(`review_like` 테이블·엔드포인트·응답 필드 모두 제거) |
 | 2026-08-03 | **Approved** | 구현 착수 — 커밋을 ①작성·수정·삭제 ②신고·차단 ③목록·요약 세 단계로 나눠 단계별로 검토받는다 |
+| 2026-08-06 | Approved | 신고 사유를 화면 기준 5종으로 확정(`IRRELEVANT` 추가, `INAPPROPRIATE`·`PRIVACY` 제거, `ETC`→`OTHER`)하고 **선택지를 서버가 폼으로 내려주도록** 추가(`GET /reviews/report-form`). 공통 폼 구조는 `global.common.form` |
 
 ## 배경 / 목적
 
@@ -58,9 +59,9 @@
 - 후기 수는 **비정규화 컬럼 없이 COUNT**로 계산한다(북마크수와 동일 방침). 트래픽 증가 시 집계 컬럼/캐시는 후속.
 - 목록은 **JPQL + fetch join**, 요약 집계만 **native query**(QueryDSL 미사용, ADR 0011 방침 유지).
 
-## 도메인 모델 (마이그레이션 V13 — review 도메인 신규)
+## 도메인 모델 (마이그레이션 V13·V14 — review 도메인 신규)
 
-> V11(최근 검색어 재설계)·V12(세종 주소 정규화)가 [스펙 008](008-recent-search.md)·[009](009-related-search.md)에서 이미 쓰였다. 후기는 **V13**부터 시작한다.
+> V11(최근 검색어 재설계)·V12(세종 주소 정규화)가 [스펙 008](008-recent-search.md)·[009](009-related-search.md)에서 이미 쓰였다. 후기는 **V13**부터 시작한다. 커밋을 단계별로 나눠 **V13 = `review`**, **V14 = `review_report`·`member_block`** 으로 분리한다.
 
 패키지는 **`domain.review`** 신규(`entity`/`repository`/`service`/`controller`/`dto`). 회원 차단(`member_block`)만 **`domain.member`** 소유다(대상이 후기가 아니라 회원).
 
@@ -124,7 +125,7 @@
 | `review.congestion` | QUIET / NORMAL / CROWDED | 한산 / 보통 / 복잡 (3단계 확정) |
 | `review.practice_method` | SOLO / ACCOMPANIED | 혼자 연습 / 동승자 연습 |
 | `review.member_level` | `Level` 재사용 (SEED / ROOKIE / OWNER / EXPLORER / NAVIGATOR) | |
-| `review_report.reason` | SPAM / ABUSE / INAPPROPRIATE / FALSE_INFO / PRIVACY / ETC | 스팸·홍보 / 욕설·비방 / 부적절한 내용 / 허위 정보 / 개인정보 노출 / 기타 — **문구 확인 필요**(미해결) |
+| `review_report.reason` | SPAM / ABUSE / IRRELEVANT / FALSE_INFO / OTHER | 스팸·광고 / 욕설, 음란성, 혐오 표현 / 코스와 무관한 내용 / 허위정보 / 기타 (화면 확정) |
 
 > 한글 라벨은 **문서·클라이언트에만** 둔다. 응답은 코드(enum name)로 내려보내고 표기는 클라이언트가 담당한다(기존 `practiceTypes`·`recommendationTags`와 동일 규칙).
 
@@ -141,6 +142,7 @@
 | GET | /api/v1/places/{placeId}/reviews/summary | 후기 요약(레벨별 난이도 분포 등, 기본=내 레벨) | JWT |
 | PUT | /api/v1/reviews/{reviewId} | 후기 수정(전체 교체) | JWT |
 | DELETE | /api/v1/reviews/{reviewId} | 후기 삭제 | JWT |
+| GET | /api/v1/reviews/report-form | 신고 사유 폼(선택지 정의) | JWT |
 | POST | /api/v1/reviews/{reviewId}/report | 후기 신고 | JWT |
 | POST | /api/v1/members/{memberId}/block | 회원 차단(멱등) | JWT |
 | DELETE | /api/v1/members/{memberId}/block | 차단 해제(멱등) | JWT |
@@ -279,7 +281,34 @@ DELETE /api/v1/reviews/31   (JWT)
 - 응답 데이터 없음(200). **본인 후기만**(타인 403). **레벨 불일치여도 삭제는 허용**.
 - 삭제 시 그 후기의 신고 행도 함께 제거된다(FK `ON DELETE CASCADE`). **하드 삭제**(soft delete 아님) — 삭제된 후기는 집계에서도 빠진다.
 
-### 6. 후기 신고
+### 6. 신고 사유 폼 조회
+
+신고 화면의 선택지를 **서버가 정의해 내려준다.** 문구·순서·직접입력 여부를 앱 배포 없이 바꿀 수 있고, 다른 선택 폼(연습 미방문 이유 등)도 같은 구조를 재사용한다(`global.common.form`).
+
+```json
+// GET /api/v1/reviews/report-form   (JWT)
+// Response data
+{
+  "questionId": "REVIEW_REPORT_REASON",
+  "type": "SINGLE_SELECT",
+  "title": "신고 사유",
+  "required": true,
+  "options": [
+    { "code": "SPAM",       "label": "스팸/광고",           "order": 1, "requiresTextInput": false },
+    { "code": "ABUSE",      "label": "욕설, 음란성, 혐오 표현", "order": 2, "requiresTextInput": false },
+    { "code": "IRRELEVANT", "label": "코스와 무관한 내용",     "order": 3, "requiresTextInput": false },
+    { "code": "FALSE_INFO", "label": "허위정보",             "order": 4, "requiresTextInput": false },
+    { "code": "OTHER",      "label": "기타",                "order": 5, "requiresTextInput": true,
+      "textInputPlaceholder": "이유를 작성해주세요", "textInputMaxLength": 100 }
+  ]
+}
+```
+
+- `options`는 **order 오름차순**. 텍스트 입력이 없는 선택지는 `textInput*` 키를 **아예 내려보내지 않는다**(NON_NULL). 설명이 없는 폼은 `description`도 생략.
+- `code`가 곧 신고 요청의 `reason` 값이다.
+- 이 폼은 **한글 라벨을 서버가 준다** — 코드만 주고 표기는 클라가 하는 다른 응답(`practiceTypes`·`recommendationTags`)과 다른 방침이며, 폼 문구는 운영 중 바뀔 여지가 커서 이렇게 둔다.
+
+### 7. 후기 신고
 
 ```json
 // POST /api/v1/reviews/31/report   (JWT)
@@ -288,11 +317,11 @@ DELETE /api/v1/reviews/31   (JWT)
 // Response data: null (200)
 ```
 
-- `reason` 필수(enum), `detail` 선택(최대 500자 — 미해결 질문).
+- `reason` 필수(폼의 `code`), `detail`은 **`OTHER`일 때 필수**(최대 100자 — 폼의 `textInputMaxLength`와 동일). 그 외 사유에서는 무시한다.
 - **본인 후기 신고 → 400 `REVIEW_400_1`**. 같은 후기 **재신고는 멱등 200**(중복 저장 없음).
 - 접수만 하고 후기 노출은 바뀌지 않는다(자동 숨김 없음 — 범위 밖).
 
-### 7. 회원 차단·해제
+### 8. 회원 차단·해제
 
 ```
 POST   /api/v1/members/7/block   // 차단(멱등)
@@ -350,7 +379,8 @@ DELETE /api/v1/members/7/block   // 해제(멱등)
 - **레벨 필터 기본값 = 조회자 본인 레벨**, 전체는 `level=ALL`.
 - **탈퇴·익명화 회원의 후기는 유지**하고 닉네임만 `null`로 내려준다(집계에도 남는다).
 - **차단은 후기 목록에서만 제외** — 요약 수치(추천 수·난이도별 수 등)는 전체 기준으로 모두에게 동일하다.
-- **신고 사유 6종 유지**(스팸·홍보/욕설·비방/부적절한 내용/허위 정보/개인정보 노출/기타).
+- **신고 사유는 화면 기준 5종**(스팸/광고 · 욕설, 음란성, 혐오 표현 · 코스와 무관한 내용 · 허위정보 · 기타). 초안의 `INAPPROPRIATE`·`PRIVACY`는 없애고 `IRRELEVANT`를 추가, `ETC`→`OTHER`로 통일.
+- **선택지는 서버가 폼으로 내려준다**(`GET /reviews/report-form`). 기타는 직접 입력 필수(최대 100자).
 - **코스 상세 API와 후기 조회 API는 분리** — 코스 상세 응답에 후기 필드를 넣지 않고 클라이언트가 각각 호출한다.
 - **후기 작성 자격 = 로그인 + 레벨 보유**(온보딩 완료). 북마크·방문 이력 요구 없음.
 
@@ -360,7 +390,7 @@ DELETE /api/v1/members/7/block   // 해제(멱등)
 2. **요약 카운트 표기** — 집계 단위가 **후기 건수**인데 화면은 `30명`이다. (a) 라벨을 "건"으로 바꾸거나 (b) 난이도별 `DISTINCT member_id`로 집계해 "명"을 맞추는 방법이 있다. 기획 확인 필요. *(b는 한 사람이 서로 다른 난이도로 여러 후기를 쓰면 양쪽 막대에 잡힌다.)*
 3. **`review.caution`과 `course_caution`의 관계** — 코스에 이미 관리자 등록 주의사항 칩(`course_caution`)이 있다. 별개 표시로 보이나 기획 확인 대기(**미결**).
 4. **"인증된 후기" 배지** — 방문한 사람의 후기를 구분 표시할 예정이나 **방문 판정 기준이 미정**(**미결**). 기준이 정해지면 `review`에 판정 결과 컬럼(또는 `driving_record` 조인)과 응답 `isVerifiedVisit` 필드를 추가한다. 이번 구현엔 넣지 않는다.
-5. **신고 `detail` 상한** — 500자 제안. 확인 필요.
+5. **신고 `detail` 상한** — 폼의 `textInputMaxLength`와 맞춰 **100자**로 구현(연습 미방문 이유 폼과 동일). 더 길게 받아야 하면 조정.
 6. **차단 목록 조회·해제 화면** — 마이페이지에 차단 관리가 필요한가? (지금은 후기 목록에서 해제만 가능, `GET /members/me/blocks` 없음)
 
 ## 범위 밖 / 다음

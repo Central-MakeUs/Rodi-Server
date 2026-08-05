@@ -5,6 +5,7 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -14,6 +15,9 @@ import cmc.rodi.domain.review.dto.ReviewCreateResponse;
 import cmc.rodi.domain.review.service.ReviewService;
 import cmc.rodi.global.auth.jwt.JwtAuthenticationFilter;
 import cmc.rodi.global.auth.resolver.CurrentMemberArgumentResolver;
+import cmc.rodi.global.common.form.FormOption;
+import cmc.rodi.global.common.form.FormResponse;
+import cmc.rodi.global.common.form.FormType;
 import cmc.rodi.global.common.notification.DiscordNotifier;
 import cmc.rodi.global.config.SecurityConfig;
 import cmc.rodi.global.config.WebConfig;
@@ -139,5 +143,62 @@ class ReviewControllerTest {
 
         mockMvc.perform(delete("/api/v1/reviews/31")).andExpect(status().isOk());
         verify(reviewService).delete(31L, 7L);
+    }
+
+    @Test
+    @DisplayName("신고는 데이터 없이 200 + 사유 누락·기타인데 직접입력 없으면 400")
+    void 신고() throws Exception {
+        authenticate(7L);
+
+        mockMvc.perform(
+                        post("/api/v1/reviews/31/report")
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content("{\"reason\": \"ABUSE\", \"detail\": \"비방 표현\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data").doesNotExist());
+        verify(reviewService).report(eq(31L), eq(7L), any());
+
+        mockMvc.perform(
+                        post("/api/v1/reviews/31/report")
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content("{}"))
+                .andExpect(status().isBadRequest());
+
+        mockMvc.perform(
+                        post("/api/v1/reviews/31/report")
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content("{\"reason\": \"OTHER\"}"))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    @DisplayName("신고 사유 폼 — 선택지가 order 순으로 내려가고 기타만 텍스트 입력 필드를 갖는다")
+    void 신고사유_폼() throws Exception {
+        authenticate(7L);
+        when(reviewService.getReportForm())
+                .thenReturn(
+                        new FormResponse(
+                                "REVIEW_REPORT_REASON",
+                                FormType.SINGLE_SELECT,
+                                "신고 사유",
+                                null,
+                                true,
+                                List.of(
+                                        FormOption.of("SPAM", "스팸/광고", 1),
+                                        FormOption.withTextInput(
+                                                "OTHER", "기타", 2, "이유를 작성해주세요", 100))));
+
+        mockMvc.perform(get("/api/v1/reviews/report-form"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.questionId").value("REVIEW_REPORT_REASON"))
+                .andExpect(jsonPath("$.data.type").value("SINGLE_SELECT"))
+                .andExpect(jsonPath("$.data.title").value("신고 사유"))
+                .andExpect(jsonPath("$.data.description").doesNotExist()) // 설명 없으면 키 자체를 생략
+                .andExpect(jsonPath("$.data.options[0].code").value("SPAM"))
+                .andExpect(jsonPath("$.data.options[0].requiresTextInput").value(false))
+                .andExpect(jsonPath("$.data.options[0].textInputMaxLength").doesNotExist())
+                .andExpect(jsonPath("$.data.options[1].requiresTextInput").value(true))
+                .andExpect(jsonPath("$.data.options[1].textInputPlaceholder").value("이유를 작성해주세요"))
+                .andExpect(jsonPath("$.data.options[1].textInputMaxLength").value(100));
     }
 }

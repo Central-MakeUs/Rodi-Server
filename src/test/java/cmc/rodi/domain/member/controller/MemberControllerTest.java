@@ -17,6 +17,7 @@ import cmc.rodi.domain.member.dto.MyPageResponse;
 import cmc.rodi.domain.member.dto.OnboardingRequest;
 import cmc.rodi.domain.member.entity.Level;
 import cmc.rodi.domain.member.entity.PracticeType;
+import cmc.rodi.domain.member.service.MemberBlockService;
 import cmc.rodi.domain.member.service.MemberFilterService;
 import cmc.rodi.domain.member.service.MemberProfileService;
 import cmc.rodi.domain.member.service.MemberWithdrawalService;
@@ -65,6 +66,7 @@ class MemberControllerTest {
     @MockitoBean OnboardingService onboardingService;
     @MockitoBean MemberProfileService memberProfileService;
     @MockitoBean MemberFilterService memberFilterService;
+    @MockitoBean MemberBlockService memberBlockService;
 
     private static final String ONBOARDING_BODY =
             """
@@ -256,5 +258,19 @@ class MemberControllerTest {
                                 .content("{\"filterTags\":[null]}"))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.isSuccess").value(false));
+    }
+
+    @Test
+    @DisplayName("차단·해제: 200 + (현재 회원 → 경로의 회원) 순서로 서비스에 위임")
+    void 차단_해제() throws Exception {
+        authenticate(7L);
+
+        mockMvc.perform(post("/api/v1/members/9/block"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data").doesNotExist());
+        verify(memberBlockService).block(7L, 9L);
+
+        mockMvc.perform(delete("/api/v1/members/9/block")).andExpect(status().isOk());
+        verify(memberBlockService).unblock(7L, 9L);
     }
 }

@@ -9,12 +9,15 @@ import cmc.rodi.domain.member.entity.Member;
 import cmc.rodi.domain.member.repository.MemberRepository;
 import cmc.rodi.domain.place.entity.Course;
 import cmc.rodi.domain.place.repository.CourseRepository;
+import cmc.rodi.domain.review.dto.ReviewReportRequest;
 import cmc.rodi.domain.review.dto.ReviewRequest;
 import cmc.rodi.domain.review.entity.Congestion;
 import cmc.rodi.domain.review.entity.Difficulty;
 import cmc.rodi.domain.review.entity.PracticeMethod;
+import cmc.rodi.domain.review.entity.ReportReason;
 import cmc.rodi.domain.review.entity.Review;
 import cmc.rodi.domain.review.exception.ReviewErrorCode;
+import cmc.rodi.domain.review.repository.ReviewReportRepository;
 import cmc.rodi.domain.review.repository.ReviewRepository;
 import cmc.rodi.domain.review.service.ReviewService;
 import cmc.rodi.global.exception.BusinessException;
@@ -40,6 +43,7 @@ class ReviewWriteIntegrationTest {
 
     @Autowired ReviewService reviewService;
     @Autowired ReviewRepository reviewRepository;
+    @Autowired ReviewReportRepository reviewReportRepository;
     @Autowired CourseRepository courseRepository;
     @Autowired MemberRepository memberRepository;
 
@@ -148,16 +152,23 @@ class ReviewWriteIntegrationTest {
     }
 
     @Test
-    @DisplayName("삭제는 레벨이 달라져도 성공한다")
-    void 삭제_레벨무관() {
+    @DisplayName("삭제는 레벨이 달라져도 성공하고, 신고도 함께 사라진다")
+    void 삭제_레벨무관_그리고_cascade() {
         Course course = seedCourse();
         Member me = seedMember("del@kakao.com", Level.ROOKIE);
+        Member other = seedMember("reporter@kakao.com", Level.SEED);
         Long reviewId =
                 reviewService.create(course.getId(), me.getId(), request("지울 글")).reviewId();
 
+        reviewService.report(
+                reviewId, other.getId(), new ReviewReportRequest(ReportReason.SPAM, "홍보성 글"));
         me.applyOnboarding(Level.EXPLORER, null); // 레벨업해도 삭제는 가능
 
         assertThatCode(() -> reviewService.delete(reviewId, me.getId())).doesNotThrowAnyException();
+        reviewRepository.flush(); // DELETE가 DB에 닿아야 FK CASCADE가 돈다
+
         assertThat(reviewRepository.findById(reviewId)).isEmpty();
+        assertThat(reviewReportRepository.existsByReviewIdAndReporterId(reviewId, other.getId()))
+                .isFalse();
     }
 }
