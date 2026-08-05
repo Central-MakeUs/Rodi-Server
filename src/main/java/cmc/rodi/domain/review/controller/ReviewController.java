@@ -1,11 +1,16 @@
 package cmc.rodi.domain.review.controller;
 
 import cmc.rodi.domain.review.dto.ReviewCreateResponse;
+import cmc.rodi.domain.review.dto.ReviewItem;
+import cmc.rodi.domain.review.dto.ReviewListRequest;
 import cmc.rodi.domain.review.dto.ReviewReportRequest;
 import cmc.rodi.domain.review.dto.ReviewRequest;
+import cmc.rodi.domain.review.dto.ReviewSummaryResponse;
+import cmc.rodi.domain.review.service.ReviewQueryService;
 import cmc.rodi.domain.review.service.ReviewService;
 import cmc.rodi.global.auth.resolver.CurrentMember;
 import cmc.rodi.global.common.form.FormResponse;
+import cmc.rodi.global.common.pagination.CursorPage;
 import cmc.rodi.global.common.response.ApiResponse;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -16,6 +21,7 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
@@ -29,6 +35,7 @@ import org.springframework.web.bind.annotation.RestController;
 public class ReviewController implements ReviewControllerDocs {
 
     private final ReviewService reviewService;
+    private final ReviewQueryService reviewQueryService;
 
     @Override
     @PostMapping("/places/{placeId}/reviews")
@@ -37,6 +44,29 @@ public class ReviewController implements ReviewControllerDocs {
             @CurrentMember Long memberId,
             @Valid @RequestBody ReviewRequest request) {
         return ApiResponse.success(reviewService.create(placeId, memberId, request));
+    }
+
+    @Override
+    @GetMapping("/places/{placeId}/reviews")
+    public ApiResponse<CursorPage<ReviewItem>> getReviews(
+            @PathVariable Long placeId,
+            @RequestParam(required = false) String level,
+            @RequestParam(defaultValue = "10") int size,
+            @RequestParam(required = false) String cursor,
+            @CurrentMember Long memberId) {
+        return ApiResponse.success(
+                reviewQueryService.getReviews(
+                        placeId, memberId, new ReviewListRequest(level, size, cursor)));
+    }
+
+    @Override
+    @GetMapping("/places/{placeId}/reviews/summary")
+    public ApiResponse<ReviewSummaryResponse> getSummary(
+            @PathVariable Long placeId,
+            @RequestParam(required = false) String level,
+            @CurrentMember Long memberId) {
+        return ApiResponse.success(
+                reviewQueryService.getSummary(placeId, memberId, ReviewListRequest.ofLevel(level)));
     }
 
     @Override

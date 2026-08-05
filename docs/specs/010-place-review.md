@@ -9,6 +9,7 @@
 | 2026-08-03 | Draft | **후기 좋아요 취소** — 이번 범위에서 빼고 추후 구현으로 미룸(`review_like` 테이블·엔드포인트·응답 필드 모두 제거) |
 | 2026-08-03 | **Approved** | 구현 착수 — 커밋을 ①작성·수정·삭제 ②신고·차단 ③목록·요약 세 단계로 나눠 단계별로 검토받는다 |
 | 2026-08-06 | Approved | 신고 사유를 화면 기준 5종으로 확정(`IRRELEVANT` 추가, `INAPPROPRIATE`·`PRIVACY` 제거, `ETC`→`OTHER`)하고 **선택지를 서버가 폼으로 내려주도록** 추가(`GET /reviews/report-form`). 공통 폼 구조는 `global.common.form` |
+| 2026-08-06 | **Implemented** | 구현 완료. 마이그레이션은 **V13**(review)·**V14**(review_report·member_block) 두 개. 목록은 **JPQL + fetch join**(작성자 닉네임 N+1 방지), 요약만 native `FILTER` 집계 — Postgres가 null 바인드 타입을 못 정해(`could not determine data type`) **레벨 필터는 IN 목록**, **첫 페이지 커서는 미래시각 sentinel**로 표현. 신고·차단은 `ON CONFLICT DO NOTHING` 멱등 |
 
 ## 배경 / 목적
 

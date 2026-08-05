@@ -12,6 +12,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import cmc.rodi.domain.review.dto.ReviewCreateResponse;
+import cmc.rodi.domain.review.dto.ReviewListRequest;
+import cmc.rodi.domain.review.service.ReviewQueryService;
 import cmc.rodi.domain.review.service.ReviewService;
 import cmc.rodi.global.auth.jwt.JwtAuthenticationFilter;
 import cmc.rodi.global.auth.resolver.CurrentMemberArgumentResolver;
@@ -19,6 +21,7 @@ import cmc.rodi.global.common.form.FormOption;
 import cmc.rodi.global.common.form.FormResponse;
 import cmc.rodi.global.common.form.FormType;
 import cmc.rodi.global.common.notification.DiscordNotifier;
+import cmc.rodi.global.common.pagination.CursorPage;
 import cmc.rodi.global.config.SecurityConfig;
 import cmc.rodi.global.config.WebConfig;
 import cmc.rodi.global.exception.GlobalExceptionHandler;
@@ -69,6 +72,7 @@ class ReviewControllerTest {
     @Autowired MockMvc mockMvc;
 
     @MockitoBean ReviewService reviewService;
+    @MockitoBean ReviewQueryService reviewQueryService;
 
     private void authenticate(long memberId) {
         SecurityContextHolder.getContext()
@@ -143,6 +147,22 @@ class ReviewControllerTest {
 
         mockMvc.perform(delete("/api/v1/reviews/31")).andExpect(status().isOk());
         verify(reviewService).delete(31L, 7L);
+    }
+
+    @Test
+    @DisplayName("목록 — level·size·cursor가 요청 객체로 전달된다(size 범위 밖은 400)")
+    void 목록_파라미터() throws Exception {
+        authenticate(7L);
+        when(reviewQueryService.getReviews(eq(1L), eq(7L), any()))
+                .thenReturn(CursorPage.first(List.of(), false, null, 0));
+
+        mockMvc.perform(get("/api/v1/places/1/reviews").param("level", "ROOKIE").param("size", "5"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.items").isArray());
+        verify(reviewQueryService).getReviews(1L, 7L, new ReviewListRequest("ROOKIE", 5, null));
+
+        mockMvc.perform(get("/api/v1/places/1/reviews").param("size", "0"))
+                .andExpect(status().isBadRequest());
     }
 
     @Test
