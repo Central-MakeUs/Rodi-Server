@@ -16,6 +16,7 @@ import cmc.rodi.global.common.form.FormResponse;
 import cmc.rodi.global.common.form.FormType;
 import cmc.rodi.global.exception.BusinessException;
 import cmc.rodi.global.exception.ErrorCode;
+import java.time.LocalDateTime;
 import java.util.Arrays;
 import java.util.Comparator;
 import lombok.RequiredArgsConstructor;
@@ -29,6 +30,9 @@ public class ReviewService {
 
     /** 신고 사유 폼의 문항 식별자(클라이언트가 응답을 구분하는 키). */
     private static final String REPORT_QUESTION_ID = "REVIEW_REPORT_REASON";
+
+    /** 이 인원수에게 신고되면 후기를 비공개 처리한다. */
+    static final int HIDE_THRESHOLD = 5;
 
     private final ReviewRepository reviewRepository;
     private final ReviewReportRepository reviewReportRepository;
@@ -102,7 +106,10 @@ public class ReviewService {
                         .toList());
     }
 
-    /** 후기 신고(멱등). 본인 후기는 신고할 수 없고, 재신고는 첫 신고를 유지한다. */
+    /**
+     * 후기 신고(멱등). 본인 후기는 신고할 수 없고, 재신고는 첫 신고를 유지한다. 서로 다른 {@value #HIDE_THRESHOLD}명에게 신고되면 그 자리에서
+     * 비공개 처리한다(작성자 본인에게만 남는다).
+     */
     @Transactional
     public void report(Long reviewId, Long memberId, ReviewReportRequest request) {
         Review review = findReview(reviewId);
@@ -111,6 +118,11 @@ public class ReviewService {
         }
         reviewReportRepository.saveIfAbsent(
                 reviewId, memberId, request.reason().name(), request.detail());
+
+        // unique(review_id, reporter_id)라 행 수 = 신고자 수. 동시에 5번째 신고가 겹쳐도 결과는 같다.
+        if (reviewReportRepository.countByReviewId(reviewId) >= HIDE_THRESHOLD) {
+            review.hide(LocalDateTime.now());
+        }
     }
 
     private Review findReview(Long reviewId) {

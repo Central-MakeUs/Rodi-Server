@@ -25,6 +25,7 @@ public interface ReviewRepository extends JpaRepository<Review, Long> {
             JOIN FETCH r.member
             WHERE r.place.id = :placeId
               AND r.memberLevel IN :levels
+              AND (r.hiddenAt IS NULL OR r.member.id = :memberId)
               AND NOT EXISTS (
                     SELECT 1 FROM MemberBlock b
                     WHERE b.blocker.id = :memberId AND b.blocked.id = r.member.id)
@@ -46,6 +47,7 @@ public interface ReviewRepository extends JpaRepository<Review, Long> {
             SELECT COUNT(r) FROM Review r
             WHERE r.place.id = :placeId
               AND r.memberLevel IN :levels
+              AND (r.hiddenAt IS NULL OR r.member.id = :memberId)
               AND NOT EXISTS (
                     SELECT 1 FROM MemberBlock b
                     WHERE b.blocker.id = :memberId AND b.blocked.id = r.member.id)
@@ -75,16 +77,17 @@ public interface ReviewRepository extends JpaRepository<Review, Long> {
                            COUNT(*) FILTER (WHERE r.congestion = 'CROWDED')           AS crowded
                     FROM review r
                     WHERE r.place_id = :placeId
+                      AND r.hidden_at IS NULL
                       AND r.member_level = COALESCE(CAST(:level AS varchar), r.member_level)
                     """,
             nativeQuery = true)
     ReviewSummaryRow summarize(@Param("placeId") Long placeId, @Param("level") String level);
 
-    /** 레벨별 후기 수(드롭다운용). 레벨 필터와 무관한 전체 분포. */
+    /** 레벨별 후기 수(드롭다운용). 레벨 필터와 무관한 전체 분포이며, 비공개 후기는 뺀다. */
     @Query(
             """
             SELECT r.memberLevel AS level, COUNT(r) AS cnt FROM Review r
-            WHERE r.place.id = :placeId
+            WHERE r.place.id = :placeId AND r.hiddenAt IS NULL
             GROUP BY r.memberLevel
             """)
     List<LevelCountRow> countByLevel(@Param("placeId") Long placeId);

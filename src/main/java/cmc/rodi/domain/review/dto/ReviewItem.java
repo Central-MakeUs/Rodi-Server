@@ -27,6 +27,8 @@ public record ReviewItem(
         @Schema(description = "내가 쓴 후기인지") @JsonProperty("isMine") boolean mine,
         @Schema(description = "수정 가능 여부(내 후기이고 작성 당시 레벨 = 현재 레벨)") @JsonProperty("isEditable")
                 boolean editable,
+        @Schema(description = "신고 누적으로 비공개된 후기인지(내 후기에서만 true로 내려간다)") @JsonProperty("isHidden")
+                boolean hidden,
         @Schema(description = "작성 시각") LocalDateTime createdAt) {
 
     public static ReviewItem of(Review review, boolean mine, boolean editable) {
@@ -43,6 +45,7 @@ public record ReviewItem(
                 review.getCaution(),
                 mine,
                 editable,
+                review.isHidden(),
                 review.getCreatedAt());
     }
 }

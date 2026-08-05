@@ -31,4 +31,7 @@ public interface ReviewReportRepository extends JpaRepository<ReviewReport, Long
             @Param("detail") String detail);
 
     boolean existsByReviewIdAndReporterId(Long reviewId, Long reporterId);
+
+    /** 이 후기를 신고한 사람 수. unique(review_id, reporter_id) 덕에 행 수 = 신고자 수다. */
+    long countByReviewId(Long reviewId);
 }

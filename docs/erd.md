@@ -159,6 +159,7 @@ erDiagram
         varchar content "후기 내용(최대 1000자)"
         text caution "주의사항(선택)"
         varchar member_level "작성 당시 작성자 레벨(스냅샷)"
+        timestamptz hidden_at "신고 5명 누적 비공개 시각(null=공개)"
         timestamptz created_at
         timestamptz updated_at
     }
@@ -220,8 +221,8 @@ erDiagram
 | `course_caution` | 코스 주의사항(1:N). 칩 형태 문구를 `seq` 순서로 저장. |
 | `waypoint` | 코스 경유지(1:N). 출발/경유/목적지 + 순서 + 좌표. |
 | `bookmark` | 북마크. 회원 ↔ place(코스·주차장 공통). `(member_id, place_id)` 유니크. |
-| `review` | 장소 후기(place 1:N, 코스·주차장 공통). 추천여부·난이도·혼잡도·연습방법·내용·주의사항 + **작성 당시 레벨 스냅샷**(`member_level`). 유니크 제약 없음(같은 장소 여러 번 작성 가능). |
-| `review_report` | 후기 신고. `(review_id, reporter_id)` 유니크(중복 신고 멱등). 접수·보관만(자동 숨김 없음). |
+| `review` | 장소 후기(place 1:N, 코스·주차장 공통). 추천여부·난이도·혼잡도·연습방법·내용·주의사항 + **작성 당시 레벨 스냅샷**(`member_level`). 유니크 제약 없음(같은 장소 여러 번 작성 가능). 신고 5명 누적 시 `hidden_at`으로 비공개(작성자 본인에게만 보임). |
+| `review_report` | 후기 신고. `(review_id, reporter_id)` 유니크(중복 신고 멱등). **5명 누적 시 `review.hidden_at` 설정**(자동 비공개). |
 | `member_block` | 회원 차단(단방향). `(blocker_id, blocked_id)` 유니크. 차단자의 후기 목록에서만 상대 후기 제외(요약 집계엔 영향 없음). |
 
 ## 주요 제약·인덱스
@@ -244,4 +245,4 @@ erDiagram
 - **후기 좋아요 `review_like`** — 회원 ↔ 후기 `(review_id, member_id)` 유니크. 스펙 010에서 범위 제외, 추후 구현.
 - **후기 사진 첨부**, 후기 정렬 옵션(좋아요순), 신고 누적 자동 숨김·처리 상태(`review_report.status`).
 
-> **리뷰·신고·차단은 구현 완료**(V13 `review`, V14 `review_report`·`member_block` — [스펙 010](specs/010-place-review.md)). 위 엔티티 요약 참고.
+> **리뷰·신고·차단은 구현 완료**(V13 `review`, V14 `review_report`·`member_block`, V15 `review.hidden_at` — [스펙 010](specs/010-place-review.md)). 위 엔티티 요약 참고.

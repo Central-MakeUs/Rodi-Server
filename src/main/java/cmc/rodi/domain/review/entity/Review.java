@@ -15,6 +15,7 @@ import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
+import java.time.LocalDateTime;
 import lombok.AccessLevel;
 import lombok.Builder;
 import lombok.Getter;
@@ -74,6 +75,10 @@ public class Review extends BaseEntity {
     @Column(name = "member_level", nullable = false, length = 20)
     private Level memberLevel;
 
+    /** 신고 누적으로 비공개 처리된 시각(null=공개). 목록·요약에서 빠지고 작성자 본인에게만 보인다. */
+    @Column(name = "hidden_at")
+    private LocalDateTime hiddenAt;
+
     @Builder
     private Review(
             Place place,
@@ -114,6 +119,17 @@ public class Review extends BaseEntity {
 
     public boolean isOwnedBy(Long memberId) {
         return member.getId().equals(memberId);
+    }
+
+    /** 신고 누적으로 비공개 처리. 이미 비공개면 최초 판정 시각을 유지한다. */
+    public void hide(LocalDateTime now) {
+        if (hiddenAt == null) {
+            hiddenAt = now;
+        }
+    }
+
+    public boolean isHidden() {
+        return hiddenAt != null;
     }
 
     /** 수정 가능 여부 — 작성 당시 레벨과 현재 레벨이 같아야 한다. */

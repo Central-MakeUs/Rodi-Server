@@ -15,6 +15,8 @@ import cmc.rodi.domain.member.repository.MemberRepository;
 import cmc.rodi.domain.member.service.MemberBlockService;
 import cmc.rodi.domain.place.entity.Course;
 import cmc.rodi.domain.place.repository.CourseRepository;
+import cmc.rodi.domain.review.dto.ReviewItem;
+import cmc.rodi.domain.review.dto.ReviewListRequest;
 import cmc.rodi.domain.review.dto.ReviewReportRequest;
 import cmc.rodi.domain.review.dto.ReviewRequest;
 import cmc.rodi.domain.review.entity.Congestion;
@@ -23,10 +25,13 @@ import cmc.rodi.domain.review.entity.PracticeMethod;
 import cmc.rodi.domain.review.entity.ReportReason;
 import cmc.rodi.domain.review.exception.ReviewErrorCode;
 import cmc.rodi.domain.review.repository.ReviewReportRepository;
+import cmc.rodi.domain.review.repository.ReviewRepository;
+import cmc.rodi.domain.review.service.ReviewQueryService;
 import cmc.rodi.domain.review.service.ReviewService;
 import cmc.rodi.global.common.form.FormOption;
 import cmc.rodi.global.common.form.FormResponse;
 import cmc.rodi.global.common.form.FormType;
+import cmc.rodi.global.common.pagination.CursorPage;
 import cmc.rodi.global.exception.BusinessException;
 import cmc.rodi.global.exception.ErrorCode;
 import cmc.rodi.support.TestcontainersConfiguration;
@@ -53,7 +58,9 @@ class ReviewReportBlockIntegrationTest {
     private static final GeometryFactory GEO = new GeometryFactory(new PrecisionModel(), 4326);
 
     @Autowired ReviewService reviewService;
+    @Autowired ReviewQueryService reviewQueryService;
     @Autowired MemberBlockService memberBlockService;
+    @Autowired ReviewRepository reviewRepository;
     @Autowired ReviewReportRepository reviewReportRepository;
     @Autowired MemberBlockRepository memberBlockRepository;
     @Autowired CourseRepository courseRepository;
@@ -87,6 +94,60 @@ class ReviewReportBlockIntegrationTest {
                                 "후기 내용",
                                 null))
                 .reviewId();
+    }
+
+    @Test
+    @DisplayName("서로 다른 5명에게 신고되면 비공개 — 4명까지는 공개, 5번째에 숨겨진다")
+    void 신고_누적_자동_비공개() {
+        Course course = seedCourse();
+        Member author = seedMember("hide-author@kakao.com");
+        Long reviewId = seedReview(course, author);
+        ReviewReportRequest request = new ReviewReportRequest(ReportReason.SPAM, null);
+
+        for (int i = 1; i <= 4; i++) {
+            reviewService.report(reviewId, seedMember("r" + i + "@kakao.com").getId(), request);
+        }
+        assertThat(reviewRepository.findById(reviewId).orElseThrow().isHidden()).isFalse();
+
+        reviewService.report(reviewId, seedMember("r5@kakao.com").getId(), request);
+        assertThat(reviewRepository.findById(reviewId).orElseThrow().isHidden()).isTrue();
+    }
+
+    @Test
+    @DisplayName("비공개 후기는 남의 목록·요약에서 빠지고, 작성자 본인 목록에만 isHidden=true로 남는다")
+    void 비공개_후기_노출범위() {
+        Course course = seedCourse();
+        Member author = seedMember("hidden-author@kakao.com");
+        Member reader = seedMember("reader@kakao.com");
+        Long reviewId = seedReview(course, author);
+        ReviewReportRequest request = new ReviewReportRequest(ReportReason.ABUSE, null);
+        for (int i = 1; i <= 5; i++) {
+            reviewService.report(reviewId, seedMember("v" + i + "@kakao.com").getId(), request);
+        }
+
+        // 남에게는 목록에서 사라진다
+        CursorPage<ReviewItem> othersView =
+                reviewQueryService.getReviews(
+                        course.getId(), reader.getId(), new ReviewListRequest("ALL", 10, null));
+        assertThat(othersView.items()).isEmpty();
+        assertThat(othersView.totalCount()).isZero();
+
+        // 작성자 본인에게는 남고 비공개 표시가 붙는다
+        CursorPage<ReviewItem> myView =
+                reviewQueryService.getReviews(
+                        course.getId(), author.getId(), new ReviewListRequest("ALL", 10, null));
+        assertThat(myView.items()).hasSize(1);
+        assertThat(myView.items().get(0).hidden()).isTrue();
+
+        // 요약 집계에서는 본인에게도 빠진다
+        assertThat(
+                        reviewQueryService
+                                .getSummary(
+                                        course.getId(),
+                                        author.getId(),
+                                        ReviewListRequest.ofLevel("ALL"))
+                                .totalCount())
+                .isZero();
     }
 
     @Test
