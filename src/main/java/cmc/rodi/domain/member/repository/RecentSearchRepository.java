@@ -11,20 +11,40 @@ import org.springframework.data.repository.query.Param;
 public interface RecentSearchRepository extends JpaRepository<RecentSearch, Long> {
 
     /**
-     * 검색어 기록(upsert). unique(member_id, keyword) 충돌 시 새 행을 추가하지 않고 searched_at을 갱신해 맨 앞으로 올린다. 동시
-     * 요청에도 유니크 충돌 없이 멱등. searched_at은 실제 검색 순간이라야 재검색이 맨 앞으로 올라오므로, 트랜잭션 고정값 now() 대신 벽시계
-     * clock_timestamp()를 쓴다(같은 트랜잭션 내 연속 호출도 단조 증가). 네이티브라 auditing이 안 걸려 시각을 직접 넣는다.
+     * 지역(REGION) 등록(upsert). 부분 유니크 uq_recent_search_region(member_id, keyword) 충돌 시 새 행 없이
+     * searched_at만 갱신해 맨 앞으로. 재검색이 맨 앞으로 오도록 트랜잭션 고정값 now() 대신 벽시계 clock_timestamp()를 쓴다. 네이티브라
+     * auditing 없이 시각을 직접 넣는다.
      */
     @Modifying
     @Query(
             value =
                     """
-                    INSERT INTO member_recent_search (member_id, keyword, searched_at)
-                    VALUES (:memberId, :keyword, clock_timestamp())
-                    ON CONFLICT (member_id, keyword) DO UPDATE SET searched_at = clock_timestamp()
+                    INSERT INTO member_recent_search (member_id, type, keyword, searched_at)
+                    VALUES (:memberId, 'REGION', :keyword, clock_timestamp())
+                    ON CONFLICT (member_id, keyword) WHERE type = 'REGION'
+                    DO UPDATE SET searched_at = clock_timestamp()
                     """,
             nativeQuery = true)
-    void upsert(@Param("memberId") Long memberId, @Param("keyword") String keyword);
+    void upsertRegion(@Param("memberId") Long memberId, @Param("keyword") String keyword);
+
+    /**
+     * 장소(PLACE) 등록(upsert). 부분 유니크 uq_recent_search_place(member_id, place_id) 충돌 시
+     * searched_at·keyword를 갱신(이름 변경 대비)해 맨 앞으로. 이름이 같아도 place_id가 다르면 별개로 저장된다.
+     */
+    @Modifying
+    @Query(
+            value =
+                    """
+                    INSERT INTO member_recent_search (member_id, type, keyword, place_id, searched_at)
+                    VALUES (:memberId, 'PLACE', :keyword, :placeId, clock_timestamp())
+                    ON CONFLICT (member_id, place_id) WHERE type = 'PLACE'
+                    DO UPDATE SET searched_at = clock_timestamp(), keyword = EXCLUDED.keyword
+                    """,
+            nativeQuery = true)
+    void upsertPlace(
+            @Param("memberId") Long memberId,
+            @Param("keyword") String keyword,
+            @Param("placeId") Long placeId);
 
     /** 회원의 최근 검색어를 최신순으로 조회(상한은 Pageable로 제한). searched_at 동률은 id로 결정적 정렬. */
     List<RecentSearch> findByMemberIdOrderBySearchedAtDescIdDesc(Long memberId, Pageable pageable);

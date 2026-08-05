@@ -207,4 +207,44 @@ public interface PlaceRepository extends JpaRepository<Place, Long> {
             @Param("swLng") double swLng,
             @Param("neLat") double neLat,
             @Param("neLng") double neLng);
+
+    /**
+     * 장소명 관련도 검색(스펙 009, 연관 검색어). place(코스+주차장) 중 name이 키워드를 포함하는 것을, 키워드가 이름에서 처음 나오는 위치(POSITION,
+     * 1-based) 오름차순으로 — 앞에서 매칭될수록 관련도 높음 — 정렬한다. 커서 keyset은 (cursorMatchPos, cursorId) 초과분. 한 건 더
+     * (limit=size+1) 조회해 다음 페이지 존재를 판별한다.
+     */
+    @Query(
+            value =
+                    """
+                    SELECT * FROM (
+                        SELECT p.id AS id,
+                               p.name AS name,
+                               p.address AS address,
+                               POSITION(LOWER(:keyword) IN LOWER(p.name)) AS "matchPos"
+                        FROM place p
+                        WHERE p.name ILIKE :pattern ESCAPE '\\'
+                    ) t
+                    WHERE (:cursorMatchPos IS NULL
+                           OR t."matchPos" > :cursorMatchPos
+                           OR (t."matchPos" = :cursorMatchPos AND t.id > :cursorId))
+                    ORDER BY t."matchPos" ASC, t.id ASC
+                    LIMIT :limit
+                    """,
+            nativeQuery = true)
+    List<PlaceNameMatchRow> searchByNameRelevance(
+            @Param("pattern") String pattern,
+            @Param("keyword") String keyword,
+            @Param("cursorMatchPos") Integer cursorMatchPos,
+            @Param("cursorId") Long cursorId,
+            @Param("limit") int limit);
+
+    /** 장소명 관련도 검색 총 건수(totalCount, 첫 페이지 전용). */
+    @Query(
+            value =
+                    """
+                    SELECT COUNT(*) FROM place p
+                    WHERE p.name ILIKE :pattern ESCAPE '\\'
+                    """,
+            nativeQuery = true)
+    long countByNameRelevance(@Param("pattern") String pattern);
 }

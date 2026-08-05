@@ -1,5 +1,6 @@
 package cmc.rodi.domain.member.controller;
 
+import cmc.rodi.domain.member.dto.RecentSearchRegisterRequest;
 import cmc.rodi.domain.member.dto.RecentSearchResponse;
 import cmc.rodi.global.common.response.ApiResponse;
 import io.swagger.v3.oas.annotations.Operation;
@@ -12,9 +13,17 @@ import java.util.List;
 public interface RecentSearchControllerDocs {
 
     @Operation(
+            summary = "최근 검색어 등록",
+            description =
+                    "연관검색어에서 선택한 지역(REGION)·장소(PLACE)를 등록한다. 같은 항목 재등록은 최신으로 갱신, 회원당 15개 초과 시 오래된 것 제거. "
+                            + "PLACE는 placeId 필수. JWT 필요.")
+    ApiResponse<Void> registerRecentSearch(
+            @Parameter(hidden = true) Long memberId, RecentSearchRegisterRequest request);
+
+    @Operation(
             summary = "최근 검색어 조회",
             description =
-                    "현재 회원의 최근 검색어를 최신순으로 반환한다(상한 15개 이내). 저장은 검색 API가 자동으로 하므로 저장 엔드포인트는 없다. JWT 필요.")
+                    "현재 회원의 최근 검색어를 최신순으로 반환한다(상한 15개 이내). 각 항목은 type(REGION/PLACE)·keyword·placeId(PLACE만). JWT 필요.")
     ApiResponse<List<RecentSearchResponse>> getRecentSearches(
             @Parameter(hidden = true) Long memberId);
 

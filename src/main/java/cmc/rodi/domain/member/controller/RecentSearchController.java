@@ -1,24 +1,36 @@
 package cmc.rodi.domain.member.controller;
 
+import cmc.rodi.domain.member.dto.RecentSearchRegisterRequest;
 import cmc.rodi.domain.member.dto.RecentSearchResponse;
 import cmc.rodi.domain.member.service.RecentSearchService;
 import cmc.rodi.global.auth.resolver.CurrentMember;
 import cmc.rodi.global.common.response.ApiResponse;
+import jakarta.validation.Valid;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
-/** 최근 검색어 API. 저장은 검색 API가 자동 처리하고, 여기선 조회·삭제만 제공한다. 문서 스펙은 {@link RecentSearchControllerDocs}. */
+/** 최근 검색어 API. 등록(연관검색 선택)·조회·삭제를 제공한다. 문서 스펙은 {@link RecentSearchControllerDocs}. */
 @RestController
 @RequestMapping("/api/v1/members/me/recent-searches")
 @RequiredArgsConstructor
 public class RecentSearchController implements RecentSearchControllerDocs {
 
     private final RecentSearchService recentSearchService;
+
+    @Override
+    @PostMapping
+    public ApiResponse<Void> registerRecentSearch(
+            @CurrentMember Long memberId, @Valid @RequestBody RecentSearchRegisterRequest request) {
+        recentSearchService.register(memberId, request);
+        return ApiResponse.success(null);
+    }
 
     @Override
     @GetMapping
