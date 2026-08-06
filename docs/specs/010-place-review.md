@@ -10,6 +10,7 @@
 | 2026-08-03 | **Approved** | 구현 착수 — 커밋을 ①작성·수정·삭제 ②신고·차단 ③목록·요약 세 단계로 나눠 단계별로 검토받는다 |
 | 2026-08-06 | Approved | 신고 사유를 화면 기준 5종으로 확정(`IRRELEVANT` 추가, `INAPPROPRIATE`·`PRIVACY` 제거, `ETC`→`OTHER`)하고 **선택지를 서버가 폼으로 내려주도록** 추가(`GET /reviews/report-form`). 공통 폼 구조는 `global.common.form` |
 | 2026-08-06 | **Implemented** | 신고 **5명 누적 시 자동 비공개** 추가(V15 `hidden_at`) — 목록·요약에서 빠지고 작성자 본인에게만 `isHidden`으로 보인다. 마이그레이션은 **V13**(review)·**V14**(review_report·member_block)·**V15**(hidden_at). 목록은 **JPQL + fetch join**(작성자 닉네임 N+1 방지), 요약만 native `FILTER` 집계 — Postgres가 null 바인드 타입을 못 정해(`could not determine data type`) **레벨 필터는 IN 목록**, **첫 페이지 커서는 미래시각 sentinel**로 표현. 신고·차단은 `ON CONFLICT DO NOTHING` 멱등 |
+| 2026-08-06 | Implemented | PR 리뷰 반영 — **후기 내용 상한 1000자 → 150자**(화면 확정값). V13은 이미 적용된 마이그레이션이라 수정하지 않고 **V16 ALTER**로 줄였다 |
 
 ## 배경 / 목적
 
@@ -77,7 +78,7 @@
 | difficulty | varchar(20) enum | Y | 사용자 체감 난이도(5단계) |
 | congestion | varchar(20) enum | Y | 혼잡도(3단계 — 한산/보통/복잡) |
 | practice_method | varchar(20) enum | Y | SOLO(혼자 연습) / ACCOMPANIED(동승자 연습) |
-| content | varchar(1000) | Y | 후기 내용(1~1000자 — 미해결 질문) |
+| content | varchar(150) | Y | 후기 내용(1~150자, 화면 확정. V13은 1000자였고 V16에서 줄임) |
 | caution | text | N | 주의사항(길이 제한 없음) |
 | member_level | varchar(20) enum | Y | **작성 당시** 작성자 레벨(스냅샷, 이후 레벨 변경에도 불변) |
 | hidden_at | timestamptz | N | 신고 5명 누적으로 비공개된 시각(null=공개). V15에서 추가 |
@@ -173,7 +174,7 @@
 ```
 
 - `member_level`은 **요청에 없다** — 서버가 `member.level`을 스냅샷으로 저장한다.
-- 검증: `isRecommended`·`difficulty`·`congestion`·`practiceMethod`·`content` 필수, `content` 1~1000자, enum 유효값 아니면 **400**.
+- 검증: `isRecommended`·`difficulty`·`congestion`·`practiceMethod`·`content` 필수, `content` 1~150자, enum 유효값 아니면 **400**.
 - 레벨 미배정(온보딩 미완료) → **409 `REVIEW_409_2`**.
 - **같은 장소에 이미 후기가 있어도 계속 작성할 수 있다**(중복 제약 없음).
 - 없는 `placeId` → **404**.
@@ -363,7 +364,7 @@ DELETE /api/v1/members/7/block   // 해제(멱등)
 ## 완료 조건 (Acceptance Criteria)
 
 - [x] 후기 작성 시 필수 5개 필드가 저장되고, `member_level`에 **작성 시점 회원 레벨**이 저장된다(요청으로 받지 않는다).
-- [x] 필수 누락·enum 오류·`content` 1001자는 400, 없는 `placeId`는 404를 반환한다.
+- [x] 필수 누락·enum 오류·`content` 151자는 400, 없는 `placeId`는 404를 반환한다.
 - [x] 레벨 미배정 회원의 작성은 409(`REVIEW_409_2`)다.
 - [x] **같은 회원이 같은 장소에 후기를 여러 번 쓸 수 있고**, 목록·요약에 모두 반영된다(유니크 충돌 없음).
 - [x] 회원 레벨이 바뀌어도 기존 후기의 `member_level`은 변하지 않는다.
@@ -398,7 +399,7 @@ DELETE /api/v1/members/7/block   // 해제(멱등)
 
 ## 미해결 질문
 
-1. **후기 내용 글자 제한** — 일단 **1~1000자**로 진행(미정). 화면 확정되면 조정.
+1. ~~**후기 내용 글자 제한**~~ — **1~150자로 확정**(화면 기준). 초안의 1000자는 임시값이었고 V16에서 줄였다.
 2. **요약 카운트 표기** — 집계 단위가 **후기 건수**인데 화면은 `30명`이다. (a) 라벨을 "건"으로 바꾸거나 (b) 난이도별 `DISTINCT member_id`로 집계해 "명"을 맞추는 방법이 있다. 기획 확인 필요. *(b는 한 사람이 서로 다른 난이도로 여러 후기를 쓰면 양쪽 막대에 잡힌다.)*
 3. **`review.caution`과 `course_caution`의 관계** — 코스에 이미 관리자 등록 주의사항 칩(`course_caution`)이 있다. 별개 표시로 보이나 기획 확인 대기(**미결**).
 4. **"인증된 후기" 배지** — 방문한 사람의 후기를 구분 표시할 예정이나 **방문 판정 기준이 미정**(**미결**). 기준이 정해지면 `review`에 판정 결과 컬럼(또는 `driving_record` 조인)과 응답 `isVerifiedVisit` 필드를 추가한다. 이번 구현엔 넣지 않는다.

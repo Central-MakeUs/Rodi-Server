@@ -156,7 +156,7 @@ erDiagram
         varchar difficulty "체감 난이도(VERY_EASY…VERY_HARD)"
         varchar congestion "혼잡도(QUIET/NORMAL/CROWDED)"
         varchar practice_method "SOLO|ACCOMPANIED"
-        varchar content "후기 내용(최대 1000자)"
+        varchar content "후기 내용(최대 150자)"
         text caution "주의사항(선택)"
         varchar member_level "작성 당시 작성자 레벨(스냅샷)"
         timestamptz hidden_at "신고 5명 누적 비공개 시각(null=공개)"

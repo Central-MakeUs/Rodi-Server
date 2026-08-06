@@ -33,7 +33,7 @@ import lombok.NoArgsConstructor;
 @Table(name = "review")
 public class Review extends BaseEntity {
 
-    private static final int MAX_CONTENT_LENGTH = 1000;
+    public static final int MAX_CONTENT_LENGTH = 150;
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)

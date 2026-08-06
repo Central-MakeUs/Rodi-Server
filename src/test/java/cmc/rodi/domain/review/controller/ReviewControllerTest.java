@@ -103,7 +103,7 @@ class ReviewControllerTest {
     }
 
     @Test
-    @DisplayName("필수 항목 누락·1000자 초과 내용은 400")
+    @DisplayName("필수 항목 누락·150자 초과 내용은 400")
     void 작성_검증() throws Exception {
         authenticate(7L);
 
@@ -113,7 +113,7 @@ class ReviewControllerTest {
                                 .content("{\"difficulty\": \"EASY\"}"))
                 .andExpect(status().isBadRequest());
 
-        String tooLong = "가".repeat(1001);
+        String tooLong = "가".repeat(151);
         String body =
                 """
                 {
