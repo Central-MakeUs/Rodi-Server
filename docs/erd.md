@@ -243,6 +243,6 @@ erDiagram
 - **지역 그룹핑 `region`** — 계층 지역(중심좌표+반경)으로 지도 그룹 표시([ADR 0003](adr/0003-region-hierarchy-and-postgis.md) 설계만, place에 `region_id` 미도입).
 - **운전기록 `driving_record`** — 이용 경로 히스토리(마이페이지 시각화 + "인증된 후기" 판정 근거). 방문 판정 기준이 정해지면 착수.
 - **후기 좋아요 `review_like`** — 회원 ↔ 후기 `(review_id, member_id)` 유니크. 스펙 010에서 범위 제외, 추후 구현.
-- **후기 사진 첨부**, 후기 정렬 옵션(좋아요순), 신고 누적 자동 숨김·처리 상태(`review_report.status`).
+- **후기 사진 첨부**, 후기 정렬 옵션(좋아요순), 신고 처리 상태(`review_report.status`)·비공개 복구 관리자 UI. *(신고 누적 자동 비공개는 V15 `review.hidden_at`으로 구현 완료)*
 
 > **리뷰·신고·차단은 구현 완료**(V13 `review`, V14 `review_report`·`member_block`, V15 `review.hidden_at` — [스펙 010](specs/010-place-review.md)). 위 엔티티 요약 참고.

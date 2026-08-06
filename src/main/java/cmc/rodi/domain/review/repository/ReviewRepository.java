@@ -2,15 +2,28 @@ package cmc.rodi.domain.review.repository;
 
 import cmc.rodi.domain.member.entity.Level;
 import cmc.rodi.domain.review.entity.Review;
+import jakarta.persistence.LockModeType;
 import java.time.LocalDateTime;
 import java.util.Collection;
 import java.util.List;
+import java.util.Optional;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 public interface ReviewRepository extends JpaRepository<Review, Long> {
+
+    /**
+     * 신고 접수용 후기 조회(행 잠금). 신고 저장 → 신고 수 확인 → 비공개 전환을 한 트랜잭션에서 직렬화하기 위해 쓴다.
+     *
+     * <p>잠금이 없으면 READ COMMITTED에서 동시 신고가 서로의 미커밋 행을 못 봐 각자 임계값 미만으로 세고, 둘 다 커밋된 뒤 신고 수는 5인데 공개 상태로
+     * 남는다.
+     */
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("SELECT r FROM Review r WHERE r.id = :id")
+    Optional<Review> findByIdForUpdate(@Param("id") Long id);
 
     /**
      * 장소 후기 한 페이지(최신순 keyset). {@code levels}에 전체 레벨을 넘기면 필터가 없는 것과 같고, 조회 회원이 차단한 작성자의 후기는 제외한다.

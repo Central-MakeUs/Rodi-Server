@@ -72,7 +72,10 @@ public interface ReviewControllerDocs {
 
     @Operation(
             summary = "후기 신고",
-            description = "후기를 신고한다(중복 신고는 멱등). 본인 후기 신고는 400. 접수만 하고 후기 노출은 바뀌지 않는다. JWT 필요.")
+            description =
+                    "후기를 신고한다(중복 신고는 멱등). 본인 후기 신고는 400."
+                            + " 서로 다른 5명에게 신고되면 그 5번째 신고로 후기가 자동 비공개되어 목록·요약에서 빠지고,"
+                            + " 작성자 본인 목록에만 isHidden=true로 남는다. JWT 필요.")
     ApiResponse<Void> report(
             @Parameter(description = "후기 id") Long reviewId,
             @Parameter(hidden = true) Long memberId,

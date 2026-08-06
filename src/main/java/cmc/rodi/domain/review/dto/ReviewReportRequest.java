@@ -17,7 +17,9 @@ public record ReviewReportRequest(
                 String detail) {
 
     public ReviewReportRequest {
-        detail = (detail == null || detail.isBlank()) ? null : detail.trim();
+        // 직접 입력은 OTHER에서만 의미가 있다. 다른 사유로 온 detail은 저장하지 않는다.
+        boolean acceptsDetail = reason != null && reason.requiresTextInput();
+        detail = (!acceptsDetail || detail == null || detail.isBlank()) ? null : detail.trim();
     }
 
     /** 기타는 직접 입력이 반드시 있어야 한다. reason이 null이면 @NotNull이 먼저 잡는다. */

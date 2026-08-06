@@ -112,14 +112,19 @@ public class ReviewService {
      */
     @Transactional
     public void report(Long reviewId, Long memberId, ReviewReportRequest request) {
-        Review review = findReview(reviewId);
+        // 후기 행을 잠가 [신고 저장 → 신고 수 확인 → 비공개 전환]을 신고자끼리 직렬화한다.
+        // 잠금이 없으면 동시 신고가 서로의 미커밋 행을 못 봐 둘 다 임계값 미만으로 세고 공개로 남는다.
+        Review review =
+                reviewRepository
+                        .findByIdForUpdate(reviewId)
+                        .orElseThrow(() -> new BusinessException(ErrorCode.ENTITY_NOT_FOUND));
         if (review.isOwnedBy(memberId)) {
             throw new BusinessException(ReviewErrorCode.SELF_REPORT_NOT_ALLOWED);
         }
         reviewReportRepository.saveIfAbsent(
                 reviewId, memberId, request.reason().name(), request.detail());
 
-        // unique(review_id, reporter_id)라 행 수 = 신고자 수. 동시에 5번째 신고가 겹쳐도 결과는 같다.
+        // unique(review_id, reporter_id)라 행 수 = 신고자 수.
         if (reviewReportRepository.countByReviewId(reviewId) >= HIDE_THRESHOLD) {
             review.hide(LocalDateTime.now());
         }
