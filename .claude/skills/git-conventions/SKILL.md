@@ -38,7 +38,7 @@ description: Rodi의 commit/PR/issue/브랜치 작성 규칙. 커밋 메시지�
 - subject는 50자 이내
 - body는 필요할 때만 — 이유나 변경 맥락을 설명
 - Claude가 작성하는 커밋은 마지막에 트레일러를 붙인다:
-  `Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>`
+  `Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>`
 
 ### 예시
 
@@ -49,6 +49,14 @@ chore: hibernate-spatial 의존성 추가
 refactor(parking): 난이도 계산 로직 분리
 docs: API 명세 README 업데이트
 ```
+
+### 커밋 분할
+
+기능 하나가 여러 덩어리(테이블·엔드포인트 묶음)면 **커밋을 단계별로 쪼갠다.** 한 번에 몰아 커밋하지 않는다.
+
+- 각 커밋은 **그 시점에서 `./gradlew build`가 통과하는 상태**여야 한다(마이그레이션도 커밋별로 V13/V14/… 로 나눔).
+- 사용자가 한 커밋을 확인한 뒤 다음 커밋을 만든다.
+- 예) 후기 기능 → ① 작성·수정·삭제 ② 신고·차단 ③ 목록·요약
 
 ## Issue
 
@@ -78,6 +86,10 @@ docs: API 명세 README 업데이트
 
 - 이슈 생성 후 브랜치 이름에 이슈 번호를 넣으면 추적이 편하다: `feat/#12-auth-kakao-login`
 - PR 본문에 `closes #12`를 쓰면 머지 시 이슈가 자동 close된다.
+
+### 생성 방법
+
+`gh` CLI가 없으므로 이슈·PR 생성은 **git credential 토큰 + GitHub REST API(curl)** 로 한다.
 
 ## Pull Request
 
@@ -116,6 +128,8 @@ main
 <type>/#<이슈번호>-<도메인>-<작업내용>   예) feat/#12-auth-kakao-login (이슈 추적 시)
 ```
 
+- 어순은 **`<도메인>-<작업내용>`**: `feat/#60-place-review`(O) / `feat/#60-review-place`(X)
+
 ### 작업 흐름
 
 ```
@@ -135,6 +149,15 @@ main
 
 - 스쿼시 시 **커밋 제목 = PR 제목**이 되므로 PR 제목을 `<type>(<scope>): <subject>` 컨벤션에 맞춘다(세부 커밋은 PR에 남아 추적 가능).
 - 스쿼시 후 SHA가 바뀌므로 **머지 후 로컬·원격 브랜치를 삭제**하고 develop을 새로 pull 한다.
+
+### Claude 작업 브랜치 (워크트리)
+
+- **Claude는 워크트리의 `claude/<기능>` 브랜치에서만 작업·커밋한다.** 워크트리는 사용자 저장소와 `.git`을 공유하므로 그 브랜치는 사용자 로컬에 바로 보인다.
+- **`feat/#N-...`은 사용자 자리다** — 사용자가 거기서 코드를 리뷰하고 PR을 올린다. Claude가 feat 브랜치에 체크아웃해 커밋하지 않는다.
+- 이슈와 feat 브랜치는 **스펙 승인 시점에 미리** 만든다(구현 착수 전).
+- 동기화는 사용자가 feat 브랜치에서: `git merge --ff-only claude/<기능>`
+- develop 최신을 반영해야 하면 Claude가 워크트리에서 `git merge origin/develop`으로 처리한다. 로컬 `develop` ref는 사용자 것이라 건드리지 않는다.
+- **리베이스는 쓰지 않는다.** 이미 검토받은 커밋의 SHA가 바뀌고, PR이 squash merge라 머지 커밋은 develop 히스토리에 남지 않는다.
 
 ### 규칙 요약
 
