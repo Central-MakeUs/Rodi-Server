@@ -4,6 +4,7 @@ import cmc.rodi.domain.member.dto.FilterTagsRequest;
 import cmc.rodi.domain.member.dto.MemberUpdateRequest;
 import cmc.rodi.domain.member.dto.MyPageResponse;
 import cmc.rodi.domain.member.dto.OnboardingRequest;
+import cmc.rodi.domain.member.service.MemberBlockService;
 import cmc.rodi.domain.member.service.MemberFilterService;
 import cmc.rodi.domain.member.service.MemberProfileService;
 import cmc.rodi.domain.member.service.MemberWithdrawalService;
@@ -15,6 +16,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -31,6 +33,7 @@ public class MemberController implements MemberControllerDocs {
     private final OnboardingService onboardingService;
     private final MemberProfileService memberProfileService;
     private final MemberFilterService memberFilterService;
+    private final MemberBlockService memberBlockService;
 
     @Override
     @GetMapping("/me")
@@ -66,6 +69,22 @@ public class MemberController implements MemberControllerDocs {
     public ApiResponse<Void> updateFilterTags(
             @CurrentMember Long memberId, @Valid @RequestBody FilterTagsRequest request) {
         memberFilterService.updateFilterTags(memberId, request.filterTags());
+        return ApiResponse.success(null);
+    }
+
+    @Override
+    @PostMapping("/{memberId}/block")
+    public ApiResponse<Void> block(
+            @PathVariable Long memberId, @CurrentMember Long currentMemberId) {
+        memberBlockService.block(currentMemberId, memberId);
+        return ApiResponse.success(null);
+    }
+
+    @Override
+    @DeleteMapping("/{memberId}/block")
+    public ApiResponse<Void> unblock(
+            @PathVariable Long memberId, @CurrentMember Long currentMemberId) {
+        memberBlockService.unblock(currentMemberId, memberId);
         return ApiResponse.success(null);
     }
 }
