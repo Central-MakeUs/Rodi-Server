@@ -31,3 +31,4 @@
 | [최근 검색어](008-recent-search.md) | 연관검색 선택 항목 등록(POST·type 구분)·최신순 조회·삭제(로그인 전용) | Implemented |
 | [연관 검색어](009-related-search.md) | 지역(관련도순 4개)·장소명(관련도순 20개 커서) 자동완성 구분 응답 | Implemented |
 | [장소 후기](010-place-review.md) | 후기 작성/수정/삭제·레벨별 목록·난이도 분포 요약·신고/차단(좋아요는 추후) | Implemented |
+| [연습 코스 목록](011-practice-course.md) | 코스 담기·방문 여부 상태 변경·미방문 이유 폼·후기 방문 인증 | In Progress |
