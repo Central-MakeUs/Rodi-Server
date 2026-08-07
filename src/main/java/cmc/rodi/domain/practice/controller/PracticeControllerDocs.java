@@ -2,6 +2,7 @@ package cmc.rodi.domain.practice.controller;
 
 import cmc.rodi.domain.practice.dto.PracticeItem;
 import cmc.rodi.domain.practice.dto.PracticeRegisterResponse;
+import cmc.rodi.domain.practice.dto.PracticeStatusUpdateRequest;
 import cmc.rodi.global.common.pagination.CursorPage;
 import cmc.rodi.global.common.response.ApiResponse;
 import io.swagger.v3.oas.annotations.Operation;
@@ -29,5 +30,23 @@ public interface PracticeControllerDocs {
     ApiResponse<CursorPage<PracticeItem>> getMyPractices(
             @Parameter(description = "페이지 크기(1~100)") int size,
             @Parameter(description = "다음 페이지 커서") String cursor,
+            @Parameter(hidden = true) Long memberId);
+
+    @Operation(
+            summary = "방문 여부 상태 변경",
+            description =
+                    "VISITED면 그 자리에서 방문 처리(연습 횟수 +1, 방문 시각 기록)한다 — 클라이언트가 이동 추적으로 자동 호출하며"
+                            + " 서버는 결과를 기록만 한다. NOT_VISITED면 사유가 필수이고(기타는 직접 입력 필수),"
+                            + " 이미 사유가 있으면 409. 타인 항목은 403. JWT 필요.")
+    ApiResponse<Void> updateStatus(
+            @Parameter(description = "연습 항목 id") Long practiceId,
+            @Parameter(hidden = true) Long memberId,
+            PracticeStatusUpdateRequest request);
+
+    @Operation(
+            summary = "연습 목록에서 제거",
+            description = "연습 항목을 삭제한다(멱등, 없어도 200). 타인 항목은 403. JWT 필요.")
+    ApiResponse<Void> delete(
+            @Parameter(description = "연습 항목 id") Long practiceId,
             @Parameter(hidden = true) Long memberId);
 }

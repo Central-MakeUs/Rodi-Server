@@ -5,10 +5,14 @@ import cmc.rodi.domain.member.repository.MemberRepository;
 import cmc.rodi.domain.place.entity.Place;
 import cmc.rodi.domain.place.repository.PlaceRepository;
 import cmc.rodi.domain.practice.dto.PracticeRegisterResponse;
+import cmc.rodi.domain.practice.dto.PracticeStatusUpdateRequest;
 import cmc.rodi.domain.practice.entity.MemberPractice;
+import cmc.rodi.domain.practice.entity.PracticeStatus;
+import cmc.rodi.domain.practice.exception.PracticeErrorCode;
 import cmc.rodi.domain.practice.repository.MemberPracticeRepository;
 import cmc.rodi.global.exception.BusinessException;
 import cmc.rodi.global.exception.ErrorCode;
+import java.time.LocalDateTime;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -47,5 +51,54 @@ public class PracticeService {
                 memberPracticeRepository.save(
                         MemberPractice.builder().member(member).place(place).build());
         return PracticeRegisterResponse.from(saved);
+    }
+
+    /**
+     * 방문 여부 변경. {@code VISITED}는 그 자리에서 방문 처리(횟수 +1, 시각 기록)하고, {@code NOT_VISITED}는 사유를 남긴다. 미방문
+     * 사유는 한 번 저장하면 덮어쓸 수 없다(409) — 다녀온 것으로 바꾸는 건 언제든 가능하다.
+     */
+    @Transactional
+    public void updateStatus(Long practiceId, Long memberId, PracticeStatusUpdateRequest request) {
+        MemberPractice practice = findOwnedPractice(practiceId, memberId);
+
+        if (request.status() == PracticeStatus.VISITED) {
+            practice.markVisited(LocalDateTime.now());
+            return;
+        }
+
+        if (request.skipReason() == null) {
+            throw new BusinessException(PracticeErrorCode.SKIP_REASON_REQUIRED);
+        }
+        if (practice.hasSkipReason()) {
+            throw new BusinessException(PracticeErrorCode.SKIP_REASON_ALREADY_SET);
+        }
+        practice.markNotVisited(request.skipReason(), request.skipDetail());
+    }
+
+    /** 목록에서 제거(멱등). 본인 항목만 지울 수 있고, 없으면 그대로 성공으로 본다. */
+    @Transactional
+    public void delete(Long practiceId, Long memberId) {
+        memberPracticeRepository
+                .findById(practiceId)
+                .ifPresent(
+                        practice -> {
+                            requireOwner(practice, memberId);
+                            memberPracticeRepository.delete(practice);
+                        });
+    }
+
+    private MemberPractice findOwnedPractice(Long practiceId, Long memberId) {
+        MemberPractice practice =
+                memberPracticeRepository
+                        .findById(practiceId)
+                        .orElseThrow(() -> new BusinessException(ErrorCode.ENTITY_NOT_FOUND));
+        requireOwner(practice, memberId);
+        return practice;
+    }
+
+    private void requireOwner(MemberPractice practice, Long memberId) {
+        if (!practice.isOwnedBy(memberId)) {
+            throw new BusinessException(PracticeErrorCode.NOT_PRACTICE_OWNER);
+        }
     }
 }
