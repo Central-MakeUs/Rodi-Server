@@ -4,6 +4,7 @@ import cmc.rodi.domain.place.dto.PlaceListItem;
 import cmc.rodi.domain.practice.entity.MemberPractice;
 import cmc.rodi.domain.practice.entity.PracticeStatus;
 import cmc.rodi.domain.practice.entity.SkipReason;
+import com.fasterxml.jackson.annotation.JsonProperty;
 import io.swagger.v3.oas.annotations.media.Schema;
 import java.time.LocalDateTime;
 
@@ -15,6 +16,7 @@ public record PracticeItem(
         @Schema(description = "연습 항목 id") Long practiceId,
         @Schema(description = "상태") PracticeStatus status,
         @Schema(description = "다녀온 횟수") int visitCount,
+        @Schema(description = "방문 인증을 받은 항목인지") @JsonProperty("isVerified") boolean verified,
         @Schema(description = "마지막 방문 시각(없으면 null)") LocalDateTime visitedAt,
         @Schema(description = "미방문 사유(NOT_VISITED일 때만)") SkipReason skipReason,
         @Schema(description = "미방문 직접 입력 사유(기타일 때만)") String skipDetail,
@@ -26,6 +28,7 @@ public record PracticeItem(
                 practice.getId(),
                 practice.getStatus(),
                 practice.getVisitCount(),
+                practice.isVerified(),
                 practice.getVisitedAt(),
                 practice.getSkipReason(),
                 practice.getSkipDetail(),

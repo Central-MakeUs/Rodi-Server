@@ -1,6 +1,7 @@
 package cmc.rodi.domain.practice.entity;
 
 import cmc.rodi.domain.member.entity.Member;
+import cmc.rodi.domain.place.entity.Course;
 import cmc.rodi.domain.place.entity.Place;
 import cmc.rodi.global.common.entity.BaseEntity;
 import jakarta.persistence.Column;
@@ -59,6 +60,14 @@ public class MemberPractice extends BaseEntity {
     @Column(name = "visited_at")
     private LocalDateTime visitedAt;
 
+    /** 이 항목에서 누적된 인정 주행거리(m). 앱이 GPS로 측정해 보낸 값의 합. */
+    @Column(name = "certified_distance_meters", nullable = false)
+    private long certifiedDistanceMeters;
+
+    /** 한 번이라도 방문 인증에 성공했는지. 후기의 방문 인증 배지 판정 기준이며 내려가지 않는다. */
+    @Column(nullable = false)
+    private boolean verified;
+
     @Enumerated(EnumType.STRING)
     @Column(name = "skip_reason", length = 30)
     private SkipReason skipReason;
@@ -89,12 +98,36 @@ public class MemberPractice extends BaseEntity {
         clearSkipReason();
     }
 
-    /** 방문 처리. 호출될 때마다 횟수가 오르므로 한 번의 방문에서 중복 호출하지 않는 건 클라이언트 몫이다. */
-    public void markVisited(LocalDateTime now) {
+    /**
+     * 방문 처리. 호출될 때마다 횟수가 오르므로 한 번의 방문에서 중복 호출하지 않는 건 클라이언트 몫이다.
+     *
+     * <p>{@code certifiedMeters}는 앱이 GPS로 측정한 인정 주행거리다(측정 없이 "다녀왔어요"만 누르면 0). 필요 거리에 도달하면 인증되고, 한 번
+     * 인증된 항목은 이후 미인증 방문이 있어도 인증 상태를 유지한다.
+     *
+     * @return 이번 방문으로 인증되었는지(이미 인증된 항목이면 이번 회차 기준)
+     */
+    public boolean markVisited(LocalDateTime now, int certifiedMeters) {
         this.status = PracticeStatus.VISITED;
         this.visitCount += 1;
         this.visitedAt = now;
+        this.certifiedDistanceMeters += certifiedMeters;
         clearSkipReason();
+
+        boolean certifiedNow =
+                VisitCertification.isCertified(courseDistanceMeters(), certifiedMeters);
+        if (certifiedNow) {
+            this.verified = true;
+        }
+        return certifiedNow;
+    }
+
+    /** 이번 방문의 인증에 필요한 거리(m). 주행거리가 없는 장소(주차장)는 0 — 인증 대상이 아니다. */
+    public int requiredCertificationMeters() {
+        return VisitCertification.requiredMeters(courseDistanceMeters());
+    }
+
+    private Integer courseDistanceMeters() {
+        return place instanceof Course course ? course.getDistanceMeters() : null;
     }
 
     /** 미방문 처리. 사유는 한 번 저장하면 수정할 수 없다(호출부가 {@link #hasSkipReason()}로 막는다). */

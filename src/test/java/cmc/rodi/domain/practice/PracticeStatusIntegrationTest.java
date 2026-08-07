@@ -9,6 +9,7 @@ import cmc.rodi.domain.member.repository.MemberRepository;
 import cmc.rodi.domain.place.entity.Course;
 import cmc.rodi.domain.place.repository.CourseRepository;
 import cmc.rodi.domain.practice.dto.PracticeStatusUpdateRequest;
+import cmc.rodi.domain.practice.dto.PracticeVisitResponse;
 import cmc.rodi.domain.practice.entity.MemberPractice;
 import cmc.rodi.domain.practice.entity.PracticeStatus;
 import cmc.rodi.domain.practice.entity.SkipReason;
@@ -59,11 +60,15 @@ class PracticeStatusIntegrationTest {
     }
 
     private static PracticeStatusUpdateRequest visited() {
-        return new PracticeStatusUpdateRequest(PracticeStatus.VISITED, null, null);
+        return new PracticeStatusUpdateRequest(PracticeStatus.VISITED, null, null, null);
+    }
+
+    private static PracticeStatusUpdateRequest visited(int certifiedMeters) {
+        return new PracticeStatusUpdateRequest(PracticeStatus.VISITED, certifiedMeters, null, null);
     }
 
     private static PracticeStatusUpdateRequest notVisited(SkipReason reason, String detail) {
-        return new PracticeStatusUpdateRequest(PracticeStatus.NOT_VISITED, reason, detail);
+        return new PracticeStatusUpdateRequest(PracticeStatus.NOT_VISITED, null, reason, detail);
     }
 
     @Test
@@ -82,6 +87,81 @@ class PracticeStatusIntegrationTest {
         practiceService.updateStatus(practiceId, me.getId(), visited());
         assertThat(memberPracticeRepository.findById(practiceId).orElseThrow().getVisitCount())
                 .isEqualTo(2);
+    }
+
+    @Test
+    @DisplayName("인정 주행거리가 필요 거리(코스 5km의 40% = 2km)에 도달하면 서버가 인증으로 판정한다")
+    void 방문_인증() {
+        Member me = seedMember("certify@kakao.com");
+        Course course =
+                courseRepository.save(
+                        Course.builder()
+                                .name("인증 코스")
+                                .location(GEO.createPoint(new Coordinate(127.0, 37.5)))
+                                .distanceMeters(5_000)
+                                .build());
+        Long practiceId = practiceService.register(course.getId(), me.getId()).practiceId();
+
+        // 1.9km — 필요 거리(2km)에 못 미쳐 인증 안 됨
+        PracticeVisitResponse partial =
+                practiceService.updateStatus(practiceId, me.getId(), visited(1_900));
+        assertThat(partial.requiredDistanceMeters()).isEqualTo(2_000);
+        assertThat(partial.certifiedNow()).isFalse();
+        assertThat(partial.verified()).isFalse();
+
+        // 2km — 도달해 인증
+        PracticeVisitResponse certified =
+                practiceService.updateStatus(practiceId, me.getId(), visited(2_000));
+        assertThat(certified.certifiedNow()).isTrue();
+        assertThat(certified.verified()).isTrue();
+
+        MemberPractice after = memberPracticeRepository.findById(practiceId).orElseThrow();
+        assertThat(after.isVerified()).isTrue();
+        assertThat(after.getCertifiedDistanceMeters()).isEqualTo(3_900); // 1900 + 2000
+        assertThat(after.getVisitCount()).isEqualTo(2);
+    }
+
+    @Test
+    @DisplayName("측정 없이 다녀왔어요만 누르면(거리 생략) 인증되지 않는다")
+    void 측정_없는_방문() {
+        Member me = seedMember("noGps@kakao.com");
+        Course course =
+                courseRepository.save(
+                        Course.builder()
+                                .name("경로만 본 코스")
+                                .location(GEO.createPoint(new Coordinate(127.0, 37.5)))
+                                .distanceMeters(3_000)
+                                .build());
+        Long practiceId = practiceService.register(course.getId(), me.getId()).practiceId();
+
+        PracticeVisitResponse response =
+                practiceService.updateStatus(practiceId, me.getId(), visited());
+
+        assertThat(response.visitCount()).isEqualTo(1); // 연습기록은 남는다
+        assertThat(response.addedCertifiedDistanceMeters()).isZero();
+        assertThat(response.certifiedNow()).isFalse();
+        assertThat(response.verified()).isFalse();
+    }
+
+    @Test
+    @DisplayName("한 번 인증되면 이후 미인증 방문이 있어도 인증 상태는 유지된다")
+    void 인증_유지() {
+        Member me = seedMember("keep@kakao.com");
+        Course course =
+                courseRepository.save(
+                        Course.builder()
+                                .name("유지 코스")
+                                .location(GEO.createPoint(new Coordinate(127.0, 37.5)))
+                                .distanceMeters(2_000)
+                                .build());
+        Long practiceId = practiceService.register(course.getId(), me.getId()).practiceId();
+
+        practiceService.updateStatus(practiceId, me.getId(), visited(800)); // 필요 800m → 인증
+        PracticeVisitResponse second =
+                practiceService.updateStatus(practiceId, me.getId(), visited(100));
+
+        assertThat(second.certifiedNow()).isFalse(); // 이번 회차는 미달
+        assertThat(second.verified()).isTrue(); // 항목은 여전히 인증됨
     }
 
     @Test

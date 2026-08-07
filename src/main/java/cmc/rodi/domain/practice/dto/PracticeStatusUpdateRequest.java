@@ -5,6 +5,7 @@ import cmc.rodi.domain.practice.entity.SkipReason;
 import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.constraints.AssertTrue;
 import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.PositiveOrZero;
 import jakarta.validation.constraints.Size;
 
 /**
@@ -13,6 +14,13 @@ import jakarta.validation.constraints.Size;
  */
 public record PracticeStatusUpdateRequest(
         @Schema(description = "바꿀 상태(VISITED / NOT_VISITED)") @NotNull PracticeStatus status,
+        @Schema(
+                        description =
+                                "앱이 GPS로 측정한 인정 주행거리(m). 코스 경로선 150m 이내에서 이동한 거리만."
+                                        + " 측정 없이 다녀왔어요만 누른 경우 생략(=0). 인증 여부는 서버가 판정한다.",
+                        example = "2100")
+                @PositiveOrZero
+                Integer certifiedDistanceMeters,
         @Schema(description = "미방문 사유(NOT_VISITED 필수)") SkipReason skipReason,
         @Schema(description = "직접 입력 사유(기타 선택 시 필수, 최대 100자)", example = "차가 정비 중이었어요")
                 @Size(max = SkipReason.TEXT_INPUT_MAX_LENGTH)

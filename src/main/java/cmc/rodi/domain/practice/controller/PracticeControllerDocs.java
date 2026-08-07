@@ -3,6 +3,7 @@ package cmc.rodi.domain.practice.controller;
 import cmc.rodi.domain.practice.dto.PracticeItem;
 import cmc.rodi.domain.practice.dto.PracticeRegisterResponse;
 import cmc.rodi.domain.practice.dto.PracticeStatusUpdateRequest;
+import cmc.rodi.domain.practice.dto.PracticeVisitResponse;
 import cmc.rodi.global.common.pagination.CursorPage;
 import cmc.rodi.global.common.response.ApiResponse;
 import io.swagger.v3.oas.annotations.Operation;
@@ -35,10 +36,13 @@ public interface PracticeControllerDocs {
     @Operation(
             summary = "방문 여부 상태 변경",
             description =
-                    "VISITED면 그 자리에서 방문 처리(연습 횟수 +1, 방문 시각 기록)한다 — 클라이언트가 이동 추적으로 자동 호출하며"
-                            + " 서버는 결과를 기록만 한다. NOT_VISITED면 사유가 필수이고(기타는 직접 입력 필수),"
-                            + " 이미 사유가 있으면 409. 타인 항목은 403. JWT 필요.")
-    ApiResponse<Void> updateStatus(
+                    "VISITED면 그 자리에서 방문 처리(연습 횟수 +1, 방문 시각 기록)한다. 앱이 GPS로 측정한 인정 주행거리"
+                            + "(certifiedDistanceMeters)를 함께 보내면 서버가 필요 거리(min(코스거리 × 40%, 5km))와"
+                            + " 비교해 방문 인증 여부를 판정한다 — 앱은 인증 여부를 직접 보내지 않는다."
+                            + " 측정 없이 다녀왔어요만 누른 경우 거리를 생략하면 인증되지 않는다."
+                            + " NOT_VISITED면 사유가 필수이고(기타는 직접 입력 필수), 이미 사유가 있으면 409."
+                            + " 타인 항목은 403. JWT 필요.")
+    ApiResponse<PracticeVisitResponse> updateStatus(
             @Parameter(description = "연습 항목 id") Long practiceId,
             @Parameter(hidden = true) Long memberId,
             PracticeStatusUpdateRequest request);

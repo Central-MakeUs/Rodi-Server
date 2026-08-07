@@ -3,6 +3,7 @@ package cmc.rodi.domain.practice.controller;
 import cmc.rodi.domain.practice.dto.PracticeItem;
 import cmc.rodi.domain.practice.dto.PracticeRegisterResponse;
 import cmc.rodi.domain.practice.dto.PracticeStatusUpdateRequest;
+import cmc.rodi.domain.practice.dto.PracticeVisitResponse;
 import cmc.rodi.domain.practice.service.PracticeQueryService;
 import cmc.rodi.domain.practice.service.PracticeService;
 import cmc.rodi.global.auth.resolver.CurrentMember;
@@ -59,12 +60,11 @@ public class PracticeController implements PracticeControllerDocs {
 
     @Override
     @PatchMapping("/practices/{practiceId}")
-    public ApiResponse<Void> updateStatus(
+    public ApiResponse<PracticeVisitResponse> updateStatus(
             @PathVariable Long practiceId,
             @CurrentMember Long memberId,
             @Valid @RequestBody PracticeStatusUpdateRequest request) {
-        practiceService.updateStatus(practiceId, memberId, request);
-        return ApiResponse.success(null);
+        return ApiResponse.success(practiceService.updateStatus(practiceId, memberId, request));
     }
 
     @Override

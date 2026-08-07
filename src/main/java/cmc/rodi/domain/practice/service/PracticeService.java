@@ -6,6 +6,7 @@ import cmc.rodi.domain.place.entity.Place;
 import cmc.rodi.domain.place.repository.PlaceRepository;
 import cmc.rodi.domain.practice.dto.PracticeRegisterResponse;
 import cmc.rodi.domain.practice.dto.PracticeStatusUpdateRequest;
+import cmc.rodi.domain.practice.dto.PracticeVisitResponse;
 import cmc.rodi.domain.practice.entity.MemberPractice;
 import cmc.rodi.domain.practice.entity.PracticeStatus;
 import cmc.rodi.domain.practice.exception.PracticeErrorCode;
@@ -58,12 +59,18 @@ public class PracticeService {
      * 사유는 한 번 저장하면 덮어쓸 수 없다(409) — 다녀온 것으로 바꾸는 건 언제든 가능하다.
      */
     @Transactional
-    public void updateStatus(Long practiceId, Long memberId, PracticeStatusUpdateRequest request) {
+    public PracticeVisitResponse updateStatus(
+            Long practiceId, Long memberId, PracticeStatusUpdateRequest request) {
         MemberPractice practice = findOwnedPractice(practiceId, memberId);
 
         if (request.status() == PracticeStatus.VISITED) {
-            practice.markVisited(LocalDateTime.now());
-            return;
+            // 앱은 측정한 인정 주행거리만 보내고, 인증 여부는 서버가 필요 거리와 비교해 판정한다.
+            int certifiedMeters =
+                    request.certifiedDistanceMeters() == null
+                            ? 0
+                            : request.certifiedDistanceMeters();
+            boolean certifiedNow = practice.markVisited(LocalDateTime.now(), certifiedMeters);
+            return PracticeVisitResponse.of(practice, certifiedMeters, certifiedNow);
         }
 
         if (request.skipReason() == null) {
@@ -73,6 +80,7 @@ public class PracticeService {
             throw new BusinessException(PracticeErrorCode.SKIP_REASON_ALREADY_SET);
         }
         practice.markNotVisited(request.skipReason(), request.skipDetail());
+        return PracticeVisitResponse.notVisited(practice);
     }
 
     /** 목록에서 제거(멱등). 본인 항목만 지울 수 있고, 없으면 그대로 성공으로 본다. */

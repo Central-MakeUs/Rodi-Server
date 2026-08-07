@@ -95,7 +95,7 @@ class PracticeIntegrationTest {
 
         // 방문 처리 후 다시 담기
         MemberPractice practice = memberPracticeRepository.findById(practiceId).orElseThrow();
-        practice.markVisited(LocalDateTime.now());
+        practice.markVisited(LocalDateTime.now(), 0);
 
         var again = practiceService.register(course.getId(), me.getId());
 
@@ -141,7 +141,7 @@ class PracticeIntegrationTest {
         memberPracticeRepository
                 .findById(olderId)
                 .orElseThrow()
-                .markVisited(LocalDateTime.now().plusMinutes(1));
+                .markVisited(LocalDateTime.now().plusMinutes(1), 0);
 
         List<PracticeItem> items =
                 practiceQueryService.getMyPractices(me.getId(), 10, null).items();
