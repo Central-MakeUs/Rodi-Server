@@ -96,6 +96,18 @@ public interface ReviewRepository extends JpaRepository<Review, Long> {
             nativeQuery = true)
     ReviewSummaryRow summarize(@Param("placeId") Long placeId, @Param("level") String level);
 
+    /**
+     * 이 회원이 후기를 쓴 장소 id들(주어진 장소 중에서). 연습 목록에서 "후기 쓰기" 버튼 노출을 판단하는 데 쓴다. 비공개(신고 누적) 후기도 본인이 쓴 건 맞으므로
+     * 포함한다.
+     */
+    @Query(
+            """
+            SELECT DISTINCT r.place.id FROM Review r
+            WHERE r.member.id = :memberId AND r.place.id IN :placeIds
+            """)
+    List<Long> findReviewedPlaceIds(
+            @Param("memberId") Long memberId, @Param("placeIds") Collection<Long> placeIds);
+
     /** 레벨별 후기 수(드롭다운용). 레벨 필터와 무관한 전체 분포이며, 비공개 후기는 뺀다. */
     @Query(
             """

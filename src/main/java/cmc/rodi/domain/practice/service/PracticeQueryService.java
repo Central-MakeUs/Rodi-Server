@@ -1,12 +1,9 @@
 package cmc.rodi.domain.practice.service;
 
-import cmc.rodi.domain.place.dto.PlaceListItem;
-import cmc.rodi.domain.place.entity.Course;
-import cmc.rodi.domain.place.entity.Parking;
-import cmc.rodi.domain.place.entity.Place;
 import cmc.rodi.domain.practice.dto.PracticeItem;
 import cmc.rodi.domain.practice.entity.MemberPractice;
 import cmc.rodi.domain.practice.repository.MemberPracticeRepository;
+import cmc.rodi.domain.review.repository.ReviewRepository;
 import cmc.rodi.global.common.pagination.CursorCodec;
 import cmc.rodi.global.common.pagination.CursorPage;
 import cmc.rodi.global.exception.BusinessException;
@@ -14,6 +11,7 @@ import cmc.rodi.global.exception.ErrorCode;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeParseException;
 import java.util.List;
+import java.util.Set;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
@@ -32,6 +30,9 @@ public class PracticeQueryService {
 
     private final MemberPracticeRepository memberPracticeRepository;
 
+    /** 후기 작성 여부만 읽는다(연습 → 후기 단방향 읽기 의존, 마이페이지가 북마크를 읽는 것과 같은 방식). */
+    private final ReviewRepository reviewRepository;
+
     @Transactional(readOnly = true)
     public CursorPage<PracticeItem> getMyPractices(Long memberId, int size, String cursor) {
         boolean firstPage = cursor == null;
@@ -46,8 +47,7 @@ public class PracticeQueryService {
 
         boolean hasNext = rows.size() > size;
         List<MemberPractice> page = hasNext ? rows.subList(0, size) : rows;
-        List<PracticeItem> items =
-                page.stream().map(p -> PracticeItem.of(p, toPlaceItem(p.getPlace()))).toList();
+        List<PracticeItem> items = toItems(page, memberId);
         String nextCursor = hasNext ? encodeCursor(page.get(page.size() - 1)) : null;
 
         if (!firstPage) {
@@ -57,12 +57,18 @@ public class PracticeQueryService {
                 items, hasNext, nextCursor, memberPracticeRepository.countByMemberId(memberId));
     }
 
-    /** 장소 요약은 저장 목록과 동일한 아이템. 현위치를 받지 않으므로 거리(distanceFromMe)는 null. */
-    private static PlaceListItem toPlaceItem(Place place) {
-        if (place instanceof Course course) {
-            return PlaceListItem.ofCourse(course, null);
+    /** 후기 작성 여부는 페이지의 장소 id로 한 번에 조회한다(항목별 조회 금지). */
+    private List<PracticeItem> toItems(List<MemberPractice> page, Long memberId) {
+        if (page.isEmpty()) {
+            return List.of();
         }
-        return PlaceListItem.ofParking((Parking) place, null);
+        List<Long> placeIds = page.stream().map(p -> p.getPlace().getId()).toList();
+        Set<Long> reviewedPlaceIds =
+                Set.copyOf(reviewRepository.findReviewedPlaceIds(memberId, placeIds));
+
+        return page.stream()
+                .map(p -> PracticeItem.of(p, reviewedPlaceIds.contains(p.getPlace().getId())))
+                .toList();
     }
 
     private String encodeCursor(MemberPractice last) {

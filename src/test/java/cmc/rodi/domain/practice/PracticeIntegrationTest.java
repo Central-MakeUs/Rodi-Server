@@ -6,11 +6,12 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import cmc.rodi.domain.member.entity.Level;
 import cmc.rodi.domain.member.entity.Member;
+import cmc.rodi.domain.member.entity.PracticeType;
 import cmc.rodi.domain.member.repository.MemberRepository;
 import cmc.rodi.domain.place.entity.Course;
 import cmc.rodi.domain.place.entity.Parking;
-import cmc.rodi.domain.place.entity.PlaceType;
 import cmc.rodi.domain.place.repository.CourseRepository;
 import cmc.rodi.domain.place.repository.ParkingRepository;
 import cmc.rodi.domain.practice.dto.PracticeItem;
@@ -19,6 +20,11 @@ import cmc.rodi.domain.practice.entity.PracticeStatus;
 import cmc.rodi.domain.practice.repository.MemberPracticeRepository;
 import cmc.rodi.domain.practice.service.PracticeQueryService;
 import cmc.rodi.domain.practice.service.PracticeService;
+import cmc.rodi.domain.review.dto.ReviewRequest;
+import cmc.rodi.domain.review.entity.Congestion;
+import cmc.rodi.domain.review.entity.Difficulty;
+import cmc.rodi.domain.review.entity.PracticeMethod;
+import cmc.rodi.domain.review.service.ReviewService;
 import cmc.rodi.global.common.pagination.CursorPage;
 import cmc.rodi.global.exception.BusinessException;
 import cmc.rodi.global.exception.ErrorCode;
@@ -53,7 +59,18 @@ class PracticeIntegrationTest {
     @Autowired CourseRepository courseRepository;
     @Autowired ParkingRepository parkingRepository;
     @Autowired MemberRepository memberRepository;
+    @Autowired ReviewService reviewService;
     @Autowired MockMvc mockMvc;
+
+    private static ReviewRequest reviewRequest() {
+        return new ReviewRequest(
+                true,
+                Difficulty.EASY,
+                Congestion.QUIET,
+                PracticeMethod.SOLO,
+                "연습 목록 테스트용 후기",
+                null);
+    }
 
     private static Point point(double lat, double lng) {
         return GEO.createPoint(new Coordinate(lng, lat));
@@ -106,7 +123,7 @@ class PracticeIntegrationTest {
     }
 
     @Test
-    @DisplayName("주차장도 담을 수 있고, 목록의 장소 요약은 저장 목록과 같은 형식이다")
+    @DisplayName("주차장도 담을 수 있고, 목록엔 장소명·연습유형만 담긴다(주차장은 PARKING 고정)")
     void 주차장_담기와_장소요약() {
         Parking parking =
                 parkingRepository.save(
@@ -123,9 +140,37 @@ class PracticeIntegrationTest {
                 practiceQueryService.getMyPractices(me.getId(), 10, null).items();
 
         assertThat(items).hasSize(1);
-        assertThat(items.get(0).place().type()).isEqualTo(PlaceType.PARKING);
-        assertThat(items.get(0).place().capacity()).isEqualTo(1260);
-        assertThat(items.get(0).place().distanceFromMe()).isNull(); // 현위치를 받지 않는다
+        assertThat(items.get(0).placeId()).isEqualTo(parking.getId());
+        assertThat(items.get(0).placeName()).isEqualTo("세종로 공영");
+        assertThat(items.get(0).practiceTypes()).containsExactly(PracticeType.PARKING);
+    }
+
+    @Test
+    @DisplayName("hasReview는 그 장소에 내가 후기를 썼는지로 정해진다(남의 후기는 무관)")
+    void 후기_작성_여부() {
+        Course course = seedCourse("후기 쓴 코스");
+        Course other = seedCourse("후기 안 쓴 코스");
+        Member me = seedMember("hasreview@kakao.com");
+        me.applyOnboarding(Level.SEED, null);
+        Member stranger = seedMember("stranger@kakao.com");
+        stranger.applyOnboarding(Level.SEED, null);
+
+        practiceService.register(course.getId(), me.getId());
+        practiceService.register(other.getId(), me.getId());
+        reviewService.create(course.getId(), me.getId(), reviewRequest());
+        reviewService.create(other.getId(), stranger.getId(), reviewRequest()); // 남의 후기
+
+        List<PracticeItem> items =
+                practiceQueryService.getMyPractices(me.getId(), 10, null).items();
+
+        assertThat(items)
+                .filteredOn(item -> item.placeId().equals(course.getId()))
+                .singleElement()
+                .satisfies(item -> assertThat(item.hasReview()).isTrue());
+        assertThat(items)
+                .filteredOn(item -> item.placeId().equals(other.getId()))
+                .singleElement()
+                .satisfies(item -> assertThat(item.hasReview()).isFalse());
     }
 
     @Test

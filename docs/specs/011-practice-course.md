@@ -6,6 +6,7 @@
 |------|--------|-----------|
 | 2026-08-06 | Draft | 최초 작성 (2차 업데이트 3번 — 연습 코스 목록) |
 | 2026-08-06 | Draft | 리뷰 반영 — 같은 코스 재연습은 행을 늘리지 않고 **`visit_count`로 누적**, 주차장도 담기 가능, 목록은 **상태 필터 없이 최근 방문순**, 방문 판정은 전적으로 클라이언트의 상태 변경 호출로 결정 |
+| 2026-08-06 | Draft | **미방문 사유 제출을 별도 API로 분리**(`POST /practices/{id}/skip-reason`) — 상태 변경은 상태·GPS 측정값만 다룬다 |
 | 2026-08-06 | Draft | **GPS 방문 인증 정책 반영** — "다녀왔어요"(연습기록)와 **방문 인증을 분리**한다. 앱이 측정한 **인정 주행거리**(코스 경로선 150m 이내 이동거리)를 보내면 **서버가 필요 거리(`min(코스거리 × 40%, 5km)`)와 비교해 인증을 판정**한다. 측정 세션·150m 판정은 앱이 관리하고 서버는 숫자만 받는다 |
 
 ## 배경 / 목적
@@ -31,11 +32,13 @@
 ### 기능 요구사항
 
 1. **연습 목록 등록**: 코스 상세의 [연습하기]로 장소를 내 연습 목록에 담는다. 상태는 `PLANNED`(예정)로 시작한다.
-2. **내 연습 목록 조회**: 담아둔 항목을 **최근 방문순 커서 페이지네이션**으로 반환한다. 각 항목에 장소 요약(이름·주소·좌표 등)·**상태**·**연습 횟수**, 미방문이면 사유를 포함한다. 상태 필터는 두지 않는다(한 목록에 상태를 배지로 구분).
+2. **내 연습 목록 조회**: 담아둔 항목을 **최근 방문순 커서 페이지네이션**으로 반환한다. 화면에 쓰는 값만 담는다 — **장소명·연습유형·연습 횟수·마지막 방문일·방문 인증 여부·후기 작성 여부** + 동작에 필요한 식별자(`practiceId`·`placeId`)·`status`. 상태 필터는 두지 않는다(한 목록에 상태를 배지로 구분).
 3. **방문 여부 상태 변경**: `VISITED`(다녀옴) 또는 `NOT_VISITED`(안 다녀옴)로 바꾼다. `VISITED`는 RV-01의 **"다녀왔어요"** 에 해당하며, 아래 방문 인증과는 별개다(경로만 보고 왔어도 누를 수 있다).
-   - `NOT_VISITED`로 바꿀 때는 **미방문 사유가 필수**다. `OTHER`(기타)면 직접 입력도 필수. 언제 물을지도 클라이언트가 판단한다.
-   - **미방문 사유는 한 번 저장하면 수정할 수 없다**(나중에 다녀와서 `VISITED`로 바꾸는 것은 가능).
-4. **미방문 이유 폼**: 사유 선택지를 **서버가 정의해 내려준다**([스펙 010](010-place-review.md)의 신고 사유 폼과 동일 구조 `global.common.form` 재사용). 앱이 필요할 때 요청한다.
+   - `NOT_VISITED`는 **상태만 바꾼다**. 사유는 아래 별도 API로 제출한다(언제 물을지는 클라이언트가 판단).
+4. **미방문 이유 폼·사유 제출**: 선택지는 **서버가 정의해 내려주고**([스펙 010](010-place-review.md)의 신고 사유 폼과 동일 구조 `global.common.form` 재사용), 사용자가 고른 값은 **별도 제출 API**로 저장한다.
+   - 순서는 [상태를 `NOT_VISITED`로 변경 → 사유 제출]이다. 미방문 상태가 아닌 항목에는 사유를 남길 수 없다(400).
+   - **사유는 한 번 저장하면 수정할 수 없다**(409). 나중에 다녀와서 `VISITED`로 바꾸는 것은 가능하며 이때 사유는 비워진다.
+   - 호출이 둘로 나뉘어 **사유 없는 `NOT_VISITED`가 남을 수 있다**(제출 전 이탈). 상태와 사유를 한 요청에 묶는 대신 API를 단순하게 두기로 한 선택이다.
 5. **목록에서 제거**: 잘못 담았거나 관심이 없어지면 항목을 삭제한다.
 6. **방문 인증 (GPS)**: 앱이 주행을 측정해 **인정 주행거리**(코스 경로선 **150m 이내**에서 이동한 거리)를 누적하고, 방문 처리 시 그 값을 보낸다.
    - **필요 거리 = `min(코스 전체 거리 × 40%, 5km)`** — 12.5km를 넘는 코스는 5km 상한이 걸린다.
@@ -50,7 +53,7 @@
 
 - **모든 엔드포인트 JWT 필수**(내 목록이라 회원 기준).
 - 목록은 **커서 페이지네이션**(ADR 0010), 공통 `CursorPage<T>` 재사용.
-- 장소 요약 아이템은 기존 **`PlaceListItem`을 재사용**한다(저장 목록·검색과 동일 구성) — 클라이언트가 목록 렌더 코드를 공유할 수 있다.
+- 목록 응답은 **화면이 실제로 쓰는 값만** 담는다. 후기 작성 여부는 후기 도메인을 읽어 채운다(연습 → 후기 단방향 읽기 의존, 마이페이지가 북마크를 읽는 것과 같은 방식).
 
 ## 도메인 모델 (마이그레이션 V18·V19)
 
@@ -102,7 +105,8 @@
 |--------|------|------|------|
 | POST | /api/v1/places/{placeId}/practices | 연습 목록에 담기(멱등) | JWT |
 | GET | /api/v1/members/me/practices | 내 연습 목록(상태 필터·커서) | JWT |
-| PATCH | /api/v1/practices/{practiceId} | 방문 여부 상태 변경 | JWT |
+| PATCH | /api/v1/practices/{practiceId} | 방문 여부 상태 변경(+GPS 측정값) | JWT |
+| POST | /api/v1/practices/{practiceId}/skip-reason | 미방문 사유 제출 | JWT |
 | DELETE | /api/v1/practices/{practiceId} | 목록에서 제거(멱등) | JWT |
 | GET | /api/v1/practices/skip-reason-form | 미방문 이유 폼 | JWT |
 
@@ -134,19 +138,14 @@ GET /api/v1/members/me/practices?size=20&cursor=   (JWT)
   "items": [
     {
       "practiceId": 12,
+      "placeId": 1,
+      "placeName": "한강 코스",
+      "practiceTypes": ["STRAIGHT", "LANE_CHANGE"],
       "status": "VISITED",
       "visitCount": 2,
-      "isVerified": true,
       "visitedAt": "2026-08-05T18:20:00",
-      "skipReason": null,
-      "skipDetail": null,
-      "createdAt": "2026-08-01T14:02:11",
-      "place": {
-        "id": 1, "type": "COURSE", "name": "한강 코스", "address": "서울특별시 영등포구",
-        "lat": 37.51, "lng": 127.03, "distanceFromMe": null,
-        "practiceTypes": ["STRAIGHT","LANE_CHANGE"],
-        "description": "…", "distanceMeters": 2100, "capacity": null, "openTime": null
-      }
+      "isVerified": true,
+      "hasReview": false
     }
   ],
   "hasNext": false,
@@ -157,7 +156,9 @@ GET /api/v1/members/me/practices?size=20&cursor=   (JWT)
 
 - 정렬/커서: **최근 방문순** — `COALESCE(visited_at, created_at) DESC, id DESC`. 아직 안 다녀온 항목은 담은 시각을 기준값으로 써서 같은 축에 섞인다(방문 이력이 없다고 목록 맨 아래로 밀리지 않는다). 커서는 `(정렬시각, id)` base64(`CursorCodec`).
 - `totalCount`는 **첫 페이지에서만**(공통 `CursorPage` 규칙) 내 연습 항목 총 개수.
-- `place`는 **`PlaceListItem` 재사용**(저장 목록과 동일). 현위치를 안 받으므로 `distanceFromMe`는 `null`.
+- `hasReview`는 **그 장소에 내가 쓴 후기가 있는지**다("후기 쓰기" 버튼 노출 판단). 페이지의 장소 id로 한 번에 조회한다(항목별 조회 금지). 신고 누적으로 비공개된 내 후기도 작성한 것이므로 `true`.
+- **미방문 사유(`skipReason`·`skipDetail`)는 응답에 없다** — 수집·분석 목적이라 화면에 쓰지 않는다.
+- 장소 요약을 `PlaceListItem`으로 통째로 내리지 않는다. 이 화면은 주소·좌표·주차면수를 쓰지 않아 이름과 연습유형만 준다.
 
 ### 3. 방문 여부 상태 변경
 
@@ -170,11 +171,8 @@ GET /api/v1/members/me/practices?size=20&cursor=   (JWT)
 // 다녀옴(측정 없음 — 경로만 보기/알림 거부) → 인증 안 됨
 { "status": "VISITED" }
 
-// 안 다녀옴 — 사유 필수
-{ "status": "NOT_VISITED", "skipReason": "TOO_FAR" }
-
-// 안 다녀옴 + 기타 — 직접 입력 필수
-{ "status": "NOT_VISITED", "skipReason": "OTHER", "skipDetail": "차가 정비 중이었어요" }
+// 안 다녀옴 — 상태만 바꾼다(사유는 별도 API)
+{ "status": "NOT_VISITED" }
 
 // Response data
 {
@@ -186,14 +184,32 @@ GET /api/v1/members/me/practices?size=20&cursor=   (JWT)
 }
 ```
 
-- `status` 필수. `NOT_VISITED`면 `skipReason` 필수, 그 사유가 `OTHER`면 `skipDetail` 필수(최대 100자) — 폼의 `textInputMaxLength`와 동일.
+- `status` 필수(`VISITED` | `NOT_VISITED`). `PLANNED`로 되돌리는 건 [연습하기] 재등록이 담당하므로 받지 않는다(400).
 - `certifiedDistanceMeters`(선택, 0 이상)는 앱이 측정한 인정 주행거리다. 생략하면 0으로 보고 인증되지 않는다.
 - **`VISITED`로 바꾸면 그 자리에서 방문 처리**된다 — `visit_count += 1`, `visited_at = now`, 인정 주행거리 누적, `skip_*` 비움. 인증 여부는 서버가 필요 거리와 비교해 판정한다.
 - 이미 `VISITED`인 항목에 다시 `VISITED`가 오면 **횟수가 또 올라간다**(같은 코스 재연습). 한 번의 방문에서 중복 호출하지 않는 것은 클라이언트의 판정 로직 몫이다.
 - **미방문 사유는 덮어쓸 수 없다** — 이미 `skip_reason`이 있는 항목에 다시 `NOT_VISITED`를 보내면 **409 `PRACTICE_409_1`**. (`VISITED`로 바꾸는 것은 언제든 가능하고, 이때 사유는 비워진다.)
 - 본인 항목이 아니면 **403**, 없는 `practiceId`는 404.
 
-### 4. 목록에서 제거
+### 4. 미방문 사유 제출
+
+```json
+// POST /api/v1/practices/12/skip-reason   (JWT)
+// Request — 폼(#5)의 code를 그대로 보낸다
+{ "reason": "TOO_FAR" }
+
+// 기타 — 직접 입력 필수
+{ "reason": "OTHER", "detail": "차가 정비 중이었어요" }
+
+// Response data: null (200)
+```
+
+- **미방문 상태에서만** 남길 수 있다(그 외 400 `PRACTICE_400_1`).
+- 이미 사유가 있으면 **409 `PRACTICE_409_1`**(수정 불가). `VISITED`로 바꾸면 사유가 비워지므로 다시 남길 수 있다.
+- `OTHER`면 `detail` 필수(최대 100자), 다른 사유의 `detail`은 저장하지 않는다.
+- 본인 항목이 아니면 403, 없는 `practiceId`는 404.
+
+### 5. 목록에서 제거
 
 ```
 DELETE /api/v1/practices/12   (JWT)
@@ -202,7 +218,7 @@ DELETE /api/v1/practices/12   (JWT)
 - 응답 데이터 없음(200). 본인 항목만(타인 403), 없으면 멱등 200.
 - **이미 작성한 후기의 `is_verified_visit`은 영향받지 않는다**(작성 시점 스냅샷이라).
 
-### 5. 미방문 이유 폼
+### 6. 미방문 이유 폼
 
 ```json
 // GET /api/v1/practices/skip-reason-form   (JWT)
@@ -225,9 +241,9 @@ DELETE /api/v1/practices/12   (JWT)
 ```
 
 - 구조·직렬화 규칙은 신고 사유 폼과 동일(`global.common.form`). 텍스트 입력이 없는 선택지는 `textInput*` 키를 내려보내지 않는다.
-- `code`가 그대로 상태 변경 요청의 `skipReason` 값이다.
+- `code`가 그대로 사유 제출 요청(#4)의 `reason` 값이다.
 
-### 6. 후기 방문 인증 (스펙 010 연계)
+### 7. 후기 방문 인증 (스펙 010 연계)
 
 - **후기 작성 시**: 그 회원·장소의 `member_practice.verified = true`이면(= GPS 인증에 성공한 이력이 있으면) `review.is_verified_visit = true`로 저장한다. 단순히 "다녀왔어요"만 누른 기록은 인증으로 보지 않는다.
 - **후기 목록 응답**에 `isVerifiedVisit` 추가:
@@ -250,7 +266,7 @@ DELETE /api/v1/practices/12   (JWT)
 | 코드 | HTTP | 메시지 |
 |------|------|--------|
 | `PRACTICE_403_1` | 403 | 본인의 연습 항목만 변경·삭제할 수 있습니다. |
-| `PRACTICE_400_1` | 400 | 미방문으로 변경하려면 사유가 필요합니다. |
+| `PRACTICE_400_1` | 400 | 미방문 상태인 연습 항목에만 사유를 남길 수 있습니다. |
 | `PRACTICE_409_1` | 409 | 이미 등록한 미방문 사유는 변경할 수 없습니다. |
 
 ## 완료 조건 (Acceptance Criteria)
@@ -261,8 +277,8 @@ DELETE /api/v1/practices/12   (JWT)
 - [ ] `totalCount`는 첫 페이지에서만 내 연습 항목 총계로 채워진다.
 - [ ] 목록 항목의 `place`가 `PlaceListItem`과 같은 구조이며 `distanceFromMe`는 `null`이다.
 - [ ] `VISITED`로 바꾸면 `visitCount`가 1 오르고 `visitedAt`이 기록되며 `skipReason`·`skipDetail`이 비워진다. 다시 `VISITED`를 보내면 횟수가 또 오른다.
-- [ ] `NOT_VISITED`인데 `skipReason`이 없으면 400, `OTHER`인데 `skipDetail`이 없으면 400이다.
-- [ ] 이미 미방문 사유가 있는 항목에 다시 `NOT_VISITED`를 보내면 409이고, `VISITED`로는 바꿀 수 있다(이때 사유가 비워진다).
+- [ ] 미방문 사유는 `NOT_VISITED` 상태에서만 저장되고(그 외 400), `OTHER`인데 직접 입력이 없으면 400이다.
+- [ ] 이미 사유가 있는 항목에 다시 제출하면 409이고, `VISITED`로 바꾸면 사유가 비워져 다시 남길 수 있다.
 - [ ] 타인 항목의 상태 변경·삭제는 403이다.
 - [ ] 미방문 이유 폼이 5개 선택지를 order 순으로 반환하고, `OTHER`만 `requiresTextInput=true`·placeholder·최대 길이를 갖는다.
 - [ ] `visitCount > 0`인 장소에 후기를 쓰면 `isVerifiedVisit=true`, 한 번도 안 다녀왔으면 `false`로 저장된다.
