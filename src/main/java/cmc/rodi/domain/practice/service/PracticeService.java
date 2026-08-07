@@ -5,6 +5,7 @@ import cmc.rodi.domain.member.repository.MemberRepository;
 import cmc.rodi.domain.place.entity.Place;
 import cmc.rodi.domain.place.repository.PlaceRepository;
 import cmc.rodi.domain.practice.dto.PracticeRegisterResponse;
+import cmc.rodi.domain.practice.dto.PracticeSkipReasonRequest;
 import cmc.rodi.domain.practice.dto.PracticeStatusUpdateRequest;
 import cmc.rodi.domain.practice.dto.PracticeVisitResponse;
 import cmc.rodi.domain.practice.entity.MemberPractice;
@@ -73,14 +74,25 @@ public class PracticeService {
             return PracticeVisitResponse.of(practice, certifiedMeters, certifiedNow);
         }
 
-        if (request.skipReason() == null) {
-            throw new BusinessException(PracticeErrorCode.SKIP_REASON_REQUIRED);
+        practice.markNotVisited();
+        return PracticeVisitResponse.notVisited(practice);
+    }
+
+    /**
+     * 미방문 사유 제출(미방문 이유 폼의 선택 결과). 상태 변경과 분리돼 있어 순서는 [상태 변경 → 사유 제출]이다. 사유는 한 번 저장하면 덮어쓸 수 없고(409),
+     * 미방문 상태가 아닌 항목에는 남길 수 없다(400).
+     */
+    @Transactional
+    public void submitSkipReason(
+            Long practiceId, Long memberId, PracticeSkipReasonRequest request) {
+        MemberPractice practice = findOwnedPractice(practiceId, memberId);
+        if (!practice.isNotVisited()) {
+            throw new BusinessException(PracticeErrorCode.NOT_SKIPPED_PRACTICE);
         }
         if (practice.hasSkipReason()) {
             throw new BusinessException(PracticeErrorCode.SKIP_REASON_ALREADY_SET);
         }
-        practice.markNotVisited(request.skipReason(), request.skipDetail());
-        return PracticeVisitResponse.notVisited(practice);
+        practice.applySkipReason(request.reason(), request.detail());
     }
 
     /** 목록에서 제거(멱등). 본인 항목만 지울 수 있고, 없으면 그대로 성공으로 본다. */

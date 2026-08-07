@@ -8,6 +8,7 @@ import cmc.rodi.domain.member.entity.Member;
 import cmc.rodi.domain.member.repository.MemberRepository;
 import cmc.rodi.domain.place.entity.Course;
 import cmc.rodi.domain.place.repository.CourseRepository;
+import cmc.rodi.domain.practice.dto.PracticeSkipReasonRequest;
 import cmc.rodi.domain.practice.dto.PracticeStatusUpdateRequest;
 import cmc.rodi.domain.practice.dto.PracticeVisitResponse;
 import cmc.rodi.domain.practice.entity.MemberPractice;
@@ -60,15 +61,19 @@ class PracticeStatusIntegrationTest {
     }
 
     private static PracticeStatusUpdateRequest visited() {
-        return new PracticeStatusUpdateRequest(PracticeStatus.VISITED, null, null, null);
+        return new PracticeStatusUpdateRequest(PracticeStatus.VISITED, null);
     }
 
     private static PracticeStatusUpdateRequest visited(int certifiedMeters) {
-        return new PracticeStatusUpdateRequest(PracticeStatus.VISITED, certifiedMeters, null, null);
+        return new PracticeStatusUpdateRequest(PracticeStatus.VISITED, certifiedMeters);
     }
 
-    private static PracticeStatusUpdateRequest notVisited(SkipReason reason, String detail) {
-        return new PracticeStatusUpdateRequest(PracticeStatus.NOT_VISITED, null, reason, detail);
+    private static PracticeStatusUpdateRequest notVisited() {
+        return new PracticeStatusUpdateRequest(PracticeStatus.NOT_VISITED, null);
+    }
+
+    private static PracticeSkipReasonRequest skipReason(SkipReason reason, String detail) {
+        return new PracticeSkipReasonRequest(reason, detail);
     }
 
     @Test
@@ -165,21 +170,25 @@ class PracticeStatusIntegrationTest {
     }
 
     @Test
-    @DisplayName("NOT_VISITED는 사유가 필수고, 기타면 직접 입력이 저장된다")
-    void 미방문_처리() {
+    @DisplayName("미방문 사유는 상태 변경 뒤 별도 API로 저장한다 — 기타면 직접 입력이 함께 저장된다")
+    void 미방문_사유_제출() {
         Member me = seedMember("skip@kakao.com");
         Long practiceId = seedPractice(me, "미방문 코스");
 
+        // 미방문 상태가 아니면 사유를 남길 수 없다
         assertThatThrownBy(
                         () ->
-                                practiceService.updateStatus(
-                                        practiceId, me.getId(), notVisited(null, null)))
+                                practiceService.submitSkipReason(
+                                        practiceId,
+                                        me.getId(),
+                                        skipReason(SkipReason.TOO_FAR, null)))
                 .isInstanceOf(BusinessException.class)
                 .extracting(e -> ((BusinessException) e).getErrorCode())
-                .isEqualTo(PracticeErrorCode.SKIP_REASON_REQUIRED);
+                .isEqualTo(PracticeErrorCode.NOT_SKIPPED_PRACTICE);
 
-        practiceService.updateStatus(
-                practiceId, me.getId(), notVisited(SkipReason.OTHER, "차가 정비 중이었어요"));
+        practiceService.updateStatus(practiceId, me.getId(), notVisited());
+        practiceService.submitSkipReason(
+                practiceId, me.getId(), skipReason(SkipReason.OTHER, "차가 정비 중이었어요"));
 
         MemberPractice after = memberPracticeRepository.findById(practiceId).orElseThrow();
         assertThat(after.getStatus()).isEqualTo(PracticeStatus.NOT_VISITED);
@@ -193,14 +202,16 @@ class PracticeStatusIntegrationTest {
     void 미방문_사유_수정불가() {
         Member me = seedMember("skip2@kakao.com");
         Long practiceId = seedPractice(me, "사유 코스");
-        practiceService.updateStatus(practiceId, me.getId(), notVisited(SkipReason.TOO_FAR, null));
+        practiceService.updateStatus(practiceId, me.getId(), notVisited());
+        practiceService.submitSkipReason(
+                practiceId, me.getId(), skipReason(SkipReason.TOO_FAR, null));
 
         assertThatThrownBy(
                         () ->
-                                practiceService.updateStatus(
+                                practiceService.submitSkipReason(
                                         practiceId,
                                         me.getId(),
-                                        notVisited(SkipReason.SCHEDULE_DID_NOT_MATCH, null)))
+                                        skipReason(SkipReason.SCHEDULE_DID_NOT_MATCH, null)))
                 .isInstanceOf(BusinessException.class)
                 .extracting(e -> ((BusinessException) e).getErrorCode())
                 .isEqualTo(PracticeErrorCode.SKIP_REASON_ALREADY_SET);

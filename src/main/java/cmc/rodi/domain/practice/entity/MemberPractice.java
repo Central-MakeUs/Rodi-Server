@@ -130,11 +130,19 @@ public class MemberPractice extends BaseEntity {
         return place instanceof Course course ? course.getDistanceMeters() : null;
     }
 
-    /** 미방문 처리. 사유는 한 번 저장하면 수정할 수 없다(호출부가 {@link #hasSkipReason()}로 막는다). */
-    public void markNotVisited(SkipReason reason, String detail) {
+    /** 미방문 처리. 사유는 별도 API로 뒤이어 제출되므로 여기서는 상태만 바꾼다. */
+    public void markNotVisited() {
         this.status = PracticeStatus.NOT_VISITED;
+    }
+
+    /** 미방문 사유 저장. 한 번 저장하면 수정할 수 없다(호출부가 {@link #hasSkipReason()}로 막는다). */
+    public void applySkipReason(SkipReason reason, String detail) {
         this.skipReason = reason;
         this.skipDetail = reason.requiresTextInput() ? detail : null;
+    }
+
+    public boolean isNotVisited() {
+        return status == PracticeStatus.NOT_VISITED;
     }
 
     public boolean hasSkipReason() {

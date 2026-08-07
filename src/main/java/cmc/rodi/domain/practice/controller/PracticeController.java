@@ -2,6 +2,7 @@ package cmc.rodi.domain.practice.controller;
 
 import cmc.rodi.domain.practice.dto.PracticeItem;
 import cmc.rodi.domain.practice.dto.PracticeRegisterResponse;
+import cmc.rodi.domain.practice.dto.PracticeSkipReasonRequest;
 import cmc.rodi.domain.practice.dto.PracticeStatusUpdateRequest;
 import cmc.rodi.domain.practice.dto.PracticeVisitResponse;
 import cmc.rodi.domain.practice.service.PracticeQueryService;
@@ -65,6 +66,16 @@ public class PracticeController implements PracticeControllerDocs {
             @CurrentMember Long memberId,
             @Valid @RequestBody PracticeStatusUpdateRequest request) {
         return ApiResponse.success(practiceService.updateStatus(practiceId, memberId, request));
+    }
+
+    @Override
+    @PostMapping("/practices/{practiceId}/skip-reason")
+    public ApiResponse<Void> submitSkipReason(
+            @PathVariable Long practiceId,
+            @CurrentMember Long memberId,
+            @Valid @RequestBody PracticeSkipReasonRequest request) {
+        practiceService.submitSkipReason(practiceId, memberId, request);
+        return ApiResponse.success(null);
     }
 
     @Override
