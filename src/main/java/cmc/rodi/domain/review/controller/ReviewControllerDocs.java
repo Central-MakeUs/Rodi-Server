@@ -10,6 +10,7 @@ import cmc.rodi.global.common.pagination.CursorPage;
 import cmc.rodi.global.common.response.ApiResponse;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.tags.Tag;
 
 /** 후기 API의 Swagger 문서 스펙. 매핑·구현은 {@link ReviewController}. */
@@ -33,7 +34,20 @@ public interface ReviewControllerDocs {
                             + " 내가 차단한 회원의 후기는 제외된다. JWT 필요.")
     ApiResponse<CursorPage<ReviewItem>> getReviews(
             @Parameter(description = "장소 id") Long placeId,
-            @Parameter(description = "레벨 필터(생략=내 레벨, ALL=전체)", example = "ROOKIE") String level,
+            @Parameter(
+                            description = "레벨 필터(생략=내 레벨, ALL=전체)",
+                            schema =
+                                    @Schema(
+                                            allowableValues = {
+                                                "SEED",
+                                                "ROOKIE",
+                                                "OWNER",
+                                                "EXPLORER",
+                                                "NAVIGATOR",
+                                                "ALL"
+                                            },
+                                            example = "ROOKIE"))
+                    String level,
             @Parameter(description = "페이지 크기(1~100)") int size,
             @Parameter(description = "다음 페이지 커서") String cursor,
             @Parameter(hidden = true) Long memberId);
@@ -45,7 +59,20 @@ public interface ReviewControllerDocs {
                             + " JWT 필요.")
     ApiResponse<ReviewSummaryResponse> getSummary(
             @Parameter(description = "장소 id") Long placeId,
-            @Parameter(description = "레벨 필터(생략=내 레벨, ALL=전체)", example = "ROOKIE") String level,
+            @Parameter(
+                            description = "레벨 필터(생략=내 레벨, ALL=전체)",
+                            schema =
+                                    @Schema(
+                                            allowableValues = {
+                                                "SEED",
+                                                "ROOKIE",
+                                                "OWNER",
+                                                "EXPLORER",
+                                                "NAVIGATOR",
+                                                "ALL"
+                                            },
+                                            example = "ROOKIE"))
+                    String level,
             @Parameter(hidden = true) Long memberId);
 
     @Operation(
