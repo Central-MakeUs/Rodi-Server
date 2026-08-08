@@ -15,6 +15,7 @@
 | 2026-08-08 | **Implemented** | 요약 개편 — **최다 난이도**(`topDifficulty`, 동률은 더 어려운 쪽) 추가, **추천 수는 전체 레벨 합산**으로 분리(`levelReviewCount`·`totalReviewCount`), **혼잡도는 응답에서 제외**(저장은 유지) |
 | 2026-08-08 | **Implemented** | 목록 응답 정리 — 카드에 쓰는 값만 남기고 추천 여부·난이도·혼잡도·작성 당시 레벨·`caution`을 뺐다 |
 | 2026-08-08 | **Implemented** | **내가 쓴 후기 목록**(`GET /members/me/reviews`) 추가 — 레벨 필터 없이 내 후기를 전부 보여줘, 레벨이 바뀌면 자기 후기가 기본 화면에서 사라지던 문제를 푼다 |
+| 2026-08-08 | **Implemented** | **차단한 회원 목록**(`GET /members/me/blocks`) 추가 — 마이페이지에서 차단을 관리할 수 있게 됐다(미해결 질문 6 해소) |
 
 ## 배경 / 목적
 
@@ -153,13 +154,14 @@
 | GET | /api/v1/reviews/report-form | 신고 사유 폼(선택지 정의) | JWT |
 | POST | /api/v1/reviews/{reviewId}/report | 후기 신고 | JWT |
 | POST | /api/v1/members/{memberId}/block | 회원 차단(멱등) | JWT |
+| GET | /api/v1/members/me/blocks | 차단한 회원 목록(최신순 커서) | JWT |
 | DELETE | /api/v1/members/{memberId}/block | 차단 해제(멱등) | JWT |
 
 **컨트롤러 배치**(CLAUDE.md 기준 적용)
 - `reviews`는 **자체 오퍼레이션 묶음**(작성·목록·요약·수정·삭제)이라 **`ReviewController` 전용**. 작성·목록·요약은 장소 하위(`/places/{placeId}/reviews`), 개별 조작은 후기 식별자만으로 충분하므로 **`/reviews/{reviewId}`**(place 경로 중복 제거 — 장소 상세를 `placeId` 하나로 통합한 스펙 005의 판단과 같은 이유).
 - 내가 쓴 후기(`/members/me/reviews`)도 **`ReviewController`** — 경로는 회원 하위지만 오퍼레이션은 후기 묶음에 속한다(연습 목록이 `PracticeController`에 있는 것과 같은 판단).
 - `report`는 **단발 엔드포인트**라 소유 컨트롤러인 `ReviewController`에 둔다(별도 컨트롤러 만들지 않음).
-- `block`은 대상이 회원이므로 **`MemberController`**(단발 2개, 북마크가 `PlaceController`에 있는 것과 같은 배치).
+- `block`은 대상이 회원이므로 **`MemberController`**(단발 3개, 북마크가 `PlaceController`에 있는 것과 같은 배치). 차단 목록도 같은 컨트롤러에 둔다.
 
 ### 1. 후기 작성
 
@@ -298,6 +300,29 @@ GET /api/v1/members/me/reviews?size=20&cursor=   (JWT)
 - `isEditable`은 기존 규칙 그대로 — **작성 당시 레벨 == 현재 레벨**일 때만 `true`. 레벨업 후 이전 후기는 목록에 보이되 수정 버튼은 감춘다.
 - 정렬·커서·`totalCount` 규칙은 장소 후기 목록과 같다(`created_at DESC, id DESC`, 첫 페이지에서만 총계).
 
+### 3-2. 차단한 회원 목록
+
+```
+GET /api/v1/members/me/blocks?size=20&cursor=   (JWT)
+```
+
+```json
+// Response data — CursorPage<BlockedMemberItem>
+{
+  "items": [
+    { "memberId": 12, "nickname": "느긋한 거북이", "blockedAt": "2026-08-07T21:11:03" }
+  ],
+  "hasNext": false,
+  "nextCursor": null,
+  "totalCount": 3
+}
+```
+
+- **차단한 시각 최신순**(`created_at DESC, id DESC` keyset). `totalCount`는 첫 페이지에서만 — 공통 `CursorPage` 규칙.
+- 항목의 `memberId`가 그대로 해제 요청(`DELETE /members/{memberId}/block`)의 경로 값이다.
+- 해제 버튼만 있는 화면이라 레벨·프로필은 싣지 않는다. 탈퇴·익명화된 회원은 `nickname`이 `null`이며, **차단 행 자체는 지우지 않는다**(지우면 복구 시 차단이 풀린다).
+- 차단 수가 많지 않아 페이지네이션이 과해 보일 수 있으나, 다른 목록과 규칙을 맞춰 화면이 무한스크롤로 바뀌어도 서버를 고치지 않아도 되게 한다.
+
 ### 4. 후기 수정 (전체 교체)
 
 ```json
@@ -385,7 +410,7 @@ DELETE /api/v1/members/7/block   // 해제(멱등)
 
 - 응답 데이터 없음(200). **자기 자신 차단 → 400 `MEMBER_400_1`**, 없는 회원 → 404.
 - 효과: **내 후기 목록에서 그 회원의 후기 제외**(단방향). 요약 집계·다른 화면(코스 목록 등)엔 영향 없음.
-- 차단 목록 조회·해제 화면은 이번 범위 밖(미해결 질문).
+- 차단 목록 조회는 `GET /members/me/blocks`(#3-2), 해제는 `DELETE /members/{memberId}/block`.
 
 ### 에러 코드 (`ReviewErrorCode` 신규 · `MemberErrorCode` 추가)
 
@@ -420,6 +445,7 @@ DELETE /api/v1/members/7/block   // 해제(멱등)
 - [x] 목록 항목의 `isMine`·`isEditable`이 요청 회원 기준으로 정확하다(레벨업한 회원의 이전 후기는 `isEditable=false`).
 - [ ] 내가 쓴 후기 목록은 **작성 당시 레벨과 무관하게** 내 후기를 전부 반환하고, 비공개 후기도 `isHidden=true`로 포함한다.
 - [ ] 내가 쓴 후기 목록의 `isEditable`이 레벨 일치 여부를 따르고, 장소명이 항목마다 채워진다.
+- [ ] 차단 목록이 차단한 시각 최신순으로 반환되고, 남이 한 차단은 섞이지 않으며, 해제하면 목록에서 빠진다.
 - [x] 목록 항목에 추천 여부·난이도·혼잡도·작성 당시 레벨·`caution`이 없고, `isVerifiedVisit`이 있다.
 - [x] 요약의 `difficultyCounts`가 **선택한 레벨** 기준 후기 건수와 일치하고, 0건 값도 키가 `0`으로 존재한다(5개 항목 항상 반환).
 - [x] 요약에서 `levelReviewCount == difficultyCounts 합`이고 `totalReviewCount == recommendCount + notRecommendCount`이다(모수가 다르다).
@@ -453,7 +479,7 @@ DELETE /api/v1/members/7/block   // 해제(멱등)
 3. **`review.caution`과 `course_caution`의 관계** — 코스에 이미 관리자 등록 주의사항 칩(`course_caution`)이 있다. 별개 표시로 보이나 기획 확인 대기(**미결**).
 4. ~~**"인증된 후기" 배지**~~ — **해소**. 스펙 011의 GPS 방문 인증(인정 주행거리 ≥ `min(코스거리 × 40%, 5km)`)을 기준으로 삼아, 작성 시점의 인증 이력을 `review.is_verified_visit`(V20)에 스냅샷으로 남기고 목록 응답 `isVerifiedVisit`으로 내려준다.
 5. **신고 `detail` 상한** — 폼의 `textInputMaxLength`와 맞춰 **100자**로 구현(연습 미방문 이유 폼과 동일). 더 길게 받아야 하면 조정.
-6. **차단 목록 조회·해제 화면** — 마이페이지에 차단 관리가 필요한가? (지금은 후기 목록에서 해제만 가능, `GET /members/me/blocks` 없음)
+6. ~~**차단 목록 조회·해제 화면**~~ — **해소**. 마이페이지에서 차단을 관리할 수 있도록 `GET /members/me/blocks`(#3-2)를 추가했다. 해제는 기존 `DELETE /members/{memberId}/block`을 그대로 쓴다.
 7. ~~**레벨이 바뀌면 내 후기가 안 보인다**~~ — **해소**. 장소 후기 목록의 레벨 필터 기본값(조회자 본인 레벨)은 그대로 두고, **내가 쓴 후기 목록**(#3-1)을 따로 둬서 해결한다.
 
 ## 범위 밖 / 다음
