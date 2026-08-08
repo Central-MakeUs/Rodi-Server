@@ -39,6 +39,7 @@ public interface PracticeControllerDocs {
             summary = "방문 기록(다녀왔어요)",
             description =
                     "RV-01의 \"다녀왔어요\"를 기록한다. 상태는 보내지 않는다 — 이 호출 자체가 방문이므로 서버가 VISITED로 정한다."
+                            + " 부를 때마다 방문이 하나씩 쌓이는 비멱등 연산이라 하위 리소스 POST다(중복 호출 방지는 클라이언트 몫)."
                             + " 연습 횟수 +1, 방문 시각 기록. 앱이 GPS로 측정한 인정 주행거리"
                             + "(certifiedDistanceMeters)를 보내면 서버가 필요 거리(min(코스거리 × 40%, 5km))와"
                             + " 비교해 방문 인증 여부를 판정한다. 측정 없이 눌렀다면 거리를 생략하며 인증되지 않는다."

@@ -4,7 +4,6 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -236,7 +235,7 @@ class PracticeIntegrationTest {
         mockMvc.perform(get("/api/v1/practices/skip-reason-form"))
                 .andExpect(status().isUnauthorized());
         mockMvc.perform(
-                        patch("/api/v1/practices/1")
+                        post("/api/v1/practices/1/visits")
                                 .contentType(MediaType.APPLICATION_JSON)
                                 .content("{}"))
                 .andExpect(status().isUnauthorized());

@@ -17,7 +17,6 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -28,8 +27,9 @@ import org.springframework.web.bind.annotation.RestController;
 /**
  * 연습 코스 API. 문서 스펙은 {@link PracticeControllerDocs}.
  *
- * <p>담기는 장소 하위(`/places/{placeId}/practices`), 목록은 회원 소유라 `/members/me/practices`에 둔다. 개별 조작(방문
- * 기록·미방문 사유·제거)은 항목 자체를 가리키는 `/practices/{practiceId}`에 둔다.
+ * <p>담기는 장소 하위(`/places/{placeId}/practices`), 목록은 회원 소유라 `/members/me/practices`에 둔다. 개별 조작은 항목
+ * 자체를 가리키는 `/practices/{practiceId}`에 두되, 사용자의 두 선택은 하위 리소스로 대칭을 맞춘다 — 다녀왔어요는 `visits`, 안 했어요는
+ * `skip-reason`. 둘 다 부를 때마다 기록이 쌓이는 비멱등 연산이라 `POST`다.
  */
 @RestController
 @RequestMapping("/api/v1")
@@ -61,7 +61,7 @@ public class PracticeController implements PracticeControllerDocs {
     }
 
     @Override
-    @PatchMapping("/practices/{practiceId}")
+    @PostMapping("/practices/{practiceId}/visits")
     public ApiResponse<PracticeVisitResponse> recordVisit(
             @PathVariable Long practiceId,
             @CurrentMember Long memberId,

@@ -7,7 +7,8 @@
 | 2026-08-06 | Draft | 최초 작성 (2차 업데이트 3번 — 연습 코스 목록) |
 | 2026-08-06 | Draft | 리뷰 반영 — 같은 코스 재연습은 행을 늘리지 않고 **`visit_count`로 누적**, 주차장도 담기 가능, 목록은 **상태 필터 없이 최근 방문순**, 방문 판정은 전적으로 클라이언트의 상태 변경 호출로 결정 |
 | 2026-08-06 | Draft | **미방문 사유 제출을 별도 API로 분리**(`POST /practices/{id}/skip-reason`) |
-| 2026-08-06 | Draft | **상태를 요청에서 제거** — `PATCH`는 인정 주행거리만 받고 서버가 방문(`VISITED`)으로 정한다. 사유 제출이 상태까지 바꾸므로 사용자의 두 선택(다녀왔어요/안 했어요)이 API 하나씩에 대응하고, **사유 없는 미방문이 생길 수 없다** |
+| 2026-08-06 | Draft | **상태를 요청에서 제거** — 방문 기록은 인정 주행거리만 받고 서버가 방문(`VISITED`)으로 정한다. 사유 제출이 상태까지 바꾸므로 사용자의 두 선택(다녀왔어요/안 했어요)이 API 하나씩에 대응하고, **사유 없는 미방문이 생길 수 없다** |
+| 2026-08-09 | Implemented | 방문 기록을 **`PATCH /practices/{id}` → `POST /practices/{id}/visits`** 로 변경 — 호출마다 연습 횟수가 오르는 비멱등 연산이라 `PATCH`가 맞지 않고, 미방문 사유(`skip-reason`)와 대칭이 된다 |
 | 2026-08-06 | Draft | **GPS 방문 인증 정책 반영** — "다녀왔어요"(연습기록)와 **방문 인증을 분리**한다. 앱이 측정한 **인정 주행거리**(코스 경로선 150m 이내 이동거리)를 보내면 **서버가 필요 거리(`min(코스거리 × 40%, 5km)`)와 비교해 인증을 판정**한다. 측정 세션·150m 판정은 앱이 관리하고 서버는 숫자만 받는다 |
 
 ## 배경 / 목적
@@ -104,12 +105,14 @@
 |--------|------|------|------|
 | POST | /api/v1/places/{placeId}/practices | 연습 목록에 담기(멱등) | JWT |
 | GET | /api/v1/members/me/practices | 내 연습 목록(상태 필터·커서) | JWT |
-| PATCH | /api/v1/practices/{practiceId} | 방문 기록(다녀왔어요, +GPS 측정값) | JWT |
+| POST | /api/v1/practices/{practiceId}/visits | 방문 기록(다녀왔어요, +GPS 측정값) | JWT |
 | POST | /api/v1/practices/{practiceId}/skip-reason | 미방문 사유 제출(안 했어요) | JWT |
 | DELETE | /api/v1/practices/{practiceId} | 목록에서 제거(멱등) | JWT |
 | GET | /api/v1/practices/skip-reason-form | 미방문 이유 폼 | JWT |
 
-**컨트롤러 배치**(CLAUDE.md 기준): `practices`는 자체 오퍼레이션 묶음(담기·목록·상태변경·삭제)이라 **`PracticeController` 전용**. 담기는 장소 하위(`/places/{placeId}/practices`), 개별 조작은 `/practices/{practiceId}`. 목록은 회원 소유라 `/members/me/practices`.
+**컨트롤러 배치**(CLAUDE.md 기준): `practices`는 자체 오퍼레이션 묶음(담기·목록·방문 기록·삭제)이라 **`PracticeController` 전용**. 담기는 장소 하위(`/places/{placeId}/practices`), 개별 조작은 `/practices/{practiceId}`. 목록은 회원 소유라 `/members/me/practices`.
+
+**메서드**: 사용자의 두 선택은 **하위 리소스 `POST`로 대칭**을 맞춘다 — 다녀왔어요는 `visits`, 안 했어요는 `skip-reason`. 둘 다 부를 때마다 기록이 쌓이는(연습 횟수 +1) **비멱등 연산**이라 `PATCH`가 아니다.
 
 ### 1. 연습 목록에 담기
 
@@ -162,7 +165,7 @@ GET /api/v1/members/me/practices?size=20&cursor=   (JWT)
 ### 3. 방문 기록 (다녀왔어요)
 
 ```json
-// PATCH /api/v1/practices/12   (JWT)
+// POST /api/v1/practices/12/visits   (JWT)
 
 // GPS 측정값과 함께 — 인증 판정은 서버가
 { "certifiedDistanceMeters": 2100 }
