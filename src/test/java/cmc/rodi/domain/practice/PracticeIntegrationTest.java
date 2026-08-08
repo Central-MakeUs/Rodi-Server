@@ -15,6 +15,7 @@ import cmc.rodi.domain.place.entity.Parking;
 import cmc.rodi.domain.place.repository.CourseRepository;
 import cmc.rodi.domain.place.repository.ParkingRepository;
 import cmc.rodi.domain.practice.dto.PracticeItem;
+import cmc.rodi.domain.practice.dto.PracticeRegisterResponse;
 import cmc.rodi.domain.practice.entity.MemberPractice;
 import cmc.rodi.domain.practice.entity.PracticeStatus;
 import cmc.rodi.domain.practice.repository.MemberPracticeRepository;
@@ -220,6 +221,21 @@ class PracticeIntegrationTest {
                         .map(PracticeItem::practiceId)
                         .toList();
         assertThat(ids).doesNotHaveDuplicates().hasSize(5);
+    }
+
+    @Test
+    @DisplayName("담는 사이 다른 요청이 먼저 행을 만들어도 500 없이 그 행을 돌려준다")
+    void 동시_담기() {
+        Course course = seedCourse("동시 코스");
+        Member me = seedMember("concurrent@kakao.com");
+
+        // 경쟁 요청이 먼저 INSERT를 끝낸 상태를 만든다 — 이후 register는 유니크 제약에 부딪힌다
+        memberPracticeRepository.insertIfAbsent(me.getId(), course.getId());
+
+        PracticeRegisterResponse response = practiceService.register(course.getId(), me.getId());
+
+        assertThat(response.practiceId()).isNotNull();
+        assertThat(memberPracticeRepository.countByMemberId(me.getId())).isEqualTo(1);
     }
 
     @Test

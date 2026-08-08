@@ -56,9 +56,13 @@ public class PracticeService {
                 memberRepository
                         .findById(memberId)
                         .orElseThrow(() -> new BusinessException(ErrorCode.ENTITY_NOT_FOUND));
+        // 같은 장소를 연달아 두 번 누르면 두 요청이 나란히 "없음"으로 보고 둘 다 INSERT를 시도한다.
+        // 그냥 save()면 늦게 온 쪽이 uq_member_practice에 걸려 500이 되므로, DB에 판정을 맡긴다.
+        memberPracticeRepository.insertIfAbsent(member.getId(), place.getId());
         MemberPractice saved =
-                memberPracticeRepository.save(
-                        MemberPractice.builder().member(member).place(place).build());
+                memberPracticeRepository
+                        .findByMemberIdAndPlaceId(memberId, placeId)
+                        .orElseThrow(() -> new BusinessException(ErrorCode.ENTITY_NOT_FOUND));
         return PracticeRegisterResponse.from(saved);
     }
 

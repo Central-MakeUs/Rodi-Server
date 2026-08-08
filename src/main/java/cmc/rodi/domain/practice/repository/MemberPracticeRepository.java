@@ -6,6 +6,7 @@ import java.util.List;
 import java.util.Optional;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
@@ -15,6 +16,22 @@ public interface MemberPracticeRepository extends JpaRepository<MemberPractice, 
     Optional<MemberPractice> findByMemberIdAndPlaceId(Long memberId, Long placeId);
 
     long countByMemberId(Long memberId);
+
+    /**
+     * 담기(멱등). 같은 장소를 동시에 두 번 담으려 하면 늦게 온 쪽이 {@code uq_member_practice}에 걸려 500이 되므로, 중복 판정을 DB에
+     * 맡긴다({@code ON CONFLICT DO NOTHING}). 인증 관련 컬럼은 기본값을 그대로 쓴다.
+     */
+    @Modifying(flushAutomatically = true)
+    @Query(
+            value =
+                    """
+                    INSERT INTO member_practice
+                        (member_id, place_id, status, visit_count, created_at, updated_at)
+                    VALUES (:memberId, :placeId, 'PLANNED', 0, now(), now())
+                    ON CONFLICT (member_id, place_id) DO NOTHING
+                    """,
+            nativeQuery = true)
+    int insertIfAbsent(@Param("memberId") Long memberId, @Param("placeId") Long placeId);
 
     /** 이 회원이 그 장소에서 GPS 방문 인증에 성공한 이력이 있는지(후기 "인증된 후기" 배지 판정). */
     boolean existsByMemberIdAndPlaceIdAndVerifiedTrue(Long memberId, Long placeId);
