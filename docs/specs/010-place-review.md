@@ -13,6 +13,7 @@
 | 2026-08-06 | Implemented | PR 리뷰 반영 — **후기 내용 상한 1000자 → 150자**(화면 확정값). V13은 이미 적용된 마이그레이션이라 수정하지 않고 **V16 ALTER**로 줄였다 |
 | 2026-08-08 | **Implemented** | "인증된 후기" 배지 추가(V20 `is_verified_visit`) — 스펙 011의 GPS 방문 인증 이력을 작성 시점 스냅샷으로 남긴다 |
 | 2026-08-08 | **Implemented** | 요약 개편 — **최다 난이도**(`topDifficulty`, 동률은 더 어려운 쪽) 추가, **추천 수는 전체 레벨 합산**으로 분리(`levelReviewCount`·`totalReviewCount`), **혼잡도는 응답에서 제외**(저장은 유지) |
+| 2026-08-08 | **Implemented** | 목록 응답 정리 — 카드에 쓰는 값만 남기고 추천 여부·난이도·혼잡도·작성 당시 레벨·`caution`을 뺐다 |
 
 ## 배경 / 목적
 
@@ -199,15 +200,11 @@ GET /api/v1/places/1/reviews?level=ROOKIE&size=10&cursor=   (JWT)
       "reviewId": 31,
       "memberId": 7,
       "nickname": "차근차근 토끼",
-      "memberLevel": "ROOKIE",
-      "isRecommended": true,
-      "difficulty": "EASY",
-      "congestion": "NORMAL",
       "practiceMethod": "ACCOMPANIED",
       "content": "차선이 넓고 신호가 단순해서…",
-      "caution": "주말 오후엔 자전거 통행이 많습니다.",
       "isMine": true,
       "isEditable": true,
+      "isHidden": false,
       "isVerifiedVisit": true,
       "createdAt": "2026-07-30T14:02:11"
     }
@@ -221,11 +218,11 @@ GET /api/v1/places/1/reviews?level=ROOKIE&size=10&cursor=   (JWT)
 - 정렬/커서: **`created_at DESC, id DESC`**. 커서 = `(created_at, id)` base64 불투명 토큰(`CursorCodec`).
 - `totalCount`: **`level` 필터를 적용한** 총 개수. **첫 페이지(cursor 없음)에서만** 채우고 이후 페이지는 `null`(공통 `CursorPage` 규칙).
 - 같은 회원의 후기가 **여러 건 나올 수 있다**(같은 장소 재작성 허용).
-- `memberLevel`은 **작성 당시** 레벨이다(작성자의 현재 레벨이 아니다).
+- **항목은 카드에 그릴 값만 담는다** — 추천 여부·난이도·혼잡도는 분포로 보는 값이라 요약(#3)에만 있고, 작성 당시 레벨은 `isEditable` 판정에만 쓰여 내려보내지 않는다.
+- `caution`은 **관리자 화면 전용**이라 응답에 넣지 않는다(저장은 계속 한다). 관리자가 모아 보고 타당하면 코스 정보에 반영하는 용도다.
 - `isMine`: 내 후기 여부. `isEditable`: `isMine && memberLevel == 내 현재 레벨`(레벨업 후 이전 후기는 `false` → 클라이언트가 수정 버튼을 감춘다).
 - `nickname`이 `null`이면 탈퇴·익명화된 회원의 후기다(표기는 클라이언트가 "알 수 없음" 등으로).
 - **내가 차단한 회원의 후기는 제외**된다.
-- `caution`은 없으면 `null`.
 - `isVerifiedVisit`: 작성 시점에 그 장소에서 **GPS 방문 인증**에 성공한 이력이 있었는지(스펙 011). "다녀왔어요"만 누른 기록은 인증으로 보지 않으며, 스냅샷이라 이후 연습 항목을 지워도 값이 변하지 않는다.
 
 ### 3. 후기 요약 (레벨별 난이도 분포 — 첨부 화면)
@@ -384,6 +381,7 @@ DELETE /api/v1/members/7/block   // 해제(멱등)
 - [x] 레벨 미배정 회원이 `level` 없이 목록을 조회하면 전체가 반환된다.
 - [x] 목록 `totalCount`는 **첫 페이지에서만** 채워지고 `level` 필터 기준 총계와 일치하며, 이후 페이지는 `null`이다.
 - [x] 목록 항목의 `isMine`·`isEditable`이 요청 회원 기준으로 정확하다(레벨업한 회원의 이전 후기는 `isEditable=false`).
+- [x] 목록 항목에 추천 여부·난이도·혼잡도·작성 당시 레벨·`caution`이 없고, `isVerifiedVisit`이 있다.
 - [x] 요약의 `difficultyCounts`가 **선택한 레벨** 기준 후기 건수와 일치하고, 0건 값도 키가 `0`으로 존재한다(5개 항목 항상 반환).
 - [x] 요약에서 `levelReviewCount == difficultyCounts 합`이고 `totalReviewCount == recommendCount + notRecommendCount`이다(모수가 다르다).
 - [x] `topDifficulty`가 최다 난이도와 건수를 주고, **동률이면 더 어려운 쪽**을 고르며, 후기가 없으면 키가 빠진다.
