@@ -268,7 +268,7 @@ GET /api/v1/places/1/reviews/summary?level=ROOKIE   (JWT)
 
 ### 3-1. 내가 쓴 후기 목록
 
-```
+```http
 GET /api/v1/members/me/reviews?size=20&cursor=   (JWT)
 ```
 
@@ -302,7 +302,7 @@ GET /api/v1/members/me/reviews?size=20&cursor=   (JWT)
 
 ### 3-2. 차단한 회원 목록
 
-```
+```http
 GET /api/v1/members/me/blocks?size=20&cursor=   (JWT)
 ```
 
@@ -443,9 +443,9 @@ DELETE /api/v1/members/7/block   // 해제(멱등)
 - [x] 레벨 미배정 회원이 `level` 없이 목록을 조회하면 전체가 반환된다.
 - [x] 목록 `totalCount`는 **첫 페이지에서만** 채워지고 `level` 필터 기준 총계와 일치하며, 이후 페이지는 `null`이다.
 - [x] 목록 항목의 `isMine`·`isEditable`이 요청 회원 기준으로 정확하다(레벨업한 회원의 이전 후기는 `isEditable=false`).
-- [ ] 내가 쓴 후기 목록은 **작성 당시 레벨과 무관하게** 내 후기를 전부 반환하고, 비공개 후기도 `isHidden=true`로 포함한다.
-- [ ] 내가 쓴 후기 목록의 `isEditable`이 레벨 일치 여부를 따르고, 장소명이 항목마다 채워진다.
-- [ ] 차단 목록이 차단한 시각 최신순으로 반환되고, 남이 한 차단은 섞이지 않으며, 해제하면 목록에서 빠진다.
+- [x] 내가 쓴 후기 목록은 **작성 당시 레벨과 무관하게** 내 후기를 전부 반환하고, 비공개 후기도 `isHidden=true`로 포함한다.
+- [x] 내가 쓴 후기 목록의 `isEditable`이 레벨 일치 여부를 따르고, 장소명이 항목마다 채워진다.
+- [x] 차단 목록이 차단한 시각 최신순으로 반환되고, 남이 한 차단은 섞이지 않으며, 해제하면 목록에서 빠진다.
 - [x] 목록 항목에 추천 여부·난이도·혼잡도·작성 당시 레벨·`caution`이 없고, `isVerifiedVisit`이 있다.
 - [x] 요약의 `difficultyCounts`가 **선택한 레벨** 기준 후기 건수와 일치하고, 0건 값도 키가 `0`으로 존재한다(5개 항목 항상 반환).
 - [x] 요약에서 `levelReviewCount == difficultyCounts 합`이고 `totalReviewCount == recommendCount + notRecommendCount`이다(모수가 다르다).

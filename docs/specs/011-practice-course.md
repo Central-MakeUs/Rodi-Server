@@ -67,12 +67,12 @@
 | place_id | bigint FK→place | Y | 담은 장소(**코스·주차장 공통**) |
 | status | varchar(20) enum | Y | PLANNED / VISITED / NOT_VISITED |
 | visit_count | int | Y (default 0) | **이 코스를 다녀온 횟수**(`VISITED`로 바꿀 때마다 +1) |
-| visited_at | timestamptz | N | **마지막** 방문 시각 |
+| visited_at | timestamp | N | **마지막** 방문 시각(`TIMESTAMP WITHOUT TIME ZONE` — 기존 테이블과 동일) |
 | certified_distance_meters | bigint | Y (default 0) | 이 항목에서 누적된 **인정 주행거리**(앱 측정값의 합) — V19 |
 | verified | boolean | Y (default false) | 한 번이라도 **방문 인증**에 성공했는지(내려가지 않음) — V19 |
 | skip_reason | varchar(30) enum | N | `NOT_VISITED`일 때 사유 |
 | skip_detail | varchar(100) | N | 사유가 `OTHER`일 때 직접 입력 |
-| created_at·updated_at | timestamptz | Y | `BaseEntity` |
+| created_at·updated_at | timestamp | Y | `BaseEntity` (`TIMESTAMP WITHOUT TIME ZONE`) |
 
 - **unique(member_id, place_id)** — 같은 장소는 목록에 **한 행**만 둔다. 같은 코스를 여러 번 연습해도 행을 늘리지 않고 **`visit_count`를 올린다**(목록이 같은 코스로 도배되지 않고, "이 코스 3번 연습함"을 바로 보여줄 수 있다).
 - **재도전**: 이미 담긴 장소를 다시 담으면(`POST`) 상태를 **`PLANNED`로 되돌리고** `skip_*`을 비운다. `visit_count`는 유지된다.
@@ -265,20 +265,20 @@ DELETE /api/v1/practices/12   (JWT)
 
 ## 완료 조건 (Acceptance Criteria)
 
-- [ ] 코스 상세에서 담으면 `PLANNED` 상태로 저장되고, 같은 장소를 다시 담아도 **행이 늘지 않는다**(상태만 `PLANNED`로 되돌아가고 `visitCount`는 유지).
-- [ ] 코스·주차장 모두 담을 수 있고, 없는 장소를 담으면 404다.
-- [ ] 내 목록이 **최근 방문순**(방문 이력 없으면 담은 시각 기준)으로 반환되고 `size`만큼 끊어 `hasNext`·`nextCursor`로 이어진다(2페이지 연속성·중복 없음).
-- [ ] `totalCount`는 첫 페이지에서만 내 연습 항목 총계로 채워진다.
-- [ ] 목록 항목의 `place`가 `PlaceListItem`과 같은 구조이며 `distanceFromMe`는 `null`이다.
-- [ ] 방문을 기록하면 상태가 `VISITED`가 되고 `visitCount`가 1 오르며 `visitedAt` 기록·사유가 비워진다. 다시 보내면 횟수가 또 오른다.
-- [ ] 사유 제출 한 번으로 상태가 `NOT_VISITED`가 되고 사유가 저장된다. `OTHER`인데 직접 입력이 없으면 400이다.
-- [ ] 이미 사유가 있는 항목에 다시 제출하면 409이고, 방문을 기록하면 사유가 비워져 다시 남길 수 있다.
-- [ ] 타인 항목의 방문 기록·사유 제출·삭제는 403이다.
-- [ ] 미방문 이유 폼이 5개 선택지를 order 순으로 반환하고, `OTHER`만 `requiresTextInput=true`·placeholder·최대 길이를 갖는다.
-- [ ] GPS 인증에 성공한 장소에 후기를 쓰면 `isVerifiedVisit=true`, 다녀왔어요만 눌렀거나 한 번도 안 갔으면 `false`로 저장된다.
-- [ ] 연습 항목을 삭제해도 이미 작성한 후기의 `isVerifiedVisit`은 그대로다.
-- [ ] 모든 엔드포인트가 미인증 시 401이다.
-- [ ] 관련 테스트 통과 (`./gradlew test`).
+- [x] 코스 상세에서 담으면 `PLANNED` 상태로 저장되고, 같은 장소를 다시 담아도 **행이 늘지 않는다**(상태만 `PLANNED`로 되돌아가고 `visitCount`는 유지).
+- [x] 코스·주차장 모두 담을 수 있고, 없는 장소를 담으면 404다.
+- [x] 내 목록이 **최근 방문순**(방문 이력 없으면 담은 시각 기준)으로 반환되고 `size`만큼 끊어 `hasNext`·`nextCursor`로 이어진다(2페이지 연속성·중복 없음).
+- [x] `totalCount`는 첫 페이지에서만 내 연습 항목 총계로 채워진다.
+- [x] 목록 항목이 `placeName`·`practiceTypes`를 평탄한 필드로 담는다(코스는 등록 태그, 주차장은 `[PARKING]`).
+- [x] 방문을 기록하면 상태가 `VISITED`가 되고 `visitCount`가 1 오르며 `visitedAt` 기록·사유가 비워진다. 다시 보내면 횟수가 또 오른다.
+- [x] 사유 제출 한 번으로 상태가 `NOT_VISITED`가 되고 사유가 저장된다. `OTHER`인데 직접 입력이 없으면 400이다.
+- [x] 이미 사유가 있는 항목에 다시 제출하면 409이고, 방문을 기록하면 사유가 비워져 다시 남길 수 있다.
+- [x] 타인 항목의 방문 기록·사유 제출·삭제는 403이다.
+- [x] 미방문 이유 폼이 5개 선택지를 order 순으로 반환하고, `OTHER`만 `requiresTextInput=true`·placeholder·최대 길이를 갖는다.
+- [x] GPS 인증에 성공한 장소에 후기를 쓰면 `isVerifiedVisit=true`, 다녀왔어요만 눌렀거나 한 번도 안 갔으면 `false`로 저장된다.
+- [x] 연습 항목을 삭제해도 이미 작성한 후기의 `isVerifiedVisit`은 그대로다.
+- [x] 모든 엔드포인트가 미인증 시 401이다.
+- [x] 관련 테스트 통과 (`./gradlew test`).
 
 ## 확정된 결정 (리뷰 반영)
 

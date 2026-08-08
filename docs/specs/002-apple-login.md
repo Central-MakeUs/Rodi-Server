@@ -136,6 +136,8 @@ client id는 세 군데서 쓰인다: **client_secret의 `sub`**, **토큰 교�
 - **헤더가 없으면 운영 번들로 간주** → 기존 앱은 수정 없이 그대로 동작한다.
 - 알 수 없는 값이 오면 400(허용 목록에 없는 client id는 거부).
 - `APPLE_CLIENT_ID` → **목록형**(`APPLE_CLIENT_IDS`)으로 바꾸고, 운영은 compose `app.environment`에 키를 명시해야 컨테이너에 전달된다.
+  - **구분자는 쉼표**(`com.dororong.rodi,com.dororong.rodi.dev`), **첫 값이 운영 기본값**이다 — 헤더가 없을 때 이 값을 쓴다. `AppleProperties.clientId`(단수 문자열)도 `clientIds`(리스트)로 함께 바꿔야 바인딩이 맞는다.
+- **선택된 client id를 계정에 남긴다.** client id는 로그인 때만 쓰이는 게 아니라 **탈퇴 시 revoke**에도 필요한데, 그때는 헤더가 없다. `social_account`에 `provider_client_id`를 두고 최초 인증 때 저장해, 토큰 교환·client secret 생성·`aud` 검증·revoke가 **모두 같은 값**을 쓰게 한다. 이게 없으면 dev로 가입한 계정을 운영 client id로 revoke하려다 실패한다.
 
 *검토했다가 접은 방안*: ① 여러 client id로 **순차 시도** — authorization code가 1회용이라 첫 시도가 코드를 소비하면 dev 로그인이 깨질 수 있다(애플이 보장하지 않음). ② **provider 경로 분리**(`apple-dev`) — `social_account`의 `(provider, provider_id)` 유니크 때문에 같은 사람이 dev·운영에서 다른 계정으로 갈라진다(애플 `sub`는 팀 단위라 값이 같다).
 
