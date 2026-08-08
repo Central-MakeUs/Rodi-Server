@@ -275,7 +275,7 @@ DELETE /api/v1/practices/12   (JWT)
 - [ ] 이미 사유가 있는 항목에 다시 제출하면 409이고, 방문을 기록하면 사유가 비워져 다시 남길 수 있다.
 - [ ] 타인 항목의 방문 기록·사유 제출·삭제는 403이다.
 - [ ] 미방문 이유 폼이 5개 선택지를 order 순으로 반환하고, `OTHER`만 `requiresTextInput=true`·placeholder·최대 길이를 갖는다.
-- [ ] `visitCount > 0`인 장소에 후기를 쓰면 `isVerifiedVisit=true`, 한 번도 안 다녀왔으면 `false`로 저장된다.
+- [ ] GPS 인증에 성공한 장소에 후기를 쓰면 `isVerifiedVisit=true`, 다녀왔어요만 눌렀거나 한 번도 안 갔으면 `false`로 저장된다.
 - [ ] 연습 항목을 삭제해도 이미 작성한 후기의 `isVerifiedVisit`은 그대로다.
 - [ ] 모든 엔드포인트가 미인증 시 401이다.
 - [ ] 관련 테스트 통과 (`./gradlew test`).

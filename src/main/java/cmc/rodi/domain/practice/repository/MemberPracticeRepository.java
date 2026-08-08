@@ -16,6 +16,9 @@ public interface MemberPracticeRepository extends JpaRepository<MemberPractice, 
 
     long countByMemberId(Long memberId);
 
+    /** 이 회원이 그 장소에서 GPS 방문 인증에 성공한 이력이 있는지(후기 "인증된 후기" 배지 판정). */
+    boolean existsByMemberIdAndPlaceIdAndVerifiedTrue(Long memberId, Long placeId);
+
     /**
      * 내 연습 목록 한 페이지(최근 방문순 keyset). 방문 이력이 없는 항목은 담은 시각을 정렬값으로 써서 같은 축에 섞는다.
      *

@@ -11,6 +11,7 @@
 | 2026-08-06 | Approved | 신고 사유를 화면 기준 5종으로 확정(`IRRELEVANT` 추가, `INAPPROPRIATE`·`PRIVACY` 제거, `ETC`→`OTHER`)하고 **선택지를 서버가 폼으로 내려주도록** 추가(`GET /reviews/report-form`). 공통 폼 구조는 `global.common.form` |
 | 2026-08-06 | **Implemented** | 신고 **5명 누적 시 자동 비공개** 추가(V15 `hidden_at`) — 목록·요약에서 빠지고 작성자 본인에게만 `isHidden`으로 보인다. 마이그레이션은 **V13**(review)·**V14**(review_report·member_block)·**V15**(hidden_at). 목록은 **JPQL + fetch join**(작성자 닉네임 N+1 방지), 요약만 native `FILTER` 집계 — Postgres가 null 바인드 타입을 못 정해(`could not determine data type`) **레벨 필터는 IN 목록**, **첫 페이지 커서는 미래시각 sentinel**로 표현. 신고·차단은 `ON CONFLICT DO NOTHING` 멱등 |
 | 2026-08-06 | Implemented | PR 리뷰 반영 — **후기 내용 상한 1000자 → 150자**(화면 확정값). V13은 이미 적용된 마이그레이션이라 수정하지 않고 **V16 ALTER**로 줄였다 |
+| 2026-08-08 | **Implemented** | "인증된 후기" 배지 추가(V20 `is_verified_visit`) — 스펙 011의 GPS 방문 인증 이력을 작성 시점 스냅샷으로 남긴다 |
 
 ## 배경 / 목적
 
@@ -206,6 +207,7 @@ GET /api/v1/places/1/reviews?level=ROOKIE&size=10&cursor=   (JWT)
       "caution": "주말 오후엔 자전거 통행이 많습니다.",
       "isMine": true,
       "isEditable": true,
+      "isVerifiedVisit": true,
       "createdAt": "2026-07-30T14:02:11"
     }
   ],
@@ -223,6 +225,7 @@ GET /api/v1/places/1/reviews?level=ROOKIE&size=10&cursor=   (JWT)
 - `nickname`이 `null`이면 탈퇴·익명화된 회원의 후기다(표기는 클라이언트가 "알 수 없음" 등으로).
 - **내가 차단한 회원의 후기는 제외**된다.
 - `caution`은 없으면 `null`.
+- `isVerifiedVisit`: 작성 시점에 그 장소에서 **GPS 방문 인증**에 성공한 이력이 있었는지(스펙 011). "다녀왔어요"만 누른 기록은 인증으로 보지 않으며, 스냅샷이라 이후 연습 항목을 지워도 값이 변하지 않는다.
 
 ### 3. 후기 요약 (레벨별 난이도 분포 — 첨부 화면)
 
@@ -403,7 +406,7 @@ DELETE /api/v1/members/7/block   // 해제(멱등)
 1. ~~**후기 내용 글자 제한**~~ — **1~150자로 확정**(화면 기준). 초안의 1000자는 임시값이었고 V16에서 줄였다.
 2. **요약 카운트 표기** — 집계 단위가 **후기 건수**인데 화면은 `30명`이다. (a) 라벨을 "건"으로 바꾸거나 (b) 난이도별 `DISTINCT member_id`로 집계해 "명"을 맞추는 방법이 있다. 기획 확인 필요. *(b는 한 사람이 서로 다른 난이도로 여러 후기를 쓰면 양쪽 막대에 잡힌다.)*
 3. **`review.caution`과 `course_caution`의 관계** — 코스에 이미 관리자 등록 주의사항 칩(`course_caution`)이 있다. 별개 표시로 보이나 기획 확인 대기(**미결**).
-4. **"인증된 후기" 배지** — 방문한 사람의 후기를 구분 표시할 예정이나 **방문 판정 기준이 미정**(**미결**). 기준이 정해지면 `review`에 판정 결과 컬럼(또는 `driving_record` 조인)과 응답 `isVerifiedVisit` 필드를 추가한다. 이번 구현엔 넣지 않는다.
+4. ~~**"인증된 후기" 배지**~~ — **해소**. 스펙 011의 GPS 방문 인증(인정 주행거리 ≥ `min(코스거리 × 40%, 5km)`)을 기준으로 삼아, 작성 시점의 인증 이력을 `review.is_verified_visit`(V20)에 스냅샷으로 남기고 목록 응답 `isVerifiedVisit`으로 내려준다.
 5. **신고 `detail` 상한** — 폼의 `textInputMaxLength`와 맞춰 **100자**로 구현(연습 미방문 이유 폼과 동일). 더 길게 받아야 하면 조정.
 6. **차단 목록 조회·해제 화면** — 마이페이지에 차단 관리가 필요한가? (지금은 후기 목록에서 해제만 가능, `GET /members/me/blocks` 없음)
 

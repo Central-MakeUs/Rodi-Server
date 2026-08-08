@@ -4,6 +4,7 @@ import cmc.rodi.domain.member.entity.Member;
 import cmc.rodi.domain.member.repository.MemberRepository;
 import cmc.rodi.domain.place.entity.Place;
 import cmc.rodi.domain.place.repository.PlaceRepository;
+import cmc.rodi.domain.practice.repository.MemberPracticeRepository;
 import cmc.rodi.domain.review.dto.ReviewCreateResponse;
 import cmc.rodi.domain.review.dto.ReviewReportRequest;
 import cmc.rodi.domain.review.dto.ReviewRequest;
@@ -39,6 +40,9 @@ public class ReviewService {
     private final PlaceRepository placeRepository;
     private final MemberRepository memberRepository;
 
+    /** 작성 시 "인증된 후기" 판정에만 쓰는 읽기 전용 참조(마이페이지→북마크와 같은 도메인 간 조회 패턴). */
+    private final MemberPracticeRepository memberPracticeRepository;
+
     /** 후기 작성. 같은 장소에 여러 번 쓸 수 있다. 레벨 없는 회원(온보딩 미완료)은 작성 불가. */
     @Transactional
     public ReviewCreateResponse create(Long placeId, Long memberId, ReviewRequest request) {
@@ -62,6 +66,9 @@ public class ReviewService {
                         .content(request.content())
                         .caution(request.caution())
                         .memberLevel(member.getLevel()) // 작성 시점 레벨 스냅샷
+                        .verifiedVisit(
+                                memberPracticeRepository.existsByMemberIdAndPlaceIdAndVerifiedTrue(
+                                        memberId, placeId)) // GPS 인증 이력 스냅샷
                         .build();
         return new ReviewCreateResponse(reviewRepository.save(review).getId());
     }
