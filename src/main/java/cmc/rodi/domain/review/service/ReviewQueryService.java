@@ -4,6 +4,7 @@ import cmc.rodi.domain.member.entity.Level;
 import cmc.rodi.domain.member.entity.Member;
 import cmc.rodi.domain.member.repository.MemberRepository;
 import cmc.rodi.domain.place.repository.PlaceRepository;
+import cmc.rodi.domain.review.dto.MyReviewItem;
 import cmc.rodi.domain.review.dto.ReviewItem;
 import cmc.rodi.domain.review.dto.ReviewListRequest;
 import cmc.rodi.domain.review.dto.ReviewSummaryResponse;
@@ -74,6 +75,36 @@ public class ReviewQueryService {
                 hasNext,
                 nextCursor,
                 reviewRepository.countVisible(placeId, levelsOf(filter), memberId));
+    }
+
+    /**
+     * 내가 쓴 후기 목록. 장소 후기 목록과 달리 <b>레벨 필터가 없어</b> 레벨이 바뀌어도 내 후기가 전부 나오고, 비공개 후기도 {@code isHidden}으로
+     * 표시해 함께 내려준다.
+     */
+    @Transactional(readOnly = true)
+    public CursorPage<MyReviewItem> getMyReviews(Long memberId, int size, String rawCursor) {
+        Member me = findMember(memberId);
+        boolean firstPage = rawCursor == null;
+
+        CursorCodec.Cursor cursor = firstPage ? null : CursorCodec.decode(rawCursor);
+        List<Review> rows =
+                reviewRepository.findMyPage(
+                        memberId,
+                        cursor == null ? FAR_FUTURE : parseCursorTime(cursor.sortValue()),
+                        cursor == null ? Long.MAX_VALUE : cursor.id(),
+                        PageRequest.of(0, size + 1));
+
+        boolean hasNext = rows.size() > size;
+        List<Review> page = hasNext ? rows.subList(0, size) : rows;
+        List<MyReviewItem> items =
+                page.stream().map(review -> MyReviewItem.of(review, me.getLevel())).toList();
+        String nextCursor = hasNext ? encodeCursor(page.get(page.size() - 1)) : null;
+
+        if (!firstPage) {
+            return CursorPage.next(items, hasNext, nextCursor);
+        }
+        return CursorPage.first(
+                items, hasNext, nextCursor, reviewRepository.countByMemberId(memberId));
     }
 
     /**

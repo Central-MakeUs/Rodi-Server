@@ -54,6 +54,28 @@ public interface ReviewRepository extends JpaRepository<Review, Long> {
             @Param("cursorId") Long cursorId,
             Pageable pageable);
 
+    /**
+     * 내가 쓴 후기 한 페이지(최신순 keyset). <b>레벨 필터가 없고</b> 비공개 후기도 포함한다 — 레벨이 바뀌어도, 남에게 안 보이게 됐어도 본인 목록에는
+     * 남아야 한다. 장소명을 함께 읽어 항목별 추가 조회(N+1)를 막는다.
+     */
+    @Query(
+            """
+            SELECT r FROM Review r
+            JOIN FETCH r.place
+            WHERE r.member.id = :memberId
+              AND (r.createdAt < :cursorTime
+                   OR (r.createdAt = :cursorTime AND r.id < :cursorId))
+            ORDER BY r.createdAt DESC, r.id DESC
+            """)
+    List<Review> findMyPage(
+            @Param("memberId") Long memberId,
+            @Param("cursorTime") LocalDateTime cursorTime,
+            @Param("cursorId") Long cursorId,
+            Pageable pageable);
+
+    /** 내가 쓴 후기 총계(첫 페이지 전용). 비공개 후기도 센다. */
+    long countByMemberId(Long memberId);
+
     /** 목록 totalCount(첫 페이지 전용). 레벨 필터·차단 제외 조건은 목록과 동일하다. */
     @Query(
             """

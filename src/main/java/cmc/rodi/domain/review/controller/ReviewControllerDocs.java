@@ -1,5 +1,6 @@
 package cmc.rodi.domain.review.controller;
 
+import cmc.rodi.domain.review.dto.MyReviewItem;
 import cmc.rodi.domain.review.dto.ReviewCreateResponse;
 import cmc.rodi.domain.review.dto.ReviewItem;
 import cmc.rodi.domain.review.dto.ReviewReportRequest;
@@ -26,6 +27,17 @@ public interface ReviewControllerDocs {
             @Parameter(description = "장소 id") Long placeId,
             @Parameter(hidden = true) Long memberId,
             ReviewRequest request);
+
+    @Operation(
+            summary = "내가 쓴 후기 목록 조회",
+            description =
+                    "내가 쓴 후기를 최신순 커서 페이지네이션으로 반환한다. 장소 후기 목록과 달리 **레벨 필터가 없어**"
+                            + " 레벨이 바뀌어도 내 후기가 전부 나온다. 신고 누적으로 비공개된 후기도 isHidden=true로 포함한다."
+                            + " 어느 장소에 썼는지 알 수 있게 placeId·placeName을 함께 준다. JWT 필요.")
+    ApiResponse<CursorPage<MyReviewItem>> getMyReviews(
+            @Parameter(description = "페이지 크기(1~100)") int size,
+            @Parameter(description = "다음 페이지 커서") String cursor,
+            @Parameter(hidden = true) Long memberId);
 
     @Operation(
             summary = "후기 목록 조회",
