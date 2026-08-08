@@ -2,7 +2,9 @@ package cmc.rodi.domain.practice;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -42,6 +44,9 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.annotation.Import;
+import org.springframework.http.MediaType;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -224,6 +229,26 @@ class PracticeIntegrationTest {
     }
 
     @Test
+    @DisplayName("연습 API는 모두 미인증이면 401")
+    void 미인증_401() throws Exception {
+        mockMvc.perform(post("/api/v1/places/1/practices")).andExpect(status().isUnauthorized());
+        mockMvc.perform(get("/api/v1/members/me/practices")).andExpect(status().isUnauthorized());
+        mockMvc.perform(get("/api/v1/practices/skip-reason-form"))
+                .andExpect(status().isUnauthorized());
+        mockMvc.perform(
+                        patch("/api/v1/practices/1")
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content("{}"))
+                .andExpect(status().isUnauthorized());
+        mockMvc.perform(
+                        post("/api/v1/practices/1/skip-reason")
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content("{\"reason\": \"TOO_FAR\"}"))
+                .andExpect(status().isUnauthorized());
+        mockMvc.perform(delete("/api/v1/practices/1")).andExpect(status().isUnauthorized());
+    }
+
+    @Test
     @DisplayName("담는 사이 다른 요청이 먼저 행을 만들어도 500 없이 그 행을 돌려준다")
     void 동시_담기() {
         Course course = seedCourse("동시 코스");
@@ -239,9 +264,22 @@ class PracticeIntegrationTest {
     }
 
     @Test
-    @DisplayName("연습 목록 API는 미인증이면 401")
-    void 미인증_401() throws Exception {
-        mockMvc.perform(post("/api/v1/places/1/practices")).andExpect(status().isUnauthorized());
-        mockMvc.perform(get("/api/v1/members/me/practices")).andExpect(status().isUnauthorized());
+    @DisplayName("사유가 OTHER인데 직접 입력이 없으면 400")
+    void 사유_직접입력_누락() throws Exception {
+        Member me = seedMember("skipValidation@kakao.com");
+        Long practiceId =
+                practiceService.register(seedCourse("검증 코스").getId(), me.getId()).practiceId();
+        SecurityContextHolder.getContext()
+                .setAuthentication(
+                        new UsernamePasswordAuthenticationToken(me.getId(), null, List.of()));
+        try {
+            mockMvc.perform(
+                            post("/api/v1/practices/" + practiceId + "/skip-reason")
+                                    .contentType(MediaType.APPLICATION_JSON)
+                                    .content("{\"reason\": \"OTHER\"}"))
+                    .andExpect(status().isBadRequest());
+        } finally {
+            SecurityContextHolder.clearContext();
+        }
     }
 }
