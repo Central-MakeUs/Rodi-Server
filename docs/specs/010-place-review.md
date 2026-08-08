@@ -12,6 +12,7 @@
 | 2026-08-06 | **Implemented** | 신고 **5명 누적 시 자동 비공개** 추가(V15 `hidden_at`) — 목록·요약에서 빠지고 작성자 본인에게만 `isHidden`으로 보인다. 마이그레이션은 **V13**(review)·**V14**(review_report·member_block)·**V15**(hidden_at). 목록은 **JPQL + fetch join**(작성자 닉네임 N+1 방지), 요약만 native `FILTER` 집계 — Postgres가 null 바인드 타입을 못 정해(`could not determine data type`) **레벨 필터는 IN 목록**, **첫 페이지 커서는 미래시각 sentinel**로 표현. 신고·차단은 `ON CONFLICT DO NOTHING` 멱등 |
 | 2026-08-06 | Implemented | PR 리뷰 반영 — **후기 내용 상한 1000자 → 150자**(화면 확정값). V13은 이미 적용된 마이그레이션이라 수정하지 않고 **V16 ALTER**로 줄였다 |
 | 2026-08-08 | **Implemented** | "인증된 후기" 배지 추가(V20 `is_verified_visit`) — 스펙 011의 GPS 방문 인증 이력을 작성 시점 스냅샷으로 남긴다 |
+| 2026-08-08 | **Implemented** | 요약 개편 — **최다 난이도**(`topDifficulty`, 동률은 더 어려운 쪽) 추가, **추천 수는 전체 레벨 합산**으로 분리(`levelReviewCount`·`totalReviewCount`), **혼잡도는 응답에서 제외**(저장은 유지) |
 
 ## 배경 / 목적
 
@@ -237,13 +238,14 @@ GET /api/v1/places/1/reviews/summary?level=ROOKIE   (JWT)
 // Response data
 {
   "level": "ROOKIE",
-  "totalCount": 71,
-  "recommendCount": 60,
-  "notRecommendCount": 11,
+  "levelReviewCount": 71,
+  "totalReviewCount": 94,
+  "topDifficulty": { "difficulty": "VERY_EASY", "count": 30 },
+  "recommendCount": 80,
+  "notRecommendCount": 14,
   "difficultyCounts": {
     "VERY_EASY": 30, "EASY": 26, "NORMAL": 5, "HARD": 5, "VERY_HARD": 5
   },
-  "congestionCounts": { "QUIET": 20, "NORMAL": 40, "CROWDED": 11 },
   "levelCounts": {
     "SEED": 12, "ROOKIE": 71, "OWNER": 8, "EXPLORER": 0, "NAVIGATOR": 3
   }
@@ -251,10 +253,14 @@ GET /api/v1/places/1/reviews/summary?level=ROOKIE   (JWT)
 ```
 
 - `level` 규칙은 목록(#2)과 동일 — **생략 = 조회자 본인 레벨**, `ALL` = 전체 집계(응답 `level`은 실제 적용된 값, 전체면 `"ALL"`).
-- `difficultyCounts`·`congestionCounts`는 **선택한 레벨 기준 후기 건수**이며, 후기가 0건인 값도 **키를 빼지 않고 `0`으로** 준다(막대 5개가 항상 그려진다).
+- **모수가 둘이다.** `difficultyCounts`·`topDifficulty`는 **선택한 레벨** 기준(`levelReviewCount`), 추천/비추천 수는 **전체 레벨 합산**(`totalReviewCount`)이다. 추천은 레벨을 나눠 볼 값이 아니라 그 장소 자체의 평판이라 필터와 무관하게 같은 숫자를 준다.
+- `difficultyCounts`는 후기가 0건인 값도 **키를 빼지 않고 `0`으로** 준다(막대 5개가 항상 그려진다).
+- `topDifficulty`는 **가장 많이 선택된 난이도와 그 건수**다. **동률이면 더 어려운 쪽**을 고른다(쉽다고 오인해 무리하는 쪽이 더 위험하다). 선택 레벨에 후기가 하나도 없으면 **키 자체를 내려보내지 않는다** — 화면이 문구를 감춘다.
+- **혼잡도는 응답에 없다.** 화면에 쓰지 않아 뺐고, 작성 시 저장은 계속 한다(나중에 필요하면 집계만 붙이면 된다).
 - **집계 단위는 후기 건수**다. 한 회원이 같은 장소에 여러 후기를 쓸 수 있으므로 화면의 `30명` 표기와 정확히 일치하지 않을 수 있다(기획 확인 — 미해결 질문).
+- 요약은 한 쿼리로 두 모수를 함께 센다 — 레벨 조건을 `WHERE`가 아니라 `COUNT(*) FILTER`에 걸어 전체·레벨 집계를 한 번에 얻는다.
 - `levelCounts`는 **레벨 필터와 무관한 전체 분포** — 드롭다운에 레벨별 건수를 보여주거나 후기 없는 레벨을 흐리게 처리하는 데 쓴다.
-- `totalCount == difficultyCounts 합 == congestionCounts 합 == recommendCount + notRecommendCount`.
+- `levelReviewCount == difficultyCounts 합`, `totalReviewCount == recommendCount + notRecommendCount`.
 - 막대 비율은 서버가 계산하지 않는다(클라이언트가 최대값 기준으로 렌더).
 - 요약은 **차단을 반영하지 않는다**(전체 기준).
 
@@ -379,7 +385,9 @@ DELETE /api/v1/members/7/block   // 해제(멱등)
 - [x] 목록 `totalCount`는 **첫 페이지에서만** 채워지고 `level` 필터 기준 총계와 일치하며, 이후 페이지는 `null`이다.
 - [x] 목록 항목의 `isMine`·`isEditable`이 요청 회원 기준으로 정확하다(레벨업한 회원의 이전 후기는 `isEditable=false`).
 - [x] 요약의 `difficultyCounts`가 **선택한 레벨** 기준 후기 건수와 일치하고, 0건 값도 키가 `0`으로 존재한다(5개 항목 항상 반환).
-- [x] 요약에서 `totalCount == difficultyCounts 합 == congestionCounts 합 == recommendCount + notRecommendCount`이다.
+- [x] 요약에서 `levelReviewCount == difficultyCounts 합`이고 `totalReviewCount == recommendCount + notRecommendCount`이다(모수가 다르다).
+- [x] `topDifficulty`가 최다 난이도와 건수를 주고, **동률이면 더 어려운 쪽**을 고르며, 후기가 없으면 키가 빠진다.
+- [x] 추천/비추천 수는 레벨 필터를 바꿔도 같은 값이다(전체 레벨 합산).
 - [x] `levelCounts`는 레벨 필터와 무관하게 전체 레벨 분포를 반환한다.
 - [x] 신고는 저장되고 재신고는 멱등 200, 본인 후기 신고는 400이며, 신고해도 후기 노출은 바뀌지 않는다.
 - [x] 차단하면 그 회원의 후기가 **내 목록에서만** 사라지고, 해제하면 다시 보인다. 요약 수치는 차단과 무관하게 동일하다.

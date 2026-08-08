@@ -55,8 +55,10 @@ public interface ReviewControllerDocs {
     @Operation(
             summary = "후기 요약 조회",
             description =
-                    "선택한 레벨 기준 난이도·혼잡도 분포와 추천 수, 레벨별 후기 수를 반환한다. 집계 단위는 후기 건수이며 차단은 반영하지 않는다."
-                            + " JWT 필요.")
+                    "난이도 분포와 최다 난이도(topDifficulty)는 **선택한 레벨** 기준, 추천/비추천 수는 **전체 레벨 합산**이라"
+                            + " 모수가 levelReviewCount·totalReviewCount로 나뉜다. 동률이면 더 어려운 난이도를 고르고,"
+                            + " 후기가 없으면 topDifficulty 키 자체가 빠진다. 드롭다운용 레벨별 후기 수도 함께 준다."
+                            + " 집계 단위는 후기 건수이며 차단은 반영하지 않는다. JWT 필요.")
     ApiResponse<ReviewSummaryResponse> getSummary(
             @Parameter(description = "장소 id") Long placeId,
             @Parameter(

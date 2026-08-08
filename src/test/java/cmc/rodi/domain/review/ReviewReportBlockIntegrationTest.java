@@ -146,7 +146,7 @@ class ReviewReportBlockIntegrationTest {
                                         course.getId(),
                                         author.getId(),
                                         ReviewListRequest.ofLevel("ALL"))
-                                .totalCount())
+                                .levelReviewCount())
                 .isZero();
     }
 

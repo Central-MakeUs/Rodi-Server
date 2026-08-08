@@ -7,7 +7,6 @@ import cmc.rodi.domain.place.repository.PlaceRepository;
 import cmc.rodi.domain.review.dto.ReviewItem;
 import cmc.rodi.domain.review.dto.ReviewListRequest;
 import cmc.rodi.domain.review.dto.ReviewSummaryResponse;
-import cmc.rodi.domain.review.entity.Congestion;
 import cmc.rodi.domain.review.entity.Difficulty;
 import cmc.rodi.domain.review.entity.Review;
 import cmc.rodi.domain.review.repository.LevelCountRow;
@@ -77,7 +76,10 @@ public class ReviewQueryService {
                 reviewRepository.countVisible(placeId, levelsOf(filter), memberId));
     }
 
-    /** 후기 요약(난이도·혼잡도 분포, 추천 수, 레벨별 후기 수). 집계 단위는 후기 건수다. */
+    /**
+     * 후기 요약(난이도 분포·최다 난이도·추천 수·레벨별 후기 수). 집계 단위는 후기 건수다. 난이도 분포는 선택 레벨 기준, 추천 수는 전체 레벨 합산이라 모수가
+     * 다르다.
+     */
     @Transactional(readOnly = true)
     public ReviewSummaryResponse getSummary(
             Long placeId, Long memberId, ReviewListRequest request) {
@@ -86,14 +88,32 @@ public class ReviewQueryService {
 
         ReviewSummaryRow row =
                 reviewRepository.summarize(placeId, filter == null ? null : filter.name());
+        Map<Difficulty, Long> difficultyCounts = difficultyCounts(row);
         return new ReviewSummaryResponse(
                 filter == null ? ReviewListRequest.ALL_LEVELS : filter.name(),
-                row.getTotal(),
+                row.getLevelCount(),
+                row.getTotalCount(),
+                topDifficulty(difficultyCounts),
                 row.getRecommendCount(),
                 row.getNotRecommendCount(),
-                difficultyCounts(row),
-                congestionCounts(row),
+                difficultyCounts,
                 levelCounts(placeId));
+    }
+
+    /**
+     * 최다 선택 난이도. 후기가 하나도 없으면 null(응답에서 키가 빠져 화면이 문구를 감춘다). 동률이면 <b>더 어려운 쪽</b>을 고른다 — enum이 쉬운 →
+     * 어려운 순이라 뒤쪽이 이기게 {@code >=}로 비교한다.
+     */
+    private static ReviewSummaryResponse.TopDifficulty topDifficulty(Map<Difficulty, Long> counts) {
+        Difficulty top = null;
+        long topCount = 0;
+        for (Map.Entry<Difficulty, Long> entry : counts.entrySet()) {
+            if (entry.getValue() > 0 && entry.getValue() >= topCount) {
+                top = entry.getKey();
+                topCount = entry.getValue();
+            }
+        }
+        return top == null ? null : new ReviewSummaryResponse.TopDifficulty(top, topCount);
     }
 
     /** 레벨 필터 없음(null)은 전체 레벨 목록으로 표현한다 — null 바인딩은 Postgres가 타입을 못 정한다. */
@@ -129,14 +149,6 @@ public class ReviewQueryService {
         counts.put(Difficulty.NORMAL, row.getNormalDifficulty());
         counts.put(Difficulty.HARD, row.getHard());
         counts.put(Difficulty.VERY_HARD, row.getVeryHard());
-        return counts;
-    }
-
-    private Map<Congestion, Long> congestionCounts(ReviewSummaryRow row) {
-        Map<Congestion, Long> counts = new EnumMap<>(Congestion.class);
-        counts.put(Congestion.QUIET, row.getQuiet());
-        counts.put(Congestion.NORMAL, row.getNormalCongestion());
-        counts.put(Congestion.CROWDED, row.getCrowded());
         return counts;
     }
 
