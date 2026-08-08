@@ -43,8 +43,9 @@ public interface ReviewControllerDocs {
             summary = "후기 목록 조회",
             description =
                     "장소 후기를 최신순 커서 페이지네이션으로 반환한다. level을 생략하면 조회자 본인 레벨, ALL이면 전체 레벨."
-                            + " 내가 차단한 회원의 후기는 제외된다. 항목은 카드에 그릴 값만 담으며"
-                            + "(추천·난이도·혼잡도는 요약 API에서, caution은 관리자 화면 전용) JWT 필요.")
+                            + " 내가 차단한 회원의 후기는 제외된다. 항목은 카드에 그릴 값만 담는다 —"
+                            + " 추천 여부·난이도는 요약 API의 집계로 보고, 혼잡도는 저장만 하며 어느 API로도 내려주지 않는다."
+                            + " caution은 관리자 화면 전용이라 응답에 없다. JWT 필요.")
     ApiResponse<CursorPage<ReviewItem>> getReviews(
             @Parameter(description = "장소 id") Long placeId,
             @Parameter(
