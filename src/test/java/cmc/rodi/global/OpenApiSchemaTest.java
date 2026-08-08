@@ -2,6 +2,7 @@ package cmc.rodi.global;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import cmc.rodi.support.TestcontainersConfiguration;
 import org.junit.jupiter.api.DisplayName;
@@ -26,8 +27,13 @@ class OpenApiSchemaTest {
     @Test
     @DisplayName("검증 메서드는 OpenAPI 스키마에 필드로 노출되지 않는다")
     void 검증_메서드_비노출() throws Exception {
+        // 문서 생성이 실패해 빈 본문이 와도 doesNotContain은 통과해버리므로 상태부터 확인한다
         String apiDocs =
-                mockMvc.perform(get("/v3/api-docs")).andReturn().getResponse().getContentAsString();
+                mockMvc.perform(get("/v3/api-docs"))
+                        .andExpect(status().isOk())
+                        .andReturn()
+                        .getResponse()
+                        .getContentAsString();
 
         assertThat(apiDocs)
                 .doesNotContain("transitionAllowed")
