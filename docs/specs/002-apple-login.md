@@ -5,6 +5,7 @@
 | 날짜 | Status | 변경 내용 |
 |------|--------|-----------|
 | 2026-07-05 | Draft | 최초 작성 |
+| 2026-08-06 | Draft | **dev 번들 ID 추가 예정**(`com.dororong.rodi.dev`) — 아래 "다중 Bundle ID" 참고. 구현 전 |
 
 ## 배경 / 목적
 
@@ -121,6 +122,24 @@
 - **이메일 정책**:
   - **카카오는 이메일 미수집** — null 전제(코드는 nullable 유지, 이메일에 의존하지 않음).
   - **애플은 이메일 최대 확보 → 가입 시 즉시 저장.** 애플 이메일은 사실상 최초 인증 시 제공되고 재로그인 땐 없을 수 있으므로, **첫 가입 시점에 저장**하고 이후 로그인에선 덮어쓰지 않는다(릴레이 주소여도 저장). 식별은 여전히 `sub`.
+
+## 다중 Bundle ID (dev 앱 지원) — 구현 예정
+
+dev 빌드가 별도 번들 ID(`com.dororong.rodi.dev`)를 쓰게 되면서 **한 서버가 두 개의 애플 client id를 동시에** 받아야 한다(CD가 develop·main을 같은 서버에 배포).
+
+client id는 세 군데서 쓰인다: **client_secret의 `sub`**, **토큰 교환 요청의 `client_id`**, **id_token `aud` 검증**. 앞의 둘은 "그 코드를 발급받은 앱"과 일치해야 하므로, 서버가 요청마다 어느 번들인지 알아야 한다.
+
+**결정: 헤더로 구분한다.**
+
+- 요청 바디(`credential` 하나)는 카카오·애플 공용이라 **건드리지 않는다**.
+- 애플 dev 빌드만 헤더를 붙인다: `X-Client-Id: com.dororong.rodi.dev`
+- **헤더가 없으면 운영 번들로 간주** → 기존 앱은 수정 없이 그대로 동작한다.
+- 알 수 없는 값이 오면 400(허용 목록에 없는 client id는 거부).
+- `APPLE_CLIENT_ID` → **목록형**(`APPLE_CLIENT_IDS`)으로 바꾸고, 운영은 compose `app.environment`에 키를 명시해야 컨테이너에 전달된다.
+  - **구분자는 쉼표**(`com.dororong.rodi,com.dororong.rodi.dev`), **첫 값이 운영 기본값**이다 — 헤더가 없을 때 이 값을 쓴다. `AppleProperties.clientId`(단수 문자열)도 `clientIds`(리스트)로 함께 바꿔야 바인딩이 맞는다.
+- **선택된 client id를 계정에 남긴다.** client id는 로그인 때만 쓰이는 게 아니라 **탈퇴 시 revoke**에도 필요한데, 그때는 헤더가 없다. `social_account`에 `provider_client_id`를 두고 최초 인증 때 저장해, 토큰 교환·client secret 생성·`aud` 검증·revoke가 **모두 같은 값**을 쓰게 한다. 이게 없으면 dev로 가입한 계정을 운영 client id로 revoke하려다 실패한다.
+
+*검토했다가 접은 방안*: ① 여러 client id로 **순차 시도** — authorization code가 1회용이라 첫 시도가 코드를 소비하면 dev 로그인이 깨질 수 있다(애플이 보장하지 않음). ② **provider 경로 분리**(`apple-dev`) — `social_account`의 `(provider, provider_id)` 유니크 때문에 같은 사람이 dev·운영에서 다른 계정으로 갈라진다(애플 `sub`는 팀 단위라 값이 같다).
 
 ## 프론트 확인 필요 (구현과 병행)
 

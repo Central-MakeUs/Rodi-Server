@@ -11,6 +11,11 @@
 | 2026-08-06 | Approved | 신고 사유를 화면 기준 5종으로 확정(`IRRELEVANT` 추가, `INAPPROPRIATE`·`PRIVACY` 제거, `ETC`→`OTHER`)하고 **선택지를 서버가 폼으로 내려주도록** 추가(`GET /reviews/report-form`). 공통 폼 구조는 `global.common.form` |
 | 2026-08-06 | **Implemented** | 신고 **5명 누적 시 자동 비공개** 추가(V15 `hidden_at`) — 목록·요약에서 빠지고 작성자 본인에게만 `isHidden`으로 보인다. 마이그레이션은 **V13**(review)·**V14**(review_report·member_block)·**V15**(hidden_at). 목록은 **JPQL + fetch join**(작성자 닉네임 N+1 방지), 요약만 native `FILTER` 집계 — Postgres가 null 바인드 타입을 못 정해(`could not determine data type`) **레벨 필터는 IN 목록**, **첫 페이지 커서는 미래시각 sentinel**로 표현. 신고·차단은 `ON CONFLICT DO NOTHING` 멱등 |
 | 2026-08-06 | Implemented | PR 리뷰 반영 — **후기 내용 상한 1000자 → 150자**(화면 확정값). V13은 이미 적용된 마이그레이션이라 수정하지 않고 **V16 ALTER**로 줄였다 |
+| 2026-08-08 | **Implemented** | "인증된 후기" 배지 추가(V20 `is_verified_visit`) — 스펙 011의 GPS 방문 인증 이력을 작성 시점 스냅샷으로 남긴다 |
+| 2026-08-08 | **Implemented** | 요약 개편 — **최다 난이도**(`topDifficulty`, 동률은 더 어려운 쪽) 추가, **추천 수는 전체 레벨 합산**으로 분리(`levelReviewCount`·`totalReviewCount`), **혼잡도는 응답에서 제외**(저장은 유지) |
+| 2026-08-08 | **Implemented** | 목록 응답 정리 — 카드에 쓰는 값만 남기고 추천 여부·난이도·혼잡도·작성 당시 레벨·`caution`을 뺐다 |
+| 2026-08-08 | **Implemented** | **내가 쓴 후기 목록**(`GET /members/me/reviews`) 추가 — 레벨 필터 없이 내 후기를 전부 보여줘, 레벨이 바뀌면 자기 후기가 기본 화면에서 사라지던 문제를 푼다 |
+| 2026-08-08 | **Implemented** | **차단한 회원 목록**(`GET /members/me/blocks`) 추가 — 마이페이지에서 차단을 관리할 수 있게 됐다(미해결 질문 6 해소) |
 
 ## 배경 / 목적
 
@@ -143,17 +148,20 @@
 | POST | /api/v1/places/{placeId}/reviews | 후기 작성 | JWT |
 | GET | /api/v1/places/{placeId}/reviews | 후기 목록(레벨 필터·최신순 커서, 기본=내 레벨) | JWT |
 | GET | /api/v1/places/{placeId}/reviews/summary | 후기 요약(레벨별 난이도 분포 등, 기본=내 레벨) | JWT |
+| GET | /api/v1/members/me/reviews | 내가 쓴 후기 목록(레벨 필터 없음, 최신순 커서) | JWT |
 | PUT | /api/v1/reviews/{reviewId} | 후기 수정(전체 교체) | JWT |
 | DELETE | /api/v1/reviews/{reviewId} | 후기 삭제 | JWT |
 | GET | /api/v1/reviews/report-form | 신고 사유 폼(선택지 정의) | JWT |
 | POST | /api/v1/reviews/{reviewId}/report | 후기 신고 | JWT |
 | POST | /api/v1/members/{memberId}/block | 회원 차단(멱등) | JWT |
+| GET | /api/v1/members/me/blocks | 차단한 회원 목록(최신순 커서) | JWT |
 | DELETE | /api/v1/members/{memberId}/block | 차단 해제(멱등) | JWT |
 
 **컨트롤러 배치**(CLAUDE.md 기준 적용)
 - `reviews`는 **자체 오퍼레이션 묶음**(작성·목록·요약·수정·삭제)이라 **`ReviewController` 전용**. 작성·목록·요약은 장소 하위(`/places/{placeId}/reviews`), 개별 조작은 후기 식별자만으로 충분하므로 **`/reviews/{reviewId}`**(place 경로 중복 제거 — 장소 상세를 `placeId` 하나로 통합한 스펙 005의 판단과 같은 이유).
+- 내가 쓴 후기(`/members/me/reviews`)도 **`ReviewController`** — 경로는 회원 하위지만 오퍼레이션은 후기 묶음에 속한다(연습 목록이 `PracticeController`에 있는 것과 같은 판단).
 - `report`는 **단발 엔드포인트**라 소유 컨트롤러인 `ReviewController`에 둔다(별도 컨트롤러 만들지 않음).
-- `block`은 대상이 회원이므로 **`MemberController`**(단발 2개, 북마크가 `PlaceController`에 있는 것과 같은 배치).
+- `block`은 대상이 회원이므로 **`MemberController`**(단발 3개, 북마크가 `PlaceController`에 있는 것과 같은 배치). 차단 목록도 같은 컨트롤러에 둔다.
 
 ### 1. 후기 작성
 
@@ -197,15 +205,12 @@ GET /api/v1/places/1/reviews?level=ROOKIE&size=10&cursor=   (JWT)
       "reviewId": 31,
       "memberId": 7,
       "nickname": "차근차근 토끼",
-      "memberLevel": "ROOKIE",
-      "isRecommended": true,
-      "difficulty": "EASY",
-      "congestion": "NORMAL",
       "practiceMethod": "ACCOMPANIED",
       "content": "차선이 넓고 신호가 단순해서…",
-      "caution": "주말 오후엔 자전거 통행이 많습니다.",
       "isMine": true,
       "isEditable": true,
+      "isHidden": false,
+      "isVerifiedVisit": true,
       "createdAt": "2026-07-30T14:02:11"
     }
   ],
@@ -218,11 +223,12 @@ GET /api/v1/places/1/reviews?level=ROOKIE&size=10&cursor=   (JWT)
 - 정렬/커서: **`created_at DESC, id DESC`**. 커서 = `(created_at, id)` base64 불투명 토큰(`CursorCodec`).
 - `totalCount`: **`level` 필터를 적용한** 총 개수. **첫 페이지(cursor 없음)에서만** 채우고 이후 페이지는 `null`(공통 `CursorPage` 규칙).
 - 같은 회원의 후기가 **여러 건 나올 수 있다**(같은 장소 재작성 허용).
-- `memberLevel`은 **작성 당시** 레벨이다(작성자의 현재 레벨이 아니다).
+- **항목은 카드에 그릴 값만 담는다** — 추천 여부·난이도·혼잡도는 분포로 보는 값이라 요약(#3)에만 있고, 작성 당시 레벨은 `isEditable` 판정에만 쓰여 내려보내지 않는다.
+- `caution`은 **관리자 화면 전용**이라 응답에 넣지 않는다(저장은 계속 한다). 관리자가 모아 보고 타당하면 코스 정보에 반영하는 용도다.
 - `isMine`: 내 후기 여부. `isEditable`: `isMine && memberLevel == 내 현재 레벨`(레벨업 후 이전 후기는 `false` → 클라이언트가 수정 버튼을 감춘다).
 - `nickname`이 `null`이면 탈퇴·익명화된 회원의 후기다(표기는 클라이언트가 "알 수 없음" 등으로).
 - **내가 차단한 회원의 후기는 제외**된다.
-- `caution`은 없으면 `null`.
+- `isVerifiedVisit`: 작성 시점에 그 장소에서 **GPS 방문 인증**에 성공한 이력이 있었는지(스펙 011). "다녀왔어요"만 누른 기록은 인증으로 보지 않으며, 스냅샷이라 이후 연습 항목을 지워도 값이 변하지 않는다.
 
 ### 3. 후기 요약 (레벨별 난이도 분포 — 첨부 화면)
 
@@ -234,13 +240,14 @@ GET /api/v1/places/1/reviews/summary?level=ROOKIE   (JWT)
 // Response data
 {
   "level": "ROOKIE",
-  "totalCount": 71,
-  "recommendCount": 60,
-  "notRecommendCount": 11,
+  "levelReviewCount": 71,
+  "totalReviewCount": 94,
+  "topDifficulty": { "difficulty": "VERY_EASY", "count": 30 },
+  "recommendCount": 80,
+  "notRecommendCount": 14,
   "difficultyCounts": {
     "VERY_EASY": 30, "EASY": 26, "NORMAL": 5, "HARD": 5, "VERY_HARD": 5
   },
-  "congestionCounts": { "QUIET": 20, "NORMAL": 40, "CROWDED": 11 },
   "levelCounts": {
     "SEED": 12, "ROOKIE": 71, "OWNER": 8, "EXPLORER": 0, "NAVIGATOR": 3
   }
@@ -248,12 +255,73 @@ GET /api/v1/places/1/reviews/summary?level=ROOKIE   (JWT)
 ```
 
 - `level` 규칙은 목록(#2)과 동일 — **생략 = 조회자 본인 레벨**, `ALL` = 전체 집계(응답 `level`은 실제 적용된 값, 전체면 `"ALL"`).
-- `difficultyCounts`·`congestionCounts`는 **선택한 레벨 기준 후기 건수**이며, 후기가 0건인 값도 **키를 빼지 않고 `0`으로** 준다(막대 5개가 항상 그려진다).
+- **모수가 둘이다.** `difficultyCounts`·`topDifficulty`는 **선택한 레벨** 기준(`levelReviewCount`), 추천/비추천 수는 **전체 레벨 합산**(`totalReviewCount`)이다. 추천은 레벨을 나눠 볼 값이 아니라 그 장소 자체의 평판이라 필터와 무관하게 같은 숫자를 준다.
+- `difficultyCounts`는 후기가 0건인 값도 **키를 빼지 않고 `0`으로** 준다(막대 5개가 항상 그려진다).
+- `topDifficulty`는 **가장 많이 선택된 난이도와 그 건수**다. **동률이면 더 어려운 쪽**을 고른다(쉽다고 오인해 무리하는 쪽이 더 위험하다). 선택 레벨에 후기가 하나도 없으면 **키 자체를 내려보내지 않는다** — 화면이 문구를 감춘다.
+- **혼잡도는 응답에 없다.** 화면에 쓰지 않아 뺐고, 작성 시 저장은 계속 한다(나중에 필요하면 집계만 붙이면 된다).
 - **집계 단위는 후기 건수**다. 한 회원이 같은 장소에 여러 후기를 쓸 수 있으므로 화면의 `30명` 표기와 정확히 일치하지 않을 수 있다(기획 확인 — 미해결 질문).
+- 요약은 한 쿼리로 두 모수를 함께 센다 — 레벨 조건을 `WHERE`가 아니라 `COUNT(*) FILTER`에 걸어 전체·레벨 집계를 한 번에 얻는다.
 - `levelCounts`는 **레벨 필터와 무관한 전체 분포** — 드롭다운에 레벨별 건수를 보여주거나 후기 없는 레벨을 흐리게 처리하는 데 쓴다.
-- `totalCount == difficultyCounts 합 == congestionCounts 합 == recommendCount + notRecommendCount`.
+- `levelReviewCount == difficultyCounts 합`, `totalReviewCount == recommendCount + notRecommendCount`.
 - 막대 비율은 서버가 계산하지 않는다(클라이언트가 최대값 기준으로 렌더).
 - 요약은 **차단을 반영하지 않는다**(전체 기준).
+
+### 3-1. 내가 쓴 후기 목록
+
+```http
+GET /api/v1/members/me/reviews?size=20&cursor=   (JWT)
+```
+
+```json
+// Response data — CursorPage<MyReviewItem>
+{
+  "items": [
+    {
+      "reviewId": 3,
+      "placeId": 118,
+      "placeName": "한강 코스",
+      "content": "차선이 넓고 신호가 단순해서…",
+      "isEditable": false,
+      "isHidden": false,
+      "isVerifiedVisit": true,
+      "createdAt": "2026-08-08T15:42:16"
+    }
+  ],
+  "hasNext": false,
+  "nextCursor": null,
+  "totalCount": 2
+}
+```
+
+- **레벨 필터가 없다.** 이 API의 존재 이유가 그거다 — 장소 후기 목록(#2)은 기본이 조회자 본인 레벨이라 **레벨이 바뀌면 자기가 쓴 후기가 기본 화면에서 사라진다**. 여기서는 작성 당시 레벨과 무관하게 내 후기가 전부 나온다.
+- **비공개(신고 누적) 후기도 포함**하고 `isHidden: true`로 표시한다 — 왜 남에게 안 보이는지 본인은 알 수 있어야 한다(장소 후기 목록과 같은 규칙).
+- 차단은 무관하다(내가 쓴 글이라).
+- 어느 장소에 썼는지가 핵심이라 `placeId`·`placeName`을 싣는다. `nickname`·`isMine`은 전부 나 자신이라 뺀다.
+- `isEditable`은 기존 규칙 그대로 — **작성 당시 레벨 == 현재 레벨**일 때만 `true`. 레벨업 후 이전 후기는 목록에 보이되 수정 버튼은 감춘다.
+- 정렬·커서·`totalCount` 규칙은 장소 후기 목록과 같다(`created_at DESC, id DESC`, 첫 페이지에서만 총계).
+
+### 3-2. 차단한 회원 목록
+
+```http
+GET /api/v1/members/me/blocks?size=20&cursor=   (JWT)
+```
+
+```json
+// Response data — CursorPage<BlockedMemberItem>
+{
+  "items": [
+    { "memberId": 12, "nickname": "느긋한 거북이", "blockedAt": "2026-08-07T21:11:03" }
+  ],
+  "hasNext": false,
+  "nextCursor": null,
+  "totalCount": 3
+}
+```
+
+- **차단한 시각 최신순**(`created_at DESC, id DESC` keyset). `totalCount`는 첫 페이지에서만 — 공통 `CursorPage` 규칙.
+- 항목의 `memberId`가 그대로 해제 요청(`DELETE /members/{memberId}/block`)의 경로 값이다.
+- 해제 버튼만 있는 화면이라 레벨·프로필은 싣지 않는다. 탈퇴·익명화된 회원은 `nickname`이 `null`이며, **차단 행 자체는 지우지 않는다**(지우면 복구 시 차단이 풀린다).
+- 차단 수가 많지 않아 페이지네이션이 과해 보일 수 있으나, 다른 목록과 규칙을 맞춰 화면이 무한스크롤로 바뀌어도 서버를 고치지 않아도 되게 한다.
 
 ### 4. 후기 수정 (전체 교체)
 
@@ -342,7 +410,7 @@ DELETE /api/v1/members/7/block   // 해제(멱등)
 
 - 응답 데이터 없음(200). **자기 자신 차단 → 400 `MEMBER_400_1`**, 없는 회원 → 404.
 - 효과: **내 후기 목록에서 그 회원의 후기 제외**(단방향). 요약 집계·다른 화면(코스 목록 등)엔 영향 없음.
-- 차단 목록 조회·해제 화면은 이번 범위 밖(미해결 질문).
+- 차단 목록 조회는 `GET /members/me/blocks`(#3-2), 해제는 `DELETE /members/{memberId}/block`.
 
 ### 에러 코드 (`ReviewErrorCode` 신규 · `MemberErrorCode` 추가)
 
@@ -375,8 +443,14 @@ DELETE /api/v1/members/7/block   // 해제(멱등)
 - [x] 레벨 미배정 회원이 `level` 없이 목록을 조회하면 전체가 반환된다.
 - [x] 목록 `totalCount`는 **첫 페이지에서만** 채워지고 `level` 필터 기준 총계와 일치하며, 이후 페이지는 `null`이다.
 - [x] 목록 항목의 `isMine`·`isEditable`이 요청 회원 기준으로 정확하다(레벨업한 회원의 이전 후기는 `isEditable=false`).
+- [x] 내가 쓴 후기 목록은 **작성 당시 레벨과 무관하게** 내 후기를 전부 반환하고, 비공개 후기도 `isHidden=true`로 포함한다.
+- [x] 내가 쓴 후기 목록의 `isEditable`이 레벨 일치 여부를 따르고, 장소명이 항목마다 채워진다.
+- [x] 차단 목록이 차단한 시각 최신순으로 반환되고, 남이 한 차단은 섞이지 않으며, 해제하면 목록에서 빠진다.
+- [x] 목록 항목에 추천 여부·난이도·혼잡도·작성 당시 레벨·`caution`이 없고, `isVerifiedVisit`이 있다.
 - [x] 요약의 `difficultyCounts`가 **선택한 레벨** 기준 후기 건수와 일치하고, 0건 값도 키가 `0`으로 존재한다(5개 항목 항상 반환).
-- [x] 요약에서 `totalCount == difficultyCounts 합 == congestionCounts 합 == recommendCount + notRecommendCount`이다.
+- [x] 요약에서 `levelReviewCount == difficultyCounts 합`이고 `totalReviewCount == recommendCount + notRecommendCount`이다(모수가 다르다).
+- [x] `topDifficulty`가 최다 난이도와 건수를 주고, **동률이면 더 어려운 쪽**을 고르며, 후기가 없으면 키가 빠진다.
+- [x] 추천/비추천 수는 레벨 필터를 바꿔도 같은 값이다(전체 레벨 합산).
 - [x] `levelCounts`는 레벨 필터와 무관하게 전체 레벨 분포를 반환한다.
 - [x] 신고는 저장되고 재신고는 멱등 200, 본인 후기 신고는 400이며, 신고해도 후기 노출은 바뀌지 않는다.
 - [x] 차단하면 그 회원의 후기가 **내 목록에서만** 사라지고, 해제하면 다시 보인다. 요약 수치는 차단과 무관하게 동일하다.
@@ -403,9 +477,10 @@ DELETE /api/v1/members/7/block   // 해제(멱등)
 1. ~~**후기 내용 글자 제한**~~ — **1~150자로 확정**(화면 기준). 초안의 1000자는 임시값이었고 V16에서 줄였다.
 2. **요약 카운트 표기** — 집계 단위가 **후기 건수**인데 화면은 `30명`이다. (a) 라벨을 "건"으로 바꾸거나 (b) 난이도별 `DISTINCT member_id`로 집계해 "명"을 맞추는 방법이 있다. 기획 확인 필요. *(b는 한 사람이 서로 다른 난이도로 여러 후기를 쓰면 양쪽 막대에 잡힌다.)*
 3. **`review.caution`과 `course_caution`의 관계** — 코스에 이미 관리자 등록 주의사항 칩(`course_caution`)이 있다. 별개 표시로 보이나 기획 확인 대기(**미결**).
-4. **"인증된 후기" 배지** — 방문한 사람의 후기를 구분 표시할 예정이나 **방문 판정 기준이 미정**(**미결**). 기준이 정해지면 `review`에 판정 결과 컬럼(또는 `driving_record` 조인)과 응답 `isVerifiedVisit` 필드를 추가한다. 이번 구현엔 넣지 않는다.
+4. ~~**"인증된 후기" 배지**~~ — **해소**. 스펙 011의 GPS 방문 인증(인정 주행거리 ≥ `min(코스거리 × 40%, 5km)`)을 기준으로 삼아, 작성 시점의 인증 이력을 `review.is_verified_visit`(V20)에 스냅샷으로 남기고 목록 응답 `isVerifiedVisit`으로 내려준다.
 5. **신고 `detail` 상한** — 폼의 `textInputMaxLength`와 맞춰 **100자**로 구현(연습 미방문 이유 폼과 동일). 더 길게 받아야 하면 조정.
-6. **차단 목록 조회·해제 화면** — 마이페이지에 차단 관리가 필요한가? (지금은 후기 목록에서 해제만 가능, `GET /members/me/blocks` 없음)
+6. ~~**차단 목록 조회·해제 화면**~~ — **해소**. 마이페이지에서 차단을 관리할 수 있도록 `GET /members/me/blocks`(#3-2)를 추가했다. 해제는 기존 `DELETE /members/{memberId}/block`을 그대로 쓴다.
+7. ~~**레벨이 바뀌면 내 후기가 안 보인다**~~ — **해소**. 장소 후기 목록의 레벨 필터 기본값(조회자 본인 레벨)은 그대로 두고, **내가 쓴 후기 목록**(#3-1)을 따로 둬서 해결한다.
 
 ## 범위 밖 / 다음
 

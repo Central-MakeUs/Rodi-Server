@@ -1,6 +1,7 @@
 package cmc.rodi.domain.member.dto;
 
 import cmc.rodi.domain.member.entity.RecentSearchType;
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.constraints.AssertTrue;
 import jakarta.validation.constraints.NotBlank;
@@ -22,6 +23,8 @@ public record RecentSearchRegisterRequest(
     }
 
     /** PLACE는 placeId가 반드시 있어야 한다(REGION은 무관). type이 null이면 @NotNull이 먼저 잡는다. */
+    @JsonIgnore
+    @Schema(hidden = true) // 검증 메서드일 뿐이라 요청 스키마에 노출하지 않는다
     @AssertTrue(message = "PLACE 타입은 placeId가 필요합니다")
     public boolean isPlaceIdConsistent() {
         return type != RecentSearchType.PLACE || placeId != null;

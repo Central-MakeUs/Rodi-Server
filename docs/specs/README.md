@@ -27,7 +27,9 @@
 | [온보딩](004-onboarding.md) | 닉네임 자동 부여·운전 경험/추가정보 수집·레벨 배정 | Draft |
 | [코스 탐색](005-place-course-discovery.md) | 장소/코스/주차장 조회(마커·거리순 목록·상세)·북마크 | Draft |
 | [마이페이지](006-mypage.md) | 프로필 조회(레벨·추천 태그·저장 수)·운전목표 수정·저장 목록 | Implemented |
-| [코스 검색·정렬 필터](007-course-search-filter.md) | 주소·장소명 검색(로그인 전용)·홈 정렬 필터(서버 저장 filter_tags)·클러스터링(보류) | In Progress |
+| [코스 검색·정렬 필터](007-course-search-filter.md) | 주소·장소명 검색(로그인 전용)·홈 정렬 필터(서버 저장 filter_tags)·클러스터링(보류) | Approved |
 | [최근 검색어](008-recent-search.md) | 연관검색 선택 항목 등록(POST·type 구분)·최신순 조회·삭제(로그인 전용) | Implemented |
 | [연관 검색어](009-related-search.md) | 지역(관련도순 4개)·장소명(관련도순 20개 커서) 자동완성 구분 응답 | Implemented |
 | [장소 후기](010-place-review.md) | 후기 작성/수정/삭제·레벨별 목록·난이도 분포 요약·신고/차단(좋아요는 추후) | Implemented |
+| [연습 코스 목록](011-practice-course.md) | 코스 담기·방문 기록·방문 인증·미방문 이유 폼 | Implemented |
+| [레벨 진행도](012-level-progress.md) | 누적 주행거리로 레벨 자동 승급·마이페이지 레벨업 게이지 | Draft |

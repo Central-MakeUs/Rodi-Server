@@ -1,9 +1,11 @@
 package cmc.rodi.domain.member.controller;
 
+import cmc.rodi.domain.member.dto.BlockedMemberItem;
 import cmc.rodi.domain.member.dto.FilterTagsRequest;
 import cmc.rodi.domain.member.dto.MemberUpdateRequest;
 import cmc.rodi.domain.member.dto.MyPageResponse;
 import cmc.rodi.domain.member.dto.OnboardingRequest;
+import cmc.rodi.global.common.pagination.CursorPage;
 import cmc.rodi.global.common.response.ApiResponse;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
@@ -57,6 +59,16 @@ public interface MemberControllerDocs {
     ApiResponse<Void> block(
             @Parameter(description = "차단할 회원 id") Long memberId,
             @Parameter(hidden = true) Long currentMemberId);
+
+    @Operation(
+            summary = "차단한 회원 목록 조회",
+            description =
+                    "내가 차단한 회원을 차단한 시각 최신순 커서 페이지네이션으로 반환한다. 항목의 memberId를 그대로"
+                            + " 차단 해제 요청 경로에 쓰면 된다. 탈퇴·익명화된 회원은 nickname이 null로 나온다. JWT 필요.")
+    ApiResponse<CursorPage<BlockedMemberItem>> getMyBlocks(
+            @Parameter(description = "페이지 크기(1~100)") int size,
+            @Parameter(description = "다음 페이지 커서") String cursor,
+            @Parameter(hidden = true) Long memberId);
 
     @Operation(summary = "회원 차단 해제", description = "차단을 해제한다(멱등, 차단 상태가 아니어도 200). JWT 필요.")
     ApiResponse<Void> unblock(

@@ -1,5 +1,6 @@
 package cmc.rodi.domain.review.controller;
 
+import cmc.rodi.domain.review.dto.MyReviewItem;
 import cmc.rodi.domain.review.dto.ReviewCreateResponse;
 import cmc.rodi.domain.review.dto.ReviewItem;
 import cmc.rodi.domain.review.dto.ReviewReportRequest;
@@ -10,6 +11,7 @@ import cmc.rodi.global.common.pagination.CursorPage;
 import cmc.rodi.global.common.response.ApiResponse;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.tags.Tag;
 
 /** 후기 API의 Swagger 문서 스펙. 매핑·구현은 {@link ReviewController}. */
@@ -27,13 +29,39 @@ public interface ReviewControllerDocs {
             ReviewRequest request);
 
     @Operation(
+            summary = "내가 쓴 후기 목록 조회",
+            description =
+                    "내가 쓴 후기를 최신순 커서 페이지네이션으로 반환한다. 장소 후기 목록과 달리 **레벨 필터가 없어**"
+                            + " 레벨이 바뀌어도 내 후기가 전부 나온다. 신고 누적으로 비공개된 후기도 isHidden=true로 포함한다."
+                            + " 어느 장소에 썼는지 알 수 있게 placeId·placeName을 함께 준다. JWT 필요.")
+    ApiResponse<CursorPage<MyReviewItem>> getMyReviews(
+            @Parameter(description = "페이지 크기(1~100)") int size,
+            @Parameter(description = "다음 페이지 커서") String cursor,
+            @Parameter(hidden = true) Long memberId);
+
+    @Operation(
             summary = "후기 목록 조회",
             description =
                     "장소 후기를 최신순 커서 페이지네이션으로 반환한다. level을 생략하면 조회자 본인 레벨, ALL이면 전체 레벨."
-                            + " 내가 차단한 회원의 후기는 제외된다. JWT 필요.")
+                            + " 내가 차단한 회원의 후기는 제외된다. 항목은 카드에 그릴 값만 담는다 —"
+                            + " 추천 여부·난이도는 요약 API의 집계로 보고, 혼잡도는 저장만 하며 어느 API로도 내려주지 않는다."
+                            + " caution은 관리자 화면 전용이라 응답에 없다. JWT 필요.")
     ApiResponse<CursorPage<ReviewItem>> getReviews(
             @Parameter(description = "장소 id") Long placeId,
-            @Parameter(description = "레벨 필터(생략=내 레벨, ALL=전체)", example = "ROOKIE") String level,
+            @Parameter(
+                            description = "레벨 필터(생략=내 레벨, ALL=전체)",
+                            schema =
+                                    @Schema(
+                                            allowableValues = {
+                                                "SEED",
+                                                "ROOKIE",
+                                                "OWNER",
+                                                "EXPLORER",
+                                                "NAVIGATOR",
+                                                "ALL"
+                                            },
+                                            example = "ROOKIE"))
+                    String level,
             @Parameter(description = "페이지 크기(1~100)") int size,
             @Parameter(description = "다음 페이지 커서") String cursor,
             @Parameter(hidden = true) Long memberId);
@@ -41,11 +69,26 @@ public interface ReviewControllerDocs {
     @Operation(
             summary = "후기 요약 조회",
             description =
-                    "선택한 레벨 기준 난이도·혼잡도 분포와 추천 수, 레벨별 후기 수를 반환한다. 집계 단위는 후기 건수이며 차단은 반영하지 않는다."
-                            + " JWT 필요.")
+                    "난이도 분포와 최다 난이도(topDifficulty)는 **선택한 레벨** 기준, 추천/비추천 수는 **전체 레벨 합산**이라"
+                            + " 모수가 levelReviewCount·totalReviewCount로 나뉜다. 동률이면 더 어려운 난이도를 고르고,"
+                            + " 후기가 없으면 topDifficulty 키 자체가 빠진다. 드롭다운용 레벨별 후기 수도 함께 준다."
+                            + " 집계 단위는 후기 건수이며 차단은 반영하지 않는다. JWT 필요.")
     ApiResponse<ReviewSummaryResponse> getSummary(
             @Parameter(description = "장소 id") Long placeId,
-            @Parameter(description = "레벨 필터(생략=내 레벨, ALL=전체)", example = "ROOKIE") String level,
+            @Parameter(
+                            description = "레벨 필터(생략=내 레벨, ALL=전체)",
+                            schema =
+                                    @Schema(
+                                            allowableValues = {
+                                                "SEED",
+                                                "ROOKIE",
+                                                "OWNER",
+                                                "EXPLORER",
+                                                "NAVIGATOR",
+                                                "ALL"
+                                            },
+                                            example = "ROOKIE"))
+                    String level,
             @Parameter(hidden = true) Long memberId);
 
     @Operation(

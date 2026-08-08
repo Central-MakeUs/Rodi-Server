@@ -27,7 +27,7 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.annotation.Import;
 import org.springframework.transaction.annotation.Transactional;
 
-/** 후기 요약 — 선택 레벨 기준 난이도·혼잡도 분포(0 포함), 추천 수, 레벨별 분포, 차단 무관. */
+/** 후기 요약 — 선택 레벨 기준 난이도 분포(0 포함)·최다 난이도, 전체 레벨 합산 추천 수, 레벨별 분포, 차단 무관. */
 @SpringBootTest
 @Transactional
 @Import(TestcontainersConfiguration.class)
@@ -73,7 +73,7 @@ class ReviewSummaryIntegrationTest {
     }
 
     @Test
-    @DisplayName("선택 레벨 기준 난이도·혼잡도 분포와 추천 수를 반환하고, 0건 값도 키가 0으로 존재한다")
+    @DisplayName("난이도 분포는 선택 레벨 기준(0건도 키 유지), 추천 수는 전체 레벨 합산이다")
     void 레벨별_분포() {
         Course course = seedCourse();
         Member rookie1 = seedMember("s1@kakao.com", Level.ROOKIE);
@@ -87,8 +87,9 @@ class ReviewSummaryIntegrationTest {
 
         ReviewSummaryResponse rookie = summary(course.getId(), rookie1.getId(), null);
         assertThat(rookie.level()).isEqualTo("ROOKIE");
-        assertThat(rookie.totalCount()).isEqualTo(3);
-        assertThat(rookie.recommendCount()).isEqualTo(2);
+        assertThat(rookie.levelReviewCount()).isEqualTo(3); // 난이도 분포의 모수 = 루키 3건
+        assertThat(rookie.totalReviewCount()).isEqualTo(4); // 추천 수의 모수 = 전체 4건
+        assertThat(rookie.recommendCount()).isEqualTo(3); // 오너 후기까지 합산
         assertThat(rookie.notRecommendCount()).isEqualTo(1);
         assertThat(rookie.difficultyCounts())
                 .hasSize(5)
@@ -97,19 +98,31 @@ class ReviewSummaryIntegrationTest {
                 .containsEntry(Difficulty.EASY, 0L)
                 .containsEntry(Difficulty.NORMAL, 0L)
                 .containsEntry(Difficulty.VERY_HARD, 0L);
-        assertThat(rookie.congestionCounts())
-                .hasSize(3)
-                .containsEntry(Congestion.QUIET, 1L)
-                .containsEntry(Congestion.NORMAL, 1L)
-                .containsEntry(Congestion.CROWDED, 1L);
+        assertThat(rookie.topDifficulty().difficulty()).isEqualTo(Difficulty.VERY_EASY);
+        assertThat(rookie.topDifficulty().count()).isEqualTo(2);
 
-        // 합계 정합성
+        // 합계 정합성 — 분포는 레벨 모수, 추천은 전체 모수
         assertThat(rookie.difficultyCounts().values().stream().mapToLong(Long::longValue).sum())
-                .isEqualTo(rookie.totalCount());
-        assertThat(rookie.congestionCounts().values().stream().mapToLong(Long::longValue).sum())
-                .isEqualTo(rookie.totalCount());
+                .isEqualTo(rookie.levelReviewCount());
         assertThat(rookie.recommendCount() + rookie.notRecommendCount())
-                .isEqualTo(rookie.totalCount());
+                .isEqualTo(rookie.totalReviewCount());
+    }
+
+    @Test
+    @DisplayName("최다 난이도가 동률이면 더 어려운 쪽을 고르고, 후기가 없으면 아예 내려가지 않는다")
+    void 최다_난이도() {
+        Course course = seedCourse();
+        Member seed1 = seedMember("t1@kakao.com", Level.SEED);
+        Member seed2 = seedMember("t2@kakao.com", Level.SEED);
+
+        assertThat(summary(course.getId(), seed1.getId(), null).topDifficulty()).isNull();
+
+        writeReview(course, seed1, true, Difficulty.EASY, Congestion.QUIET);
+        writeReview(course, seed2, true, Difficulty.HARD, Congestion.QUIET); // 1:1 동률
+
+        ReviewSummaryResponse tie = summary(course.getId(), seed1.getId(), null);
+        assertThat(tie.topDifficulty().difficulty()).isEqualTo(Difficulty.HARD);
+        assertThat(tie.topDifficulty().count()).isEqualTo(1);
     }
 
     @Test
@@ -123,10 +136,11 @@ class ReviewSummaryIntegrationTest {
 
         ReviewSummaryResponse all = summary(course.getId(), rookie.getId(), "ALL");
         assertThat(all.level()).isEqualTo("ALL");
-        assertThat(all.totalCount()).isEqualTo(2);
+        assertThat(all.levelReviewCount()).isEqualTo(2);
 
         ReviewSummaryResponse byLevel = summary(course.getId(), rookie.getId(), null);
-        assertThat(byLevel.totalCount()).isEqualTo(1);
+        assertThat(byLevel.levelReviewCount()).isEqualTo(1);
+        assertThat(byLevel.totalReviewCount()).isEqualTo(2); // 전체 모수는 필터와 무관
         // levelCounts는 두 응답 모두 동일(필터 무관), 후기 없는 레벨은 0
         assertThat(byLevel.levelCounts())
                 .hasSize(Level.values().length)
@@ -145,10 +159,10 @@ class ReviewSummaryIntegrationTest {
         writeReview(course, me, true, Difficulty.EASY, Congestion.QUIET);
         writeReview(course, noisy, false, Difficulty.HARD, Congestion.CROWDED);
 
-        long before = summary(course.getId(), me.getId(), null).totalCount();
+        long before = summary(course.getId(), me.getId(), null).levelReviewCount();
         memberBlockService.block(me.getId(), noisy.getId());
 
-        assertThat(summary(course.getId(), me.getId(), null).totalCount()).isEqualTo(before);
+        assertThat(summary(course.getId(), me.getId(), null).levelReviewCount()).isEqualTo(before);
         assertThat(summary(course.getId(), me.getId(), null).notRecommendCount()).isEqualTo(1);
     }
 }

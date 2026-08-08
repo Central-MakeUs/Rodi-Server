@@ -1,6 +1,7 @@
 package cmc.rodi.domain.review.dto;
 
 import cmc.rodi.domain.review.entity.ReportReason;
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.constraints.AssertTrue;
 import jakarta.validation.constraints.NotNull;
@@ -23,6 +24,8 @@ public record ReviewReportRequest(
     }
 
     /** 기타는 직접 입력이 반드시 있어야 한다. reason이 null이면 @NotNull이 먼저 잡는다. */
+    @JsonIgnore
+    @Schema(hidden = true) // 검증 메서드일 뿐이라 요청 스키마에 노출하지 않는다
     @AssertTrue(message = "기타 사유는 직접 입력이 필요합니다")
     public boolean isDetailConsistent() {
         return reason == null || !reason.requiresTextInput() || detail != null;

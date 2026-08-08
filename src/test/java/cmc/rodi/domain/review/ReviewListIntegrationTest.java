@@ -81,7 +81,7 @@ class ReviewListIntegrationTest {
 
         CursorPage<ReviewItem> mine = list(course.getId(), rookie.getId(), null, 10, null);
         assertThat(mine.items()).hasSize(1);
-        assertThat(mine.items().get(0).memberLevel()).isEqualTo(Level.ROOKIE);
+        assertThat(mine.items().get(0).content()).isEqualTo("루키 후기");
         assertThat(mine.totalCount()).isEqualTo(1);
 
         CursorPage<ReviewItem> all = list(course.getId(), rookie.getId(), "ALL", 10, null);
@@ -90,7 +90,7 @@ class ReviewListIntegrationTest {
 
         CursorPage<ReviewItem> explicit = list(course.getId(), rookie.getId(), "OWNER", 10, null);
         assertThat(explicit.items()).hasSize(1);
-        assertThat(explicit.items().get(0).memberLevel()).isEqualTo(Level.OWNER);
+        assertThat(explicit.items().get(0).content()).isEqualTo("오너 후기");
     }
 
     @Test

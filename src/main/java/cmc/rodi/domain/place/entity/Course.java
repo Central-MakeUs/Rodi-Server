@@ -23,6 +23,7 @@ import lombok.AccessLevel;
 import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
+import org.hibernate.annotations.BatchSize;
 import org.locationtech.jts.geom.Point;
 
 /** 코스(place 상속). 주행거리·주의사항 + 경로점(1:N) + 연습태그(N:M, {@link PracticeType} 재사용). */
@@ -47,7 +48,13 @@ public class Course extends Place {
     @Column(name = "caution", length = 100)
     private List<String> cautions = new ArrayList<>();
 
-    /** 연습 태그. course_practice_type(course_id, practice_type)에 enum 이름으로 저장. */
+    /**
+     * 연습 태그. course_practice_type(course_id, practice_type)에 enum 이름으로 저장.
+     *
+     * <p>목록 응답(장소 목록·연습 목록)이 코스마다 태그를 읽어 항목 수만큼 쿼리가 나가므로 배치로 묶는다. 컬렉션이라 JOIN FETCH로는 페이지네이션과 함께 쓸 수
+     * 없다(중복 행 → 메모리 페이징).
+     */
+    @BatchSize(size = 100)
     @ElementCollection
     @CollectionTable(name = "course_practice_type", joinColumns = @JoinColumn(name = "course_id"))
     @Column(name = "practice_type", length = 30)

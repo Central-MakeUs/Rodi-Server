@@ -79,6 +79,10 @@ public class Review extends BaseEntity {
     @Column(name = "hidden_at")
     private LocalDateTime hiddenAt;
 
+    /** 작성 시점에 GPS 방문 인증 이력이 있었는지(스냅샷). "다녀왔어요"만 누른 기록은 인증으로 보지 않는다. 스냅샷이라 이후 연습 항목을 지워도 값은 그대로다. */
+    @Column(name = "is_verified_visit", nullable = false)
+    private boolean verifiedVisit;
+
     @Builder
     private Review(
             Place place,
@@ -89,7 +93,8 @@ public class Review extends BaseEntity {
             PracticeMethod practiceMethod,
             String content,
             String caution,
-            Level memberLevel) {
+            Level memberLevel,
+            boolean verifiedVisit) {
         this.place = place;
         this.member = member;
         this.recommended = recommended;
@@ -99,6 +104,7 @@ public class Review extends BaseEntity {
         this.content = content;
         this.caution = blankToNull(caution);
         this.memberLevel = memberLevel;
+        this.verifiedVisit = verifiedVisit;
     }
 
     /** 후기 내용 교체(전체 수정). 레벨·작성자·대상 장소는 바뀌지 않는다. */

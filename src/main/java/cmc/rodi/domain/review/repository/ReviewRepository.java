@@ -54,6 +54,28 @@ public interface ReviewRepository extends JpaRepository<Review, Long> {
             @Param("cursorId") Long cursorId,
             Pageable pageable);
 
+    /**
+     * 내가 쓴 후기 한 페이지(최신순 keyset). <b>레벨 필터가 없고</b> 비공개 후기도 포함한다 — 레벨이 바뀌어도, 남에게 안 보이게 됐어도 본인 목록에는
+     * 남아야 한다. 장소명을 함께 읽어 항목별 추가 조회(N+1)를 막는다.
+     */
+    @Query(
+            """
+            SELECT r FROM Review r
+            JOIN FETCH r.place
+            WHERE r.member.id = :memberId
+              AND (r.createdAt < :cursorTime
+                   OR (r.createdAt = :cursorTime AND r.id < :cursorId))
+            ORDER BY r.createdAt DESC, r.id DESC
+            """)
+    List<Review> findMyPage(
+            @Param("memberId") Long memberId,
+            @Param("cursorTime") LocalDateTime cursorTime,
+            @Param("cursorId") Long cursorId,
+            Pageable pageable);
+
+    /** 내가 쓴 후기 총계(첫 페이지 전용). 비공개 후기도 센다. */
+    long countByMemberId(Long memberId);
+
     /** 목록 totalCount(첫 페이지 전용). 레벨 필터·차단 제외 조건은 목록과 동일하다. */
     @Query(
             """
@@ -71,30 +93,44 @@ public interface ReviewRepository extends JpaRepository<Review, Long> {
             @Param("memberId") Long memberId);
 
     /**
-     * 요약 집계(추천·난이도·혼잡도)를 한 쿼리로. {@code :level}이 null이면 COALESCE가 컬럼 자기 비교가 되어 전체 레벨이 집계된다. 차단은 반영하지
-     * 않는다(요약 수치는 모두에게 동일).
+     * 요약 집계를 한 쿼리로. <b>추천 수는 전체 레벨 합산</b>, 난이도 분포는 <b>선택한 레벨 기준</b>이라 모수가 다르다 — 레벨 조건을 WHERE가 아니라
+     * FILTER로 걸어 두 모수를 한 번에 센다.
+     *
+     * <p>{@code :level}이 null이면 COALESCE가 컬럼 자기 비교가 되어 모든 행이 레벨 조건을 통과한다(= 전체 집계). 차단은 반영하지 않는다(요약
+     * 수치는 모두에게 동일).
      */
     @Query(
             value =
                     """
-                    SELECT COUNT(*)                                                  AS total,
-                           COUNT(*) FILTER (WHERE r.is_recommended)                   AS recommendCount,
-                           COUNT(*) FILTER (WHERE NOT r.is_recommended)               AS notRecommendCount,
-                           COUNT(*) FILTER (WHERE r.difficulty = 'VERY_EASY')         AS veryEasy,
-                           COUNT(*) FILTER (WHERE r.difficulty = 'EASY')              AS easy,
-                           COUNT(*) FILTER (WHERE r.difficulty = 'NORMAL')            AS normalDifficulty,
-                           COUNT(*) FILTER (WHERE r.difficulty = 'HARD')              AS hard,
-                           COUNT(*) FILTER (WHERE r.difficulty = 'VERY_HARD')         AS veryHard,
-                           COUNT(*) FILTER (WHERE r.congestion = 'QUIET')             AS quiet,
-                           COUNT(*) FILTER (WHERE r.congestion = 'NORMAL')            AS normalCongestion,
-                           COUNT(*) FILTER (WHERE r.congestion = 'CROWDED')           AS crowded
-                    FROM review r
-                    WHERE r.place_id = :placeId
-                      AND r.hidden_at IS NULL
-                      AND r.member_level = COALESCE(CAST(:level AS varchar), r.member_level)
+                    SELECT COUNT(*)                                                      AS totalCount,
+                           COUNT(*) FILTER (WHERE r.is_recommended)                       AS recommendCount,
+                           COUNT(*) FILTER (WHERE NOT r.is_recommended)                   AS notRecommendCount,
+                           COUNT(*) FILTER (WHERE r.in_level)                             AS levelCount,
+                           COUNT(*) FILTER (WHERE r.in_level AND r.difficulty = 'VERY_EASY') AS veryEasy,
+                           COUNT(*) FILTER (WHERE r.in_level AND r.difficulty = 'EASY')      AS easy,
+                           COUNT(*) FILTER (WHERE r.in_level AND r.difficulty = 'NORMAL')    AS normalDifficulty,
+                           COUNT(*) FILTER (WHERE r.in_level AND r.difficulty = 'HARD')      AS hard,
+                           COUNT(*) FILTER (WHERE r.in_level AND r.difficulty = 'VERY_HARD') AS veryHard
+                    FROM (SELECT is_recommended,
+                                 difficulty,
+                                 member_level = COALESCE(CAST(:level AS varchar), member_level) AS in_level
+                          FROM review
+                          WHERE place_id = :placeId AND hidden_at IS NULL) r
                     """,
             nativeQuery = true)
     ReviewSummaryRow summarize(@Param("placeId") Long placeId, @Param("level") String level);
+
+    /**
+     * 이 회원이 후기를 쓴 장소 id들(주어진 장소 중에서). 연습 목록에서 "후기 쓰기" 버튼 노출을 판단하는 데 쓴다. 비공개(신고 누적) 후기도 본인이 쓴 건 맞으므로
+     * 포함한다.
+     */
+    @Query(
+            """
+            SELECT DISTINCT r.place.id FROM Review r
+            WHERE r.member.id = :memberId AND r.place.id IN :placeIds
+            """)
+    List<Long> findReviewedPlaceIds(
+            @Param("memberId") Long memberId, @Param("placeIds") Collection<Long> placeIds);
 
     /** 레벨별 후기 수(드롭다운용). 레벨 필터와 무관한 전체 분포이며, 비공개 후기는 뺀다. */
     @Query(

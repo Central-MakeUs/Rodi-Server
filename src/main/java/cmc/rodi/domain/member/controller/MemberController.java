@@ -1,5 +1,6 @@
 package cmc.rodi.domain.member.controller;
 
+import cmc.rodi.domain.member.dto.BlockedMemberItem;
 import cmc.rodi.domain.member.dto.FilterTagsRequest;
 import cmc.rodi.domain.member.dto.MemberUpdateRequest;
 import cmc.rodi.domain.member.dto.MyPageResponse;
@@ -10,7 +11,10 @@ import cmc.rodi.domain.member.service.MemberProfileService;
 import cmc.rodi.domain.member.service.MemberWithdrawalService;
 import cmc.rodi.domain.member.service.OnboardingService;
 import cmc.rodi.global.auth.resolver.CurrentMember;
+import cmc.rodi.global.common.pagination.CursorPage;
 import cmc.rodi.global.common.response.ApiResponse;
+import cmc.rodi.global.exception.BusinessException;
+import cmc.rodi.global.exception.ErrorCode;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.DeleteMapping;
@@ -21,6 +25,7 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 /** 회원 API. 문서 스펙은 {@link MemberControllerDocs}. */
@@ -28,6 +33,8 @@ import org.springframework.web.bind.annotation.RestController;
 @RequestMapping("/api/v1/members")
 @RequiredArgsConstructor
 public class MemberController implements MemberControllerDocs {
+
+    private static final int MAX_SIZE = 100;
 
     private final MemberWithdrawalService memberWithdrawalService;
     private final OnboardingService onboardingService;
@@ -78,6 +85,18 @@ public class MemberController implements MemberControllerDocs {
             @PathVariable Long memberId, @CurrentMember Long currentMemberId) {
         memberBlockService.block(currentMemberId, memberId);
         return ApiResponse.success(null);
+    }
+
+    @Override
+    @GetMapping("/me/blocks")
+    public ApiResponse<CursorPage<BlockedMemberItem>> getMyBlocks(
+            @RequestParam(defaultValue = "20") int size,
+            @RequestParam(required = false) String cursor,
+            @CurrentMember Long memberId) {
+        if (size < 1 || size > MAX_SIZE) {
+            throw new BusinessException(ErrorCode.INVALID_INPUT_VALUE);
+        }
+        return ApiResponse.success(memberBlockService.getMyBlocks(memberId, size, cursor));
     }
 
     @Override

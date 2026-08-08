@@ -9,6 +9,8 @@ import cmc.rodi.domain.member.entity.Member;
 import cmc.rodi.domain.member.repository.MemberRepository;
 import cmc.rodi.domain.place.entity.Course;
 import cmc.rodi.domain.place.repository.CourseRepository;
+import cmc.rodi.domain.practice.dto.PracticeVisitRequest;
+import cmc.rodi.domain.practice.service.PracticeService;
 import cmc.rodi.domain.review.dto.ReviewReportRequest;
 import cmc.rodi.domain.review.dto.ReviewRequest;
 import cmc.rodi.domain.review.entity.Congestion;
@@ -42,6 +44,7 @@ class ReviewWriteIntegrationTest {
     private static final GeometryFactory GEO = new GeometryFactory(new PrecisionModel(), 4326);
 
     @Autowired ReviewService reviewService;
+    @Autowired PracticeService practiceService;
     @Autowired ReviewRepository reviewRepository;
     @Autowired ReviewReportRepository reviewReportRepository;
     @Autowired CourseRepository courseRepository;
@@ -88,6 +91,69 @@ class ReviewWriteIntegrationTest {
         assertThat(first.getCaution()).isEqualTo("주말 오후엔 자전거가 많습니다.");
         assertThat(firstId).isNotEqualTo(secondId);
         assertThat(reviewRepository.count()).isEqualTo(2);
+    }
+
+    @Test
+    @DisplayName("GPS 인증에 성공한 장소의 후기만 인증된 후기로 저장된다 — 다녀왔어요만 누른 기록은 아니다")
+    void 작성_방문인증_스냅샷() {
+        Member me = seedMember("verified@kakao.com", Level.ROOKIE);
+        Course certified =
+                courseRepository.save(
+                        Course.builder()
+                                .name("인증한 코스")
+                                .location(GEO.createPoint(new Coordinate(127.0, 37.5)))
+                                .distanceMeters(2_000) // 필요 거리 800m
+                                .build());
+        Course visitedOnly =
+                courseRepository.save(
+                        Course.builder()
+                                .name("눌러만 본 코스")
+                                .location(GEO.createPoint(new Coordinate(127.1, 37.5)))
+                                .distanceMeters(2_000)
+                                .build());
+
+        Long certifiedPracticeId =
+                practiceService.register(certified.getId(), me.getId()).practiceId();
+        practiceService.recordVisit(certifiedPracticeId, me.getId(), new PracticeVisitRequest(800));
+        Long visitedPracticeId =
+                practiceService.register(visitedOnly.getId(), me.getId()).practiceId();
+        practiceService.recordVisit(visitedPracticeId, me.getId(), new PracticeVisitRequest(null));
+
+        Long verifiedReviewId =
+                reviewService.create(certified.getId(), me.getId(), request("완주했어요")).reviewId();
+        Long plainReviewId =
+                reviewService
+                        .create(visitedOnly.getId(), me.getId(), request("가보긴 했어요"))
+                        .reviewId();
+        Long neverVisitedReviewId =
+                reviewService.create(seedCourse().getId(), me.getId(), request("들은 얘기")).reviewId();
+
+        assertThat(reviewRepository.findById(verifiedReviewId).orElseThrow().isVerifiedVisit())
+                .isTrue();
+        assertThat(reviewRepository.findById(plainReviewId).orElseThrow().isVerifiedVisit())
+                .isFalse();
+        assertThat(reviewRepository.findById(neverVisitedReviewId).orElseThrow().isVerifiedVisit())
+                .isFalse();
+    }
+
+    @Test
+    @DisplayName("인증 이력 스냅샷은 연습 항목을 지워도 남는다")
+    void 작성_방문인증_스냅샷_유지() {
+        Member me = seedMember("keepBadge@kakao.com", Level.ROOKIE);
+        Course course =
+                courseRepository.save(
+                        Course.builder()
+                                .name("지울 코스")
+                                .location(GEO.createPoint(new Coordinate(127.0, 37.5)))
+                                .distanceMeters(2_000)
+                                .build());
+        Long practiceId = practiceService.register(course.getId(), me.getId()).practiceId();
+        practiceService.recordVisit(practiceId, me.getId(), new PracticeVisitRequest(800));
+        Long reviewId = reviewService.create(course.getId(), me.getId(), request("완주")).reviewId();
+
+        practiceService.delete(practiceId, me.getId());
+
+        assertThat(reviewRepository.findById(reviewId).orElseThrow().isVerifiedVisit()).isTrue();
     }
 
     @Test
