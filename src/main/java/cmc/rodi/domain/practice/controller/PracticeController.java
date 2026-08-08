@@ -3,7 +3,7 @@ package cmc.rodi.domain.practice.controller;
 import cmc.rodi.domain.practice.dto.PracticeItem;
 import cmc.rodi.domain.practice.dto.PracticeRegisterResponse;
 import cmc.rodi.domain.practice.dto.PracticeSkipReasonRequest;
-import cmc.rodi.domain.practice.dto.PracticeStatusUpdateRequest;
+import cmc.rodi.domain.practice.dto.PracticeVisitRequest;
 import cmc.rodi.domain.practice.dto.PracticeVisitResponse;
 import cmc.rodi.domain.practice.service.PracticeQueryService;
 import cmc.rodi.domain.practice.service.PracticeService;
@@ -27,8 +27,8 @@ import org.springframework.web.bind.annotation.RestController;
 /**
  * 연습 코스 API. 문서 스펙은 {@link PracticeControllerDocs}.
  *
- * <p>담기는 장소 하위(`/places/{placeId}/practices`), 목록은 회원 소유라 `/members/me/practices`에 둔다. 개별 조작(상태
- * 변경·제거)은 후속 커밋에서 `/practices/{practiceId}`로 붙는다.
+ * <p>담기는 장소 하위(`/places/{placeId}/practices`), 목록은 회원 소유라 `/members/me/practices`에 둔다. 개별 조작(방문
+ * 기록·미방문 사유·제거)은 항목 자체를 가리키는 `/practices/{practiceId}`에 둔다.
  */
 @RestController
 @RequestMapping("/api/v1")
@@ -61,11 +61,11 @@ public class PracticeController implements PracticeControllerDocs {
 
     @Override
     @PatchMapping("/practices/{practiceId}")
-    public ApiResponse<PracticeVisitResponse> updateStatus(
+    public ApiResponse<PracticeVisitResponse> recordVisit(
             @PathVariable Long practiceId,
             @CurrentMember Long memberId,
-            @Valid @RequestBody PracticeStatusUpdateRequest request) {
-        return ApiResponse.success(practiceService.updateStatus(practiceId, memberId, request));
+            @Valid @RequestBody PracticeVisitRequest request) {
+        return ApiResponse.success(practiceService.recordVisit(practiceId, memberId, request));
     }
 
     @Override

@@ -9,7 +9,7 @@ import cmc.rodi.domain.member.repository.MemberRepository;
 import cmc.rodi.domain.place.entity.Course;
 import cmc.rodi.domain.place.repository.CourseRepository;
 import cmc.rodi.domain.practice.dto.PracticeSkipReasonRequest;
-import cmc.rodi.domain.practice.dto.PracticeStatusUpdateRequest;
+import cmc.rodi.domain.practice.dto.PracticeVisitRequest;
 import cmc.rodi.domain.practice.dto.PracticeVisitResponse;
 import cmc.rodi.domain.practice.entity.MemberPractice;
 import cmc.rodi.domain.practice.entity.PracticeStatus;
@@ -29,7 +29,7 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.annotation.Import;
 import org.springframework.transaction.annotation.Transactional;
 
-/** 방문 여부 상태 변경·목록 제거 — 횟수 누적, 사유 필수·수정 불가, 소유자 검사, 멱등 삭제. */
+/** 방문 기록·미방문 사유·목록 제거 — 횟수 누적, 인증 판정, 사유 수정 불가, 소유자 검사, 멱등 삭제. */
 @SpringBootTest
 @Transactional
 @Import(TestcontainersConfiguration.class)
@@ -60,16 +60,12 @@ class PracticeStatusIntegrationTest {
                 .practiceId();
     }
 
-    private static PracticeStatusUpdateRequest visited() {
-        return new PracticeStatusUpdateRequest(PracticeStatus.VISITED, null);
+    private static PracticeVisitRequest visited() {
+        return new PracticeVisitRequest(null);
     }
 
-    private static PracticeStatusUpdateRequest visited(int certifiedMeters) {
-        return new PracticeStatusUpdateRequest(PracticeStatus.VISITED, certifiedMeters);
-    }
-
-    private static PracticeStatusUpdateRequest notVisited() {
-        return new PracticeStatusUpdateRequest(PracticeStatus.NOT_VISITED, null);
+    private static PracticeVisitRequest visited(int certifiedMeters) {
+        return new PracticeVisitRequest(certifiedMeters);
     }
 
     private static PracticeSkipReasonRequest skipReason(SkipReason reason, String detail) {
@@ -77,19 +73,19 @@ class PracticeStatusIntegrationTest {
     }
 
     @Test
-    @DisplayName("VISITED로 바꾸면 횟수가 오르고 방문 시각이 기록된다 — 다시 보내면 또 오른다")
+    @DisplayName("방문을 기록하면 상태가 VISITED가 되고 횟수·시각이 남는다 — 다시 보내면 또 오른다")
     void 방문_처리() {
         Member me = seedMember("visit@kakao.com");
         Long practiceId = seedPractice(me, "방문 코스");
 
-        practiceService.updateStatus(practiceId, me.getId(), visited());
+        practiceService.recordVisit(practiceId, me.getId(), visited());
         MemberPractice after = memberPracticeRepository.findById(practiceId).orElseThrow();
         assertThat(after.getStatus()).isEqualTo(PracticeStatus.VISITED);
         assertThat(after.getVisitCount()).isEqualTo(1);
         assertThat(after.getVisitedAt()).isNotNull();
 
         // 같은 코스 재연습 — 클라이언트가 다시 호출하면 횟수가 또 오른다(중복 방지는 클라 몫)
-        practiceService.updateStatus(practiceId, me.getId(), visited());
+        practiceService.recordVisit(practiceId, me.getId(), visited());
         assertThat(memberPracticeRepository.findById(practiceId).orElseThrow().getVisitCount())
                 .isEqualTo(2);
     }
@@ -109,14 +105,14 @@ class PracticeStatusIntegrationTest {
 
         // 1.9km — 필요 거리(2km)에 못 미쳐 인증 안 됨
         PracticeVisitResponse partial =
-                practiceService.updateStatus(practiceId, me.getId(), visited(1_900));
+                practiceService.recordVisit(practiceId, me.getId(), visited(1_900));
         assertThat(partial.requiredDistanceMeters()).isEqualTo(2_000);
         assertThat(partial.certifiedNow()).isFalse();
         assertThat(partial.verified()).isFalse();
 
         // 2km — 도달해 인증
         PracticeVisitResponse certified =
-                practiceService.updateStatus(practiceId, me.getId(), visited(2_000));
+                practiceService.recordVisit(practiceId, me.getId(), visited(2_000));
         assertThat(certified.certifiedNow()).isTrue();
         assertThat(certified.verified()).isTrue();
 
@@ -140,7 +136,7 @@ class PracticeStatusIntegrationTest {
         Long practiceId = practiceService.register(course.getId(), me.getId()).practiceId();
 
         PracticeVisitResponse response =
-                practiceService.updateStatus(practiceId, me.getId(), visited());
+                practiceService.recordVisit(practiceId, me.getId(), visited());
 
         assertThat(response.visitCount()).isEqualTo(1); // 연습기록은 남는다
         assertThat(response.addedCertifiedDistanceMeters()).isZero();
@@ -161,32 +157,20 @@ class PracticeStatusIntegrationTest {
                                 .build());
         Long practiceId = practiceService.register(course.getId(), me.getId()).practiceId();
 
-        practiceService.updateStatus(practiceId, me.getId(), visited(800)); // 필요 800m → 인증
+        practiceService.recordVisit(practiceId, me.getId(), visited(800)); // 필요 800m → 인증
         PracticeVisitResponse second =
-                practiceService.updateStatus(practiceId, me.getId(), visited(100));
+                practiceService.recordVisit(practiceId, me.getId(), visited(100));
 
         assertThat(second.certifiedNow()).isFalse(); // 이번 회차는 미달
         assertThat(second.verified()).isTrue(); // 항목은 여전히 인증됨
     }
 
     @Test
-    @DisplayName("미방문 사유는 상태 변경 뒤 별도 API로 저장한다 — 기타면 직접 입력이 함께 저장된다")
+    @DisplayName("사유 제출 한 번으로 미방문 상태와 사유가 함께 저장된다 — 기타면 직접 입력도")
     void 미방문_사유_제출() {
         Member me = seedMember("skip@kakao.com");
         Long practiceId = seedPractice(me, "미방문 코스");
 
-        // 미방문 상태가 아니면 사유를 남길 수 없다
-        assertThatThrownBy(
-                        () ->
-                                practiceService.submitSkipReason(
-                                        practiceId,
-                                        me.getId(),
-                                        skipReason(SkipReason.TOO_FAR, null)))
-                .isInstanceOf(BusinessException.class)
-                .extracting(e -> ((BusinessException) e).getErrorCode())
-                .isEqualTo(PracticeErrorCode.NOT_SKIPPED_PRACTICE);
-
-        practiceService.updateStatus(practiceId, me.getId(), notVisited());
         practiceService.submitSkipReason(
                 practiceId, me.getId(), skipReason(SkipReason.OTHER, "차가 정비 중이었어요"));
 
@@ -198,11 +182,10 @@ class PracticeStatusIntegrationTest {
     }
 
     @Test
-    @DisplayName("이미 저장된 미방문 사유는 덮어쓸 수 없고(409), VISITED로는 바꿀 수 있다(사유는 비워짐)")
+    @DisplayName("이미 저장된 미방문 사유는 덮어쓸 수 없고(409), 다시 다녀오면 비워져 새로 남길 수 있다")
     void 미방문_사유_수정불가() {
         Member me = seedMember("skip2@kakao.com");
         Long practiceId = seedPractice(me, "사유 코스");
-        practiceService.updateStatus(practiceId, me.getId(), notVisited());
         practiceService.submitSkipReason(
                 practiceId, me.getId(), skipReason(SkipReason.TOO_FAR, null));
 
@@ -216,7 +199,7 @@ class PracticeStatusIntegrationTest {
                 .extracting(e -> ((BusinessException) e).getErrorCode())
                 .isEqualTo(PracticeErrorCode.SKIP_REASON_ALREADY_SET);
 
-        practiceService.updateStatus(practiceId, me.getId(), visited());
+        practiceService.recordVisit(practiceId, me.getId(), visited());
         MemberPractice after = memberPracticeRepository.findById(practiceId).orElseThrow();
         assertThat(after.getStatus()).isEqualTo(PracticeStatus.VISITED);
         assertThat(after.getSkipReason()).isNull();
@@ -224,13 +207,13 @@ class PracticeStatusIntegrationTest {
     }
 
     @Test
-    @DisplayName("타인 항목의 상태 변경·삭제는 403")
+    @DisplayName("타인 항목의 방문 기록·삭제는 403")
     void 소유자_검사() {
         Member owner = seedMember("owner2@kakao.com");
         Member other = seedMember("other2@kakao.com");
         Long practiceId = seedPractice(owner, "남의 코스");
 
-        assertThatThrownBy(() -> practiceService.updateStatus(practiceId, other.getId(), visited()))
+        assertThatThrownBy(() -> practiceService.recordVisit(practiceId, other.getId(), visited()))
                 .isInstanceOf(BusinessException.class)
                 .extracting(e -> ((BusinessException) e).getErrorCode())
                 .isEqualTo(PracticeErrorCode.NOT_PRACTICE_OWNER);

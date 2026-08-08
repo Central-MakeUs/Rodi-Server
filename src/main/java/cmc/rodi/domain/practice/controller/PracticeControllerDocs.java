@@ -3,7 +3,7 @@ package cmc.rodi.domain.practice.controller;
 import cmc.rodi.domain.practice.dto.PracticeItem;
 import cmc.rodi.domain.practice.dto.PracticeRegisterResponse;
 import cmc.rodi.domain.practice.dto.PracticeSkipReasonRequest;
-import cmc.rodi.domain.practice.dto.PracticeStatusUpdateRequest;
+import cmc.rodi.domain.practice.dto.PracticeVisitRequest;
 import cmc.rodi.domain.practice.dto.PracticeVisitResponse;
 import cmc.rodi.global.common.pagination.CursorPage;
 import cmc.rodi.global.common.response.ApiResponse;
@@ -35,25 +35,25 @@ public interface PracticeControllerDocs {
             @Parameter(hidden = true) Long memberId);
 
     @Operation(
-            summary = "방문 여부 상태 변경",
+            summary = "방문 기록(다녀왔어요)",
             description =
-                    "VISITED면 그 자리에서 방문 처리(연습 횟수 +1, 방문 시각 기록)한다. 앱이 GPS로 측정한 인정 주행거리"
-                            + "(certifiedDistanceMeters)를 함께 보내면 서버가 필요 거리(min(코스거리 × 40%, 5km))와"
-                            + " 비교해 방문 인증 여부를 판정한다 — 앱은 인증 여부를 직접 보내지 않는다."
-                            + " 측정 없이 다녀왔어요만 누른 경우 거리를 생략하면 인증되지 않는다."
-                            + " NOT_VISITED는 상태만 바꾸며, 사유는 별도 API(POST /practices/{id}/skip-reason)로 제출한다."
+                    "RV-01의 \"다녀왔어요\"를 기록한다. 상태는 보내지 않는다 — 이 호출 자체가 방문이므로 서버가 VISITED로 정한다."
+                            + " 연습 횟수 +1, 방문 시각 기록. 앱이 GPS로 측정한 인정 주행거리"
+                            + "(certifiedDistanceMeters)를 보내면 서버가 필요 거리(min(코스거리 × 40%, 5km))와"
+                            + " 비교해 방문 인증 여부를 판정한다. 측정 없이 눌렀다면 거리를 생략하며 인증되지 않는다."
                             + " 타인 항목은 403. JWT 필요.")
-    ApiResponse<PracticeVisitResponse> updateStatus(
+    ApiResponse<PracticeVisitResponse> recordVisit(
             @Parameter(description = "연습 항목 id") Long practiceId,
             @Parameter(hidden = true) Long memberId,
-            PracticeStatusUpdateRequest request);
+            PracticeVisitRequest request);
 
     @Operation(
-            summary = "미방문 사유 제출",
+            summary = "미방문 사유 제출(안 했어요)",
             description =
-                    "미방문 이유 폼(GET /practices/skip-reason-form)에서 사용자가 고른 사유를 저장한다."
-                            + " 상태 변경(NOT_VISITED) 뒤에 호출한다 — 미방문 상태가 아니면 400."
-                            + " 사유는 한 번 저장하면 수정할 수 없다(409). 타인 항목은 403. JWT 필요.")
+                    "RV-01의 \"안 했어요\"를 기록한다. 상태를 NOT_VISITED로 바꾸면서 미방문 이유 폼"
+                            + "(GET /practices/skip-reason-form)에서 고른 사유를 함께 저장한다."
+                            + " 사유는 한 번 저장하면 수정할 수 없고(409), 다시 다녀오면 비워져 새로 남길 수 있다."
+                            + " 타인 항목은 403. JWT 필요.")
     ApiResponse<Void> submitSkipReason(
             @Parameter(description = "연습 항목 id") Long practiceId,
             @Parameter(hidden = true) Long memberId,

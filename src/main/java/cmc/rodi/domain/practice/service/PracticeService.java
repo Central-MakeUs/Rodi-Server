@@ -6,10 +6,9 @@ import cmc.rodi.domain.place.entity.Place;
 import cmc.rodi.domain.place.repository.PlaceRepository;
 import cmc.rodi.domain.practice.dto.PracticeRegisterResponse;
 import cmc.rodi.domain.practice.dto.PracticeSkipReasonRequest;
-import cmc.rodi.domain.practice.dto.PracticeStatusUpdateRequest;
+import cmc.rodi.domain.practice.dto.PracticeVisitRequest;
 import cmc.rodi.domain.practice.dto.PracticeVisitResponse;
 import cmc.rodi.domain.practice.entity.MemberPractice;
-import cmc.rodi.domain.practice.entity.PracticeStatus;
 import cmc.rodi.domain.practice.exception.PracticeErrorCode;
 import cmc.rodi.domain.practice.repository.MemberPracticeRepository;
 import cmc.rodi.global.exception.BusinessException;
@@ -56,42 +55,30 @@ public class PracticeService {
     }
 
     /**
-     * 방문 여부 변경. {@code VISITED}는 그 자리에서 방문 처리(횟수 +1, 시각 기록)하고, {@code NOT_VISITED}는 사유를 남긴다. 미방문
-     * 사유는 한 번 저장하면 덮어쓸 수 없다(409) — 다녀온 것으로 바꾸는 건 언제든 가능하다.
+     * 방문 기록(RV-01 "다녀왔어요"). 상태를 요청으로 받지 않는다 — 이 호출 자체가 방문이므로 서버가 {@code VISITED}로 정하고, 인증 여부만 인정
+     * 주행거리로 판정한다. 호출할 때마다 횟수가 오르므로 한 방문에서 중복 호출하지 않는 건 클라이언트 몫이다.
      */
     @Transactional
-    public PracticeVisitResponse updateStatus(
-            Long practiceId, Long memberId, PracticeStatusUpdateRequest request) {
+    public PracticeVisitResponse recordVisit(
+            Long practiceId, Long memberId, PracticeVisitRequest request) {
         MemberPractice practice = findOwnedPractice(practiceId, memberId);
-
-        if (request.status() == PracticeStatus.VISITED) {
-            // 앱은 측정한 인정 주행거리만 보내고, 인증 여부는 서버가 필요 거리와 비교해 판정한다.
-            int certifiedMeters =
-                    request.certifiedDistanceMeters() == null
-                            ? 0
-                            : request.certifiedDistanceMeters();
-            boolean certifiedNow = practice.markVisited(LocalDateTime.now(), certifiedMeters);
-            return PracticeVisitResponse.of(practice, certifiedMeters, certifiedNow);
-        }
-
-        practice.markNotVisited();
-        return PracticeVisitResponse.notVisited(practice);
+        int certifiedMeters = request.metersOrZero();
+        boolean certifiedNow = practice.markVisited(LocalDateTime.now(), certifiedMeters);
+        return PracticeVisitResponse.of(practice, certifiedMeters, certifiedNow);
     }
 
     /**
-     * 미방문 사유 제출(미방문 이유 폼의 선택 결과). 상태 변경과 분리돼 있어 순서는 [상태 변경 → 사유 제출]이다. 사유는 한 번 저장하면 덮어쓸 수 없고(409),
-     * 미방문 상태가 아닌 항목에는 남길 수 없다(400).
+     * 미방문 사유 제출(RV-01 "안 했어요"). 상태를 {@code NOT_VISITED}로 바꾸면서 사유를 함께 저장해, 사유 없는 미방문이 남지 않는다. 사유는 한
+     * 번 저장하면 덮어쓸 수 없고(409), 다시 다녀오면(방문 기록) 비워져 새로 남길 수 있다.
      */
     @Transactional
     public void submitSkipReason(
             Long practiceId, Long memberId, PracticeSkipReasonRequest request) {
         MemberPractice practice = findOwnedPractice(practiceId, memberId);
-        if (!practice.isNotVisited()) {
-            throw new BusinessException(PracticeErrorCode.NOT_SKIPPED_PRACTICE);
-        }
         if (practice.hasSkipReason()) {
             throw new BusinessException(PracticeErrorCode.SKIP_REASON_ALREADY_SET);
         }
+        practice.markNotVisited();
         practice.applySkipReason(request.reason(), request.detail());
     }
 
