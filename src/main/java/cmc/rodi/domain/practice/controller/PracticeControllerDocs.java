@@ -5,6 +5,7 @@ import cmc.rodi.domain.practice.dto.PracticeRegisterResponse;
 import cmc.rodi.domain.practice.dto.PracticeSkipReasonRequest;
 import cmc.rodi.domain.practice.dto.PracticeVisitRequest;
 import cmc.rodi.domain.practice.dto.PracticeVisitResponse;
+import cmc.rodi.global.common.form.FormResponse;
 import cmc.rodi.global.common.pagination.CursorPage;
 import cmc.rodi.global.common.response.ApiResponse;
 import io.swagger.v3.oas.annotations.Operation;
@@ -46,6 +47,14 @@ public interface PracticeControllerDocs {
             @Parameter(description = "연습 항목 id") Long practiceId,
             @Parameter(hidden = true) Long memberId,
             PracticeVisitRequest request);
+
+    @Operation(
+            summary = "미방문 이유 폼 조회",
+            description =
+                    "\"안 했어요\" 화면에 그릴 사유 선택지를 내려준다(order 오름차순). 문구·순서를 서버가 정의하므로 앱 배포 없이 바꿀 수 있다."
+                            + " OTHER(기타)는 requiresTextInput=true이며 placeholder·최대 길이가 함께 온다."
+                            + " 선택지의 code가 그대로 사유 제출 요청의 reason 값이다. JWT 필요.")
+    ApiResponse<FormResponse> getSkipReasonForm();
 
     @Operation(
             summary = "미방문 사유 제출(안 했어요)",

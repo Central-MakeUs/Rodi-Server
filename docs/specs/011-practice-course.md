@@ -230,7 +230,7 @@ DELETE /api/v1/practices/12   (JWT)
     { "code": "ROUTE_SEEMED_DIFFICULT",   "label": "길이 어려워 보여요",            "order": 3, "requiresTextInput": false },
     { "code": "SCHEDULE_DID_NOT_MATCH",   "label": "일정이 맞지 않았어요",          "order": 4, "requiresTextInput": false },
     { "code": "OTHER",                    "label": "기타",                        "order": 5, "requiresTextInput": true,
-      "textInputPlaceholder": "이유를 입력해주세요", "textInputMaxLength": 100 }
+      "textInputPlaceholder": "이유를 작성해주세요", "textInputMaxLength": 100 }
   ]
 }
 ```

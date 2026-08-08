@@ -1,12 +1,14 @@
 package cmc.rodi.domain.practice.entity;
 
+import cmc.rodi.global.common.form.FormOption;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 
 /**
  * 미방문 이유. 화면 문구·순서를 서버가 들고 있다가 폼으로 내려준다(앱 배포 없이 문구 변경 가능).
  *
- * <p>{@link #OTHER}만 직접 입력을 받으며, 그때 상세 사유가 필수다. 폼 응답 변환은 신고 사유 폼과 같은 공통 구조를 쓰며 후속 커밋에서 붙인다.
+ * <p>{@link #OTHER}만 직접 입력을 받으며, 그때 상세 사유가 필수다. 폼 응답 변환은 신고 사유 폼과 같은 공통 구조({@code
+ * global.common.form})를 쓴다.
  */
 @Getter
 @RequiredArgsConstructor
@@ -18,7 +20,7 @@ public enum SkipReason {
     OTHER("기타", 5);
 
     /** 직접 입력 안내 문구·상한(OTHER 전용). */
-    public static final String TEXT_INPUT_PLACEHOLDER = "이유를 입력해주세요";
+    public static final String TEXT_INPUT_PLACEHOLDER = "이유를 작성해주세요";
 
     public static final int TEXT_INPUT_MAX_LENGTH = 100;
 
@@ -27,5 +29,12 @@ public enum SkipReason {
 
     public boolean requiresTextInput() {
         return this == OTHER;
+    }
+
+    public FormOption toOption() {
+        return requiresTextInput()
+                ? FormOption.withTextInput(
+                        name(), label, order, TEXT_INPUT_PLACEHOLDER, TEXT_INPUT_MAX_LENGTH)
+                : FormOption.of(name(), label, order);
     }
 }

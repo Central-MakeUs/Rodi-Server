@@ -9,19 +9,27 @@ import cmc.rodi.domain.practice.dto.PracticeSkipReasonRequest;
 import cmc.rodi.domain.practice.dto.PracticeVisitRequest;
 import cmc.rodi.domain.practice.dto.PracticeVisitResponse;
 import cmc.rodi.domain.practice.entity.MemberPractice;
+import cmc.rodi.domain.practice.entity.SkipReason;
 import cmc.rodi.domain.practice.exception.PracticeErrorCode;
 import cmc.rodi.domain.practice.repository.MemberPracticeRepository;
+import cmc.rodi.global.common.form.FormResponse;
+import cmc.rodi.global.common.form.FormType;
 import cmc.rodi.global.exception.BusinessException;
 import cmc.rodi.global.exception.ErrorCode;
 import java.time.LocalDateTime;
+import java.util.Arrays;
+import java.util.Comparator;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-/** 연습 목록 담기·제거. 방문 여부 변경은 후속 커밋에서 붙인다. */
+/** 연습 목록 담기·제거와 방문 기록(다녀왔어요·안 했어요). 조회는 {@link PracticeQueryService}. */
 @Service
 @RequiredArgsConstructor
 public class PracticeService {
+
+    /** 미방문 이유 폼의 문항 식별자(클라이언트가 응답을 구분하는 키). */
+    private static final String SKIP_REASON_QUESTION_ID = "WHY_NOT_PRACTICED";
 
     private final MemberPracticeRepository memberPracticeRepository;
     private final PlaceRepository placeRepository;
@@ -65,6 +73,20 @@ public class PracticeService {
         int certifiedMeters = request.metersOrZero();
         boolean certifiedNow = practice.markVisited(LocalDateTime.now(), certifiedMeters);
         return PracticeVisitResponse.of(practice, certifiedMeters, certifiedNow);
+    }
+
+    /** 미방문 이유 폼. 문구·순서·직접입력 여부를 서버가 정의해 내려준다(앱 배포 없이 문구 변경 가능). 저장이 없어 조회 트랜잭션도 열지 않는다. */
+    public FormResponse getSkipReasonForm() {
+        return new FormResponse(
+                SKIP_REASON_QUESTION_ID,
+                FormType.SINGLE_SELECT,
+                "왜 연습을 다녀오지 않았나요?",
+                "이유를 알려주시면 더 나은 코스를 추천해드릴게요!",
+                true,
+                Arrays.stream(SkipReason.values())
+                        .sorted(Comparator.comparingInt(SkipReason::getOrder))
+                        .map(SkipReason::toOption)
+                        .toList());
     }
 
     /**

@@ -8,6 +8,7 @@ import cmc.rodi.domain.practice.dto.PracticeVisitResponse;
 import cmc.rodi.domain.practice.service.PracticeQueryService;
 import cmc.rodi.domain.practice.service.PracticeService;
 import cmc.rodi.global.auth.resolver.CurrentMember;
+import cmc.rodi.global.common.form.FormResponse;
 import cmc.rodi.global.common.pagination.CursorPage;
 import cmc.rodi.global.common.response.ApiResponse;
 import cmc.rodi.global.exception.BusinessException;
@@ -66,6 +67,12 @@ public class PracticeController implements PracticeControllerDocs {
             @CurrentMember Long memberId,
             @Valid @RequestBody PracticeVisitRequest request) {
         return ApiResponse.success(practiceService.recordVisit(practiceId, memberId, request));
+    }
+
+    @Override
+    @GetMapping("/practices/skip-reason-form")
+    public ApiResponse<FormResponse> getSkipReasonForm() {
+        return ApiResponse.success(practiceService.getSkipReasonForm());
     }
 
     @Override
