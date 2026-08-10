@@ -20,6 +20,8 @@ import cmc.rodi.domain.practice.repository.MemberPracticeRepository;
 import cmc.rodi.domain.practice.service.PracticeService;
 import cmc.rodi.global.exception.BusinessException;
 import cmc.rodi.support.TestcontainersConfiguration;
+import jakarta.persistence.EntityManager;
+import jakarta.persistence.PersistenceContext;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.locationtech.jts.geom.Coordinate;
@@ -40,6 +42,7 @@ class PracticeStatusIntegrationTest {
 
     @Autowired PracticeService practiceService;
     @Autowired MemberPracticeRepository memberPracticeRepository;
+    @PersistenceContext EntityManager em;
     @Autowired CourseRepository courseRepository;
     @Autowired MemberRepository memberRepository;
 
@@ -230,6 +233,27 @@ class PracticeStatusIntegrationTest {
                 .isEqualTo(50.0);
         assertThat(practiceService.recordVisit(practiceId, me.getId(), visited()).totalDistanceKm())
                 .isEqualTo(50.0);
+    }
+
+    @Test
+    @DisplayName("영속성 컨텍스트가 비어 place가 프록시로 와도 코스 거리를 읽어 인증·누적한다")
+    void 프록시_코스_거리() {
+        Member me = seedMember("proxy@kakao.com");
+        me.applyOnboarding(Level.SEED, null);
+        Course course = seedCourseWithDistance("프록시 코스", 5_000);
+        Long practiceId = practiceService.register(course.getId(), me.getId()).practiceId();
+
+        // 컨텍스트를 비우면 이후 조회에서 place가 지연 로딩 프록시로 온다 —
+        // 하위 타입 검사로 코스 거리를 읽으면 여기서 조용히 0이 된다.
+        em.flush();
+        em.clear();
+
+        PracticeVisitResponse response =
+                practiceService.recordVisit(practiceId, me.getId(), visited(5_000));
+
+        assertThat(response.requiredDistanceMeters()).isEqualTo(2_000); // 5km × 40%
+        assertThat(response.certifiedNow()).isTrue();
+        assertThat(response.totalDistanceKm()).isEqualTo(5.0);
     }
 
     @Test

@@ -78,6 +78,12 @@ public class Course extends Place {
         this.distanceMeters = distanceMeters;
     }
 
+    /** 코스는 등록된 주행거리를 그대로 쓴다(미등록이면 null). */
+    @Override
+    public Integer drivingDistanceMeters() {
+        return distanceMeters;
+    }
+
     public void addTag(PracticeType tag) {
         this.tags.add(tag);
     }

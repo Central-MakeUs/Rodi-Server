@@ -1,7 +1,6 @@
 package cmc.rodi.domain.practice.entity;
 
 import cmc.rodi.domain.member.entity.Member;
-import cmc.rodi.domain.place.entity.Course;
 import cmc.rodi.domain.place.entity.Place;
 import cmc.rodi.global.common.entity.BaseEntity;
 import jakarta.persistence.Column;
@@ -131,8 +130,9 @@ public class MemberPractice extends BaseEntity {
         return VisitCertification.accruableMeters(courseDistanceMeters(), certifiedMeters);
     }
 
+    /** 프록시로 와도 안전하도록 다형 메서드로 읽는다({@link Place#drivingDistanceMeters()} 주석 참고). */
     private Integer courseDistanceMeters() {
-        return place instanceof Course course ? course.getDistanceMeters() : null;
+        return place.drivingDistanceMeters();
     }
 
     /** 미방문 처리. 사유는 별도 API로 뒤이어 제출되므로 여기서는 상태만 바꾼다. */
