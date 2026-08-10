@@ -135,6 +135,28 @@ class MemberControllerTest {
     }
 
     @Test
+    @DisplayName("마이페이지 조회: Navigator는 nextLevelKm 키가 빠지고 진행률 100")
+    void 마이페이지_최상위_레벨() throws Exception {
+        authenticate(7L);
+        when(memberProfileService.getMyPage(7L))
+                .thenReturn(
+                        new MyPageResponse(
+                                "노련한 여우",
+                                Level.NAVIGATOR,
+                                List.of("U_TURN"),
+                                null,
+                                0,
+                                new LevelProgressResponse(812.4, 600.0, null, 100)));
+
+        mockMvc.perform(get("/api/v1/members/me"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.levelProgress.totalDistanceKm").value(812.4))
+                .andExpect(jsonPath("$.data.levelProgress.currentLevelStartKm").value(600.0))
+                .andExpect(jsonPath("$.data.levelProgress.nextLevelKm").doesNotExist()) // 목표 없음
+                .andExpect(jsonPath("$.data.levelProgress.progressPercent").value(100));
+    }
+
+    @Test
     @DisplayName("회원 수정: 200 + @CurrentMember의 회원 id로 서비스 위임")
     void 회원_수정() throws Exception {
         authenticate(7L);
