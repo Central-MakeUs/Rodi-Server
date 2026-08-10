@@ -73,7 +73,9 @@ public class PracticeService {
     @Transactional
     public PracticeVisitResponse recordVisit(
             Long practiceId, Long memberId, PracticeVisitRequest request) {
-        MemberPractice practice = findOwnedPractice(practiceId, memberId);
+        // 행을 잠그고 읽어 [쿨다운 판정 → 방문 기록]을 직렬화한다. 잠금이 없으면 동시에 들어온 두 요청이
+        // 서로의 미커밋 visited_at을 못 봐 둘 다 통과하고 누적 거리가 두 번 더해진다. 순서는 항목 → 회원.
+        MemberPractice practice = findOwnedPracticeForUpdate(practiceId, memberId);
         LocalDateTime now = LocalDateTime.now();
 
         // 재시도·연타는 같은 방문으로 본다 — 거리가 레벨로 환산되고 레벨은 되돌릴 수 없다(ADR 0012).
@@ -142,6 +144,15 @@ public class PracticeService {
         return memberRepository
                 .findByIdForUpdate(memberId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.ENTITY_NOT_FOUND));
+    }
+
+    private MemberPractice findOwnedPracticeForUpdate(Long practiceId, Long memberId) {
+        MemberPractice practice =
+                memberPracticeRepository
+                        .findByIdForUpdate(practiceId)
+                        .orElseThrow(() -> new BusinessException(ErrorCode.ENTITY_NOT_FOUND));
+        requireOwner(practice, memberId);
+        return practice;
     }
 
     private MemberPractice findOwnedPractice(Long practiceId, Long memberId) {
