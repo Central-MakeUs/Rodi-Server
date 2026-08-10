@@ -126,6 +126,11 @@ public class MemberPractice extends BaseEntity {
         return VisitCertification.requiredMeters(courseDistanceMeters());
     }
 
+    /** 이번 방문에서 레벨 누적에 반영할 거리(m). 코스 전체 거리를 넘지 않고, 주차장은 0(스펙 012). */
+    public long accruableMeters(int certifiedMeters) {
+        return VisitCertification.accruableMeters(courseDistanceMeters(), certifiedMeters);
+    }
+
     private Integer courseDistanceMeters() {
         return place instanceof Course course ? course.getDistanceMeters() : null;
     }

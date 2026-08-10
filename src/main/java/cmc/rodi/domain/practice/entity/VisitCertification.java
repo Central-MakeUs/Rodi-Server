@@ -25,6 +25,21 @@ public final class VisitCertification {
                 Math.min(Math.round(courseDistanceMeters * REQUIRED_RATIO), MAX_REQUIRED_METERS);
     }
 
+    /**
+     * 이번 방문에서 <b>레벨 누적에 반영할 수 있는 거리</b>(m) — 코스 전체 거리를 넘지 않는다(스펙 012).
+     *
+     * <p>인증 필요 거리가 <i>하한</i>이라면 이건 <i>상한</i>이다. 레벨은 내려가지 않아 한 번 잘못 오르면 되돌릴 수 없는데 측정값은 앱이 보내므로, 서버가
+     * 아는 값(코스 전체 거리)으로 잘라 낸다. 왕복해서 실제로 더 달렸더라도 한 방문의 값어치는 코스 한 바퀴까지다.
+     *
+     * <p>주행거리가 없는 장소(주차장)는 0 — 레벨에 기여하지 않는다.
+     */
+    public static long accruableMeters(Integer courseDistanceMeters, int certifiedDistanceMeters) {
+        if (courseDistanceMeters == null || courseDistanceMeters <= 0) {
+            return 0;
+        }
+        return Math.max(0, Math.min(certifiedDistanceMeters, courseDistanceMeters));
+    }
+
     /** 인정 주행거리가 필요 거리에 도달했는지. 필요 거리가 0인 장소(주차장)는 인증되지 않는다. */
     public static boolean isCertified(Integer courseDistanceMeters, int certifiedDistanceMeters) {
         int required = requiredMeters(courseDistanceMeters);

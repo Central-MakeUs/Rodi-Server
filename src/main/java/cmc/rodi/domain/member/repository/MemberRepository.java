@@ -1,14 +1,26 @@
 package cmc.rodi.domain.member.repository;
 
 import cmc.rodi.domain.member.entity.Member;
+import jakarta.persistence.LockModeType;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Optional;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 
 public interface MemberRepository extends JpaRepository<Member, Long> {
 
     boolean existsByNickname(String nickname);
+
+    /**
+     * 누적 거리 갱신용 회원 조회(행 잠금). 누적은 읽고-더하고-쓰기라, 같은 회원의 방문 기록이 겹치면 한쪽 증가분이 사라진다(lost update). 레벨은 내려가지
+     * 않아 되돌릴 수도 없으므로 갱신을 직렬화한다.
+     */
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("select m from Member m where m.id = :id")
+    Optional<Member> findByIdForUpdate(@Param("id") Long id);
 
     /** 현재 사용 중인(NULL 아님) 닉네임 목록. 닉네임 배정 시 미사용 후보 계산에 쓴다. */
     @Query("select m.nickname from Member m where m.nickname is not null")

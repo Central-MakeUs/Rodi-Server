@@ -76,7 +76,11 @@ public class PracticeService {
         MemberPractice practice = findOwnedPractice(practiceId, memberId);
         int certifiedMeters = request.metersOrZero();
         boolean certifiedNow = practice.markVisited(LocalDateTime.now(), certifiedMeters);
-        return PracticeVisitResponse.of(practice, certifiedMeters, certifiedNow);
+
+        // 누적은 읽고-더하고-쓰기라 같은 회원의 방문이 겹치면 한쪽이 사라진다. 행을 잠가 직렬화한다.
+        Member member = findMemberForUpdate(memberId);
+        boolean levelUp = member.addDistance(practice.accruableMeters(certifiedMeters));
+        return PracticeVisitResponse.of(practice, certifiedMeters, certifiedNow, member, levelUp);
     }
 
     /** 미방문 이유 폼. 문구·순서·직접입력 여부를 서버가 정의해 내려준다(앱 배포 없이 문구 변경 가능). 저장이 없어 조회 트랜잭션도 열지 않는다. */
@@ -118,6 +122,12 @@ public class PracticeService {
                             requireOwner(practice, memberId);
                             memberPracticeRepository.delete(practice);
                         });
+    }
+
+    private Member findMemberForUpdate(Long memberId) {
+        return memberRepository
+                .findByIdForUpdate(memberId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.ENTITY_NOT_FOUND));
     }
 
     private MemberPractice findOwnedPractice(Long practiceId, Long memberId) {
