@@ -45,13 +45,27 @@ class PracticeVisitConcurrencyTest {
     @Autowired TransactionTemplate transactionTemplate;
 
     private Long memberId;
+    private Long courseId;
     private Long practiceId;
 
+    /**
+     * 이 테스트가 만든 것만 지운다. 트랜잭션 롤백에 기댈 수 없어 직접 커밋하는데, {@code deleteAll()}로 쓸어버리면 같은 컨테이너를 쓰는 다른 테스트의
+     * 데이터까지 지워지고 CASCADE가 없는 FK(북마크·소셜계정 등)에 걸린다.
+     */
     @AfterEach
     void cleanUp() {
-        memberPracticeRepository.deleteAll();
-        courseRepository.deleteAll();
-        memberRepository.deleteAll();
+        transactionTemplate.executeWithoutResult(
+                status -> {
+                    if (practiceId != null) {
+                        memberPracticeRepository.deleteById(practiceId);
+                    }
+                    if (courseId != null) {
+                        courseRepository.deleteById(courseId);
+                    }
+                    if (memberId != null) {
+                        memberRepository.deleteById(memberId);
+                    }
+                });
     }
 
     private void seed() {
@@ -68,7 +82,8 @@ class PracticeVisitConcurrencyTest {
                                             .location(GEO.createPoint(new Coordinate(127.0, 37.5)))
                                             .distanceMeters(COURSE_METERS)
                                             .build());
-                    practiceId = practiceService.register(course.getId(), memberId).practiceId();
+                    courseId = course.getId();
+                    practiceId = practiceService.register(courseId, memberId).practiceId();
                 });
     }
 
