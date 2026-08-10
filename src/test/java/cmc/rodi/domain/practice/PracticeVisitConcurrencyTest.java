@@ -8,9 +8,12 @@ import cmc.rodi.domain.member.repository.MemberRepository;
 import cmc.rodi.domain.place.entity.Course;
 import cmc.rodi.domain.place.repository.CourseRepository;
 import cmc.rodi.domain.practice.dto.PracticeVisitRequest;
+import cmc.rodi.domain.practice.dto.PracticeVisitResponse;
 import cmc.rodi.domain.practice.repository.MemberPracticeRepository;
 import cmc.rodi.domain.practice.service.PracticeService;
 import cmc.rodi.support.TestcontainersConfiguration;
+import java.util.Queue;
+import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import org.junit.jupiter.api.AfterEach;
@@ -93,21 +96,27 @@ class PracticeVisitConcurrencyTest {
         seed();
         CountDownLatch start = new CountDownLatch(1);
         CountDownLatch done = new CountDownLatch(2);
+        Queue<Throwable> failures = new ConcurrentLinkedQueue<>();
+        Queue<PracticeVisitResponse> responses = new ConcurrentLinkedQueue<>();
 
         for (int i = 0; i < 2; i++) {
             new Thread(
                             () -> {
                                 try {
                                     start.await();
-                                    transactionTemplate.executeWithoutResult(
-                                            status ->
-                                                    practiceService.recordVisit(
-                                                            practiceId,
-                                                            memberId,
-                                                            new PracticeVisitRequest(
-                                                                    COURSE_METERS)));
+                                    responses.add(
+                                            transactionTemplate.execute(
+                                                    status ->
+                                                            practiceService.recordVisit(
+                                                                    practiceId,
+                                                                    memberId,
+                                                                    new PracticeVisitRequest(
+                                                                            COURSE_METERS))));
                                 } catch (InterruptedException e) {
                                     Thread.currentThread().interrupt();
+                                } catch (Throwable t) {
+                                    // 삼키면 한쪽이 죽어도 수치가 우연히 맞아 테스트가 통과해버린다
+                                    failures.add(t);
                                 } finally {
                                     done.countDown();
                                 }
@@ -117,6 +126,13 @@ class PracticeVisitConcurrencyTest {
 
         start.countDown();
         assertThat(done.await(20, TimeUnit.SECONDS)).isTrue();
+
+        // 둘 다 예외 없이 200 경로로 끝나야 한다 — 하나가 실패해 수치가 맞은 게 아님을 보장한다
+        assertThat(failures).isEmpty();
+        assertThat(responses).hasSize(2);
+        assertThat(responses)
+                .extracting(PracticeVisitResponse::addedCertifiedDistanceMeters)
+                .containsExactlyInAnyOrder(COURSE_METERS, 0); // 하나만 반영, 다른 하나는 쿨다운
 
         // 잠금이 없으면 둘 다 쿨다운을 통과해 회원 누적이 10km가 된다(레벨은 되돌릴 수 없다).
         assertThat(memberRepository.findById(memberId).orElseThrow().getTotalDistanceMeters())
