@@ -43,6 +43,22 @@ public record PracticeVisitResponse(
                 levelUp ? member.getLevel() : null);
     }
 
+    /**
+     * 쿨다운에 걸려 <b>아무것도 바꾸지 않은</b> 결과. 재시도한 앱이 실패로 보지 않도록 현재 상태를 그대로 돌려준다 — 이번 회차로 반영된 게 없으니 거리는 0이고
+     * {@code isCertifiedNow}·{@code levelUp}은 false이며, 인증 배지({@code isVerified})는 사실 그대로다.
+     */
+    public static PracticeVisitResponse unchanged(MemberPractice practice, Member member) {
+        return new PracticeVisitResponse(
+                practice.getVisitCount(),
+                0,
+                practice.requiredCertificationMeters(),
+                false,
+                practice.isVerified(),
+                toKm(member.getTotalDistanceMeters()),
+                false,
+                null);
+    }
+
     /** 소수 첫째 자리에서 <b>내림</b> — 진행률과 같은 방향으로, 실제보다 앞서 보이지 않게 한다. */
     private static double toKm(long meters) {
         return Math.floor(meters / 100.0) / 10.0;

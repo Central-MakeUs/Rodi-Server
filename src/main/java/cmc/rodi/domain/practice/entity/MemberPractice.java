@@ -35,6 +35,9 @@ import lombok.NoArgsConstructor;
         uniqueConstraints = @UniqueConstraint(columnNames = {"member_id", "place_id"}))
 public class MemberPractice extends BaseEntity {
 
+    /** 직전 방문 후 이 시간 안의 재호출은 같은 방문으로 본다(재시도·연타 흡수, ADR 0012). */
+    public static final int VISIT_COOLDOWN_MINUTES = 10;
+
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
@@ -118,6 +121,16 @@ public class MemberPractice extends BaseEntity {
             this.verified = true;
         }
         return certifiedNow;
+    }
+
+    /**
+     * 직전 방문 직후의 중복 호출인지. 방문 기록은 앱이 이동 추적 결과로 자동 호출해 재시도·연타가 그대로 들어오는데, 거리가 레벨로 환산되고 레벨은 내려가지 않아 되돌릴
+     * 수 없다(ADR 0012).
+     *
+     * <p>같은 코스를 {@value #VISIT_COOLDOWN_MINUTES}분 안에 두 번 완주할 일은 없다고 보고, 그 안의 호출은 같은 방문으로 취급한다.
+     */
+    public boolean isWithinVisitCooldown(LocalDateTime now) {
+        return visitedAt != null && visitedAt.plusMinutes(VISIT_COOLDOWN_MINUTES).isAfter(now);
     }
 
     /** 이번 방문의 인증에 필요한 거리(m). 주행거리가 없는 장소(주차장)는 0 — 인증 대상이 아니다. */

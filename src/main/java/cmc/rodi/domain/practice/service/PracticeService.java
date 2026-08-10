@@ -74,8 +74,16 @@ public class PracticeService {
     public PracticeVisitResponse recordVisit(
             Long practiceId, Long memberId, PracticeVisitRequest request) {
         MemberPractice practice = findOwnedPractice(practiceId, memberId);
+        LocalDateTime now = LocalDateTime.now();
+
+        // 재시도·연타는 같은 방문으로 본다 — 거리가 레벨로 환산되고 레벨은 되돌릴 수 없다(ADR 0012).
+        // 오류로 돌려주면 앱이 다시 시도하므로, 현재 상태를 그대로 200으로 준다.
+        if (practice.isWithinVisitCooldown(now)) {
+            return PracticeVisitResponse.unchanged(practice, findMember(memberId));
+        }
+
         int certifiedMeters = request.metersOrZero();
-        boolean certifiedNow = practice.markVisited(LocalDateTime.now(), certifiedMeters);
+        boolean certifiedNow = practice.markVisited(now, certifiedMeters);
 
         // 누적은 읽고-더하고-쓰기라 같은 회원의 방문이 겹치면 한쪽이 사라진다. 행을 잠가 직렬화한다.
         Member member = findMemberForUpdate(memberId);
@@ -122,6 +130,12 @@ public class PracticeService {
                             requireOwner(practice, memberId);
                             memberPracticeRepository.delete(practice);
                         });
+    }
+
+    private Member findMember(Long memberId) {
+        return memberRepository
+                .findById(memberId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.ENTITY_NOT_FOUND));
     }
 
     private Member findMemberForUpdate(Long memberId) {
