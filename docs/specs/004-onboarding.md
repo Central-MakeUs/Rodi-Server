@@ -11,6 +11,7 @@
 | 2026-07-11 | Draft | 온보딩 API 구현 — 응답 200만(데이터 없음), 추천유형 매핑은 클라 소유로 확정, `LEFT_TURN`→`LEFT_RIGHT_TURN`, 홈 정렬은 별도 기능 |
 | 2026-07-12 | Draft | 문항 필수 재정의(V6) — 필수는 Q1·level뿐, Q2~Q4 선택(Q1 상위값→Navigator skip, Q4-1·Q4-2는 Q3=혼자연습일 때만). soloDrivingRange=Q4-1, soloParkingLevel=Q4-2 |
 | 2026-07-23 | Draft | Q1 구간 개편 — MONTHS_1_2/MONTHS_3_5/MONTHS_6_11/YEARS_3_9로 재정의(1개월 미만·1~2년·10년 이상 유지), Navigator 강제 기준 `YEARS_3_9`+`OVER_10_YEARS`. 기존 데이터는 V8에서 근사 backfill(1~3개월→1~2개월, 3~6개월→3~5개월, 6~12개월→6~11개월, 2~10년→3~9년) |
+| 2026-08-09 | Implemented | 온보딩 시 누적 주행거리를 배정 레벨의 최소 기준값으로 초기화(스펙 012). 이후 승급은 서버가 판단 |
 
 ## 배경 / 목적
 
@@ -70,6 +71,7 @@
 | `onboarded_at` | timestamptz | 온보딩 완료 시각. 행 존재=완료 → **재제출 거부** 판정 |
 
 - **점수는 저장·수신하지 않는다.** 레벨은 클라이언트가 계산해 전송하며, 서버는 `member.level`에 저장한다.
+- **최초 배정만 클라이언트 몫이다.** 이후 승급은 서버가 누적 주행거리로 판단한다([스펙 012](012-level-progress.md)). 그래서 온보딩 시 `member.total_distance_meters`를 **배정 레벨의 최소 기준값**으로 맞춘다(Rookie 50km / Owner 150 / Explorer 300 / Navigator 600, Seed 0) — 그러지 않으면 이미 인정받은 경험이 게이지에서 사라진다.
 - 복수/순위 응답은 별도 테이블 없이 **jsonb 리스트로 한 행에** 저장(순서 보존). Hibernate `@JdbcTypeCode(SqlTypes.JSON) List<Enum>` 매핑.
 
 ### Enum

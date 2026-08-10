@@ -12,6 +12,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import cmc.rodi.domain.member.dto.LevelProgressResponse;
 import cmc.rodi.domain.member.dto.MemberUpdateRequest;
 import cmc.rodi.domain.member.dto.MyPageResponse;
 import cmc.rodi.domain.member.dto.OnboardingRequest;
@@ -117,7 +118,8 @@ class MemberControllerTest {
                                 Level.ROOKIE,
                                 List.of("U_TURN", "INTERSECTION", "PARKING"),
                                 "골목길에 익숙해지기",
-                                3));
+                                3,
+                                new LevelProgressResponse(100.0, 50.0, 150.0, 50)));
 
         mockMvc.perform(get("/api/v1/members/me"))
                 .andExpect(status().isOk())
@@ -125,7 +127,11 @@ class MemberControllerTest {
                 .andExpect(jsonPath("$.data.level").value("ROOKIE"))
                 .andExpect(jsonPath("$.data.recommendationTags[0]").value("U_TURN"))
                 .andExpect(jsonPath("$.data.drivingGoal").value("골목길에 익숙해지기"))
-                .andExpect(jsonPath("$.data.savedPlaceCount").value(3));
+                .andExpect(jsonPath("$.data.savedPlaceCount").value(3))
+                .andExpect(jsonPath("$.data.levelProgress.totalDistanceKm").value(100.0))
+                .andExpect(jsonPath("$.data.levelProgress.currentLevelStartKm").value(50.0))
+                .andExpect(jsonPath("$.data.levelProgress.nextLevelKm").value(150.0))
+                .andExpect(jsonPath("$.data.levelProgress.progressPercent").value(50));
     }
 
     @Test

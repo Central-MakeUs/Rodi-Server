@@ -9,12 +9,13 @@
 | 2026-07-17 | Draft | 추천을 라벨 없는 `recommendationTags: List<String>` 고정 매핑으로 확정(한글은 문서에만). 미해결 질문 전부 해소 |
 | 2026-07-17 | Approved | 사용자 승인 — 구현 가능 |
 | 2026-07-17 | Implemented | 3개 API 구현 완료. `PlaceListItem.distanceFromMe`를 `Long`(nullable)로 변경해 저장 목록과 공용, 저장 목록은 bookmark.id 내림차순 커서(저장 시각순 등가) |
+| 2026-08-09 | Implemented | 응답에 `levelProgress` 추가 — 누적 주행거리 기반 레벨 게이지(스펙 012) |
 
 ## 배경 / 목적
 
 로그인한 회원이 자신의 프로필 요약을 확인하고(닉네임·레벨·추천 연습유형·운전목표·저장 수), 운전목표를 수정하며, 저장(북마크)한 장소 목록을 이어 보는 마이페이지를 제공한다. 회원 도메인(닉네임·레벨·운전목표)과 place 도메인(북마크)을 오가는 화면이다.
 
-**범위 밖**: 프로필 이미지, 온보딩 재작성, 레벨 재계산(레벨은 클라이언트가 산정해 저장 — [스펙 004](004-onboarding.md)), 운전기록/리뷰.
+**범위 밖**: 프로필 이미지, 온보딩 재작성, 운전기록/리뷰. *(레벨은 최초 배정만 클라이언트가 산정하고, 이후 승급은 서버가 누적 주행거리로 판단한다 — [스펙 004](004-onboarding.md)·[012](012-level-progress.md))*
 
 ## 요구사항
 
@@ -47,12 +48,21 @@
   "level": "ROOKIE",
   "recommendationTags": ["U_TURN", "INTERSECTION", "PARKING"],
   "drivingGoal": "골목길에 익숙해지기",
-  "savedPlaceCount": 12
+  "savedPlaceCount": 12,
+  "levelProgress": {
+    "totalDistanceKm": 100.0,
+    "currentLevelStartKm": 50.0,
+    "nextLevelKm": 150.0,
+    "progressPercent": 50
+  }
 }
 ```
 - `recommendationTags`: **레벨에 따라 서버가 결정**하는 추천 태그(문자열 배열, 고정 매핑, 아래 표). 저장 아님(레벨에서 파생). 한글 표시는 클라이언트가 담당(응답엔 코드만).
 - `drivingGoal`: 온보딩 때 저장한 값. 없으면 `null`.
 - `savedPlaceCount`: 북마크 수(회원 기준 COUNT, 코스+주차장 전체).
+- `levelProgress`: 다음 레벨까지의 게이지([스펙 012](012-level-progress.md)). 막대 길이는 `progressPercent`를 그대로 쓴다. km는 소수 첫째 자리 내림.
+  - **최상위(Navigator)** 는 목표가 없어 `nextLevelKm` 키가 빠지고 `progressPercent`는 100 고정이다. 누적 거리는 그 뒤로도 계속 쌓인다.
+  - 온보딩 전(레벨 없음)이면 진행률 0.
 
 **레벨 → 추천 태그 매핑** (한글 — 응답 코드)
 
