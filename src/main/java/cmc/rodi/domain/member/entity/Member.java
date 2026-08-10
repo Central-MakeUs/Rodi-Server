@@ -46,6 +46,10 @@ public class Member extends BaseEntity {
     @Column(name = "driving_goal", length = 30)
     private String drivingGoal;
 
+    /** 누적 인정 주행거리(m). 레벨 승급 기준이며 <b>차감되지 않는다</b> — 연습기록을 지워도 그대로다(스펙 012). */
+    @Column(name = "total_distance_meters", nullable = false)
+    private long totalDistanceMeters;
+
     /**
      * 홈 정렬 필터(스펙 007). 회원이 선택한 연습유형 집합(카테고리는 클라 전용이라 풀린 값만 저장). NULL/빈 값 = 필터 없음(거리순). 인증된 목록·검색에서만
      * 적용된다.
@@ -88,10 +92,43 @@ public class Member extends BaseEntity {
         this.nickname = nickname;
     }
 
-    /** 온보딩 완료 — 클라이언트가 계산한 레벨과 운전 목표를 반영한다. */
+    /**
+     * 온보딩 완료 — 클라이언트가 계산한 레벨과 운전 목표를 반영한다.
+     *
+     * <p>배정된 레벨의 최소 기준값으로 <b>누적 거리를 맞춘다</b>. 그러지 않으면 Rookie로 시작한 회원의 게이지가 Seed 구간부터 그려져, 이미 인정받은
+     * 경험이 없던 일이 된다(스펙 012).
+     */
     public void applyOnboarding(Level level, String drivingGoal) {
         this.level = level;
         this.drivingGoal = drivingGoal;
+        if (level != null) {
+            this.totalDistanceMeters = Math.max(this.totalDistanceMeters, level.getStartMeters());
+        }
+    }
+
+    /**
+     * 인정 주행거리를 누적하고 도달한 레벨로 올린다. <b>승급했으면 true</b>를 돌려줘 호출부가 응답에 실을 수 있게 한다.
+     *
+     * <p>한 번에 두 단계 이상 오를 수 있고(긴 코스), <b>레벨은 내려가지 않는다</b> — 온보딩으로 받은 레벨이 누적 거리보다 높을 수 있어서, 계산된 레벨이
+     * 현재보다 낮으면 무시한다.
+     */
+    public boolean addDistance(long meters) {
+        if (meters <= 0) {
+            return false;
+        }
+        this.totalDistanceMeters += meters;
+
+        Level reached = Level.of(this.totalDistanceMeters);
+        if (level == null || reached.ordinal() <= level.ordinal()) {
+            return false;
+        }
+        this.level = reached;
+        return true;
+    }
+
+    /** 현재 레벨 구간의 진행률(0~100). 레벨이 없으면(온보딩 전) 0. */
+    public int levelProgressPercent() {
+        return level == null ? 0 : level.progressPercent(totalDistanceMeters);
     }
 
     /** 운전 목표 수정(마이페이지). 빈값이면 목표 없음(null)으로 지운다. */

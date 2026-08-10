@@ -1,11 +1,13 @@
 package cmc.rodi.domain.practice.repository;
 
 import cmc.rodi.domain.practice.entity.MemberPractice;
+import jakarta.persistence.LockModeType;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -16,6 +18,16 @@ public interface MemberPracticeRepository extends JpaRepository<MemberPractice, 
     Optional<MemberPractice> findByMemberIdAndPlaceId(Long memberId, Long placeId);
 
     long countByMemberId(Long memberId);
+
+    /**
+     * 방문 기록용 연습 항목 조회(행 잠금). 쿨다운 판정 → 방문 기록을 한 트랜잭션에서 직렬화한다.
+     *
+     * <p>잠금이 없으면 동시에 들어온 두 요청이 서로의 미커밋 {@code visited_at}을 못 봐 둘 다 쿨다운을 통과하고, 회원 누적 거리가 두 번 더해진다
+     * (레벨은 되돌릴 수 없다). 잠금 순서는 <b>항상 연습 항목 → 회원</b>이다.
+     */
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("SELECT p FROM MemberPractice p WHERE p.id = :id")
+    Optional<MemberPractice> findByIdForUpdate(@Param("id") Long id);
 
     /**
      * 담기(멱등). 같은 장소를 동시에 두 번 담으려 하면 늦게 온 쪽이 {@code uq_member_practice}에 걸려 500이 되므로, 중복 판정을 DB에

@@ -3,6 +3,7 @@ package cmc.rodi.domain.member.service;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import cmc.rodi.domain.member.dto.LevelProgressResponse;
 import cmc.rodi.domain.member.dto.MemberUpdateRequest;
 import cmc.rodi.domain.member.dto.MyPageResponse;
 import cmc.rodi.domain.member.entity.Level;
@@ -64,6 +65,37 @@ class MemberProfileServiceIntegrationTest {
         assertThat(res.recommendationTags()).containsExactly("U_TURN", "INTERSECTION", "PARKING");
         assertThat(res.drivingGoal()).isEqualTo("골목길에 익숙해지기");
         assertThat(res.savedPlaceCount()).isEqualTo(2);
+        // 온보딩으로 Rookie를 받아 50km에서 시작 — 구간 0%
+        assertThat(res.levelProgress().totalDistanceKm()).isEqualTo(50.0);
+        assertThat(res.levelProgress().currentLevelStartKm()).isEqualTo(50.0);
+        assertThat(res.levelProgress().nextLevelKm()).isEqualTo(150.0);
+        assertThat(res.levelProgress().progressPercent()).isZero();
+    }
+
+    @Test
+    @DisplayName("레벨 게이지: 구간 절반을 달리면 50%, 최상위는 목표 없이 100%")
+    void 레벨_게이지() {
+        Member rookie = memberRepository.save(Member.createBySocial("gauge@kakao.com"));
+        rookie.applyOnboarding(Level.ROOKIE, null);
+        rookie.addDistance(50_000); // 50 → 100km, 루키 구간(50~150)의 절반
+        memberRepository.save(rookie); // 트랜잭션 밖이라 명시 저장
+
+        LevelProgressResponse progress =
+                memberProfileService.getMyPage(rookie.getId()).levelProgress();
+        assertThat(progress.totalDistanceKm()).isEqualTo(100.0);
+        assertThat(progress.progressPercent()).isEqualTo(50);
+
+        Member top = memberRepository.save(Member.createBySocial("top@kakao.com"));
+        top.applyOnboarding(Level.NAVIGATOR, null);
+        top.addDistance(212_400); // 600 → 812.4km, 최상위 위로도 계속 쌓인다
+        memberRepository.save(top);
+
+        LevelProgressResponse topProgress =
+                memberProfileService.getMyPage(top.getId()).levelProgress();
+        assertThat(topProgress.totalDistanceKm()).isEqualTo(812.4);
+        assertThat(topProgress.currentLevelStartKm()).isEqualTo(600.0);
+        assertThat(topProgress.nextLevelKm()).isNull(); // 목표 없음
+        assertThat(topProgress.progressPercent()).isEqualTo(100);
     }
 
     @Test

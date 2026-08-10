@@ -1,5 +1,6 @@
 package cmc.rodi.domain.member.service;
 
+import cmc.rodi.domain.member.dto.LevelProgressResponse;
 import cmc.rodi.domain.member.dto.MemberUpdateRequest;
 import cmc.rodi.domain.member.dto.MyPageResponse;
 import cmc.rodi.domain.member.entity.Member;
@@ -19,7 +20,7 @@ public class MemberProfileService {
     private final MemberRepository memberRepository;
     private final BookmarkQueryService bookmarkQueryService;
 
-    /** 마이페이지 조회. 닉네임·레벨·레벨별 추천 태그·운전목표 + 저장한 장소 수. 없는 회원이면 404. */
+    /** 마이페이지 조회. 닉네임·레벨·레벨별 추천 태그·운전목표 + 저장한 장소 수 + 레벨 게이지. 없는 회원이면 404. */
     @Transactional(readOnly = true)
     public MyPageResponse getMyPage(Long memberId) {
         Member member =
@@ -32,7 +33,8 @@ public class MemberProfileService {
                 member.getLevel(),
                 RecommendationTags.of(member.getLevel()),
                 member.getDrivingGoal(),
-                savedPlaceCount);
+                savedPlaceCount,
+                LevelProgressResponse.from(member));
     }
 
     /** 회원 부분 수정(현재: 운전 목표). 없는 회원이면 404. */

@@ -73,10 +73,24 @@ public class PracticeService {
     @Transactional
     public PracticeVisitResponse recordVisit(
             Long practiceId, Long memberId, PracticeVisitRequest request) {
-        MemberPractice practice = findOwnedPractice(practiceId, memberId);
+        // 행을 잠그고 읽어 [쿨다운 판정 → 방문 기록]을 직렬화한다. 잠금이 없으면 동시에 들어온 두 요청이
+        // 서로의 미커밋 visited_at을 못 봐 둘 다 통과하고 누적 거리가 두 번 더해진다. 순서는 항목 → 회원.
+        MemberPractice practice = findOwnedPracticeForUpdate(practiceId, memberId);
+        LocalDateTime now = LocalDateTime.now();
+
+        // 재시도·연타는 같은 방문으로 본다 — 거리가 레벨로 환산되고 레벨은 되돌릴 수 없다(ADR 0012).
+        // 오류로 돌려주면 앱이 다시 시도하므로, 현재 상태를 그대로 200으로 준다.
+        if (practice.isWithinVisitCooldown(now)) {
+            return PracticeVisitResponse.unchanged(practice, findMember(memberId));
+        }
+
         int certifiedMeters = request.metersOrZero();
-        boolean certifiedNow = practice.markVisited(LocalDateTime.now(), certifiedMeters);
-        return PracticeVisitResponse.of(practice, certifiedMeters, certifiedNow);
+        boolean certifiedNow = practice.markVisited(now, certifiedMeters);
+
+        // 누적은 읽고-더하고-쓰기라 같은 회원의 방문이 겹치면 한쪽이 사라진다. 행을 잠가 직렬화한다.
+        Member member = findMemberForUpdate(memberId);
+        boolean levelUp = member.addDistance(practice.accruableMeters(certifiedMeters));
+        return PracticeVisitResponse.of(practice, certifiedMeters, certifiedNow, member, levelUp);
     }
 
     /** 미방문 이유 폼. 문구·순서·직접입력 여부를 서버가 정의해 내려준다(앱 배포 없이 문구 변경 가능). 저장이 없어 조회 트랜잭션도 열지 않는다. */
@@ -118,6 +132,27 @@ public class PracticeService {
                             requireOwner(practice, memberId);
                             memberPracticeRepository.delete(practice);
                         });
+    }
+
+    private Member findMember(Long memberId) {
+        return memberRepository
+                .findById(memberId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.ENTITY_NOT_FOUND));
+    }
+
+    private Member findMemberForUpdate(Long memberId) {
+        return memberRepository
+                .findByIdForUpdate(memberId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.ENTITY_NOT_FOUND));
+    }
+
+    private MemberPractice findOwnedPracticeForUpdate(Long practiceId, Long memberId) {
+        MemberPractice practice =
+                memberPracticeRepository
+                        .findByIdForUpdate(practiceId)
+                        .orElseThrow(() -> new BusinessException(ErrorCode.ENTITY_NOT_FOUND));
+        requireOwner(practice, memberId);
+        return practice;
     }
 
     private MemberPractice findOwnedPractice(Long practiceId, Long memberId) {

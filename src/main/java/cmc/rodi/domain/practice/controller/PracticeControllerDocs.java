@@ -39,11 +39,16 @@ public interface PracticeControllerDocs {
             summary = "방문 기록(다녀왔어요)",
             description =
                     "RV-01의 \"다녀왔어요\"를 기록한다. 상태는 보내지 않는다 — 이 호출 자체가 방문이므로 서버가 VISITED로 정한다."
-                            + " 부를 때마다 방문이 하나씩 쌓이는 비멱등 연산이라 하위 리소스 POST다(중복 호출 방지는 클라이언트 몫)."
+                            + " 부를 때마다 방문이 하나씩 쌓이는 비멱등 연산이라 하위 리소스 POST다."
                             + " 연습 횟수 +1, 방문 시각 기록. 앱이 GPS로 측정한 인정 주행거리"
                             + "(certifiedDistanceMeters)를 보내면 서버가 필요 거리(min(코스거리 × 40%, 5km))와"
                             + " 비교해 방문 인증 여부를 판정한다. 측정 없이 눌렀다면 거리를 생략하며 인증되지 않는다."
-                            + " 타인 항목은 403. JWT 필요.")
+                            + " 같은 거리가 회원의 누적 주행거리에도 쌓여 레벨이 오를 수 있다 — 이때 응답의"
+                            + " levelUp·newLevel로 알 수 있다. 누적에는 코스 전체 거리라는 상한이 걸려,"
+                            + " 측정값이 그보다 크면 코스 거리까지만 반영된다."
+                            + " 재시도·연타는 서버가 흡수한다 — 직전 방문 후 10분 안의 호출은 같은 방문으로 보고 아무것도 바꾸지 않으며,"
+                            + " 오류가 아니라 200에 현재 상태를 담아 준다(addedCertifiedDistanceMeters=0, isCertifiedNow=false,"
+                            + " levelUp=false). 타인 항목은 403. JWT 필요.")
     ApiResponse<PracticeVisitResponse> recordVisit(
             @Parameter(description = "연습 항목 id") Long practiceId,
             @Parameter(hidden = true) Long memberId,

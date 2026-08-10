@@ -48,4 +48,26 @@ class VisitCertificationTest {
         assertThat(VisitCertification.isCertified(null, 10_000)).isFalse();
         assertThat(VisitCertification.isCertified(0, 10_000)).isFalse();
     }
+
+    @ParameterizedTest(name = "코스 {0}m + 측정 {1}m → 누적 {2}m")
+    @CsvSource({
+        "5000, 2100, 2100", // 코스 안쪽이면 그대로
+        "5000, 5000, 5000", // 딱 코스 길이
+        "5000, 6000, 5000", // 왕복·이탈 후 복귀 — 코스 값어치까지만
+        "5000, 600000, 5000", // 버그·조작 차단
+        "40000, 40000, 40000", // 긴 코스는 그만큼 인정(인증 상한 5km와 무관)
+        "5000, 0, 0" // 측정 없음
+    })
+    @DisplayName("레벨에 누적되는 거리는 코스 전체 거리를 넘지 않는다")
+    void 누적_상한(int courseMeters, int certifiedMeters, long expected) {
+        assertThat(VisitCertification.accruableMeters(courseMeters, certifiedMeters))
+                .isEqualTo(expected);
+    }
+
+    @Test
+    @DisplayName("주행거리가 없는 장소(주차장)는 아무리 보내도 누적되지 않는다")
+    void 주차장_누적_없음() {
+        assertThat(VisitCertification.accruableMeters(null, 10_000)).isZero();
+        assertThat(VisitCertification.accruableMeters(0, 10_000)).isZero();
+    }
 }

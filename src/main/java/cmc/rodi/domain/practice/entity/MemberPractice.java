@@ -1,7 +1,6 @@
 package cmc.rodi.domain.practice.entity;
 
 import cmc.rodi.domain.member.entity.Member;
-import cmc.rodi.domain.place.entity.Course;
 import cmc.rodi.domain.place.entity.Place;
 import cmc.rodi.global.common.entity.BaseEntity;
 import jakarta.persistence.Column;
@@ -35,6 +34,9 @@ import lombok.NoArgsConstructor;
         name = "member_practice",
         uniqueConstraints = @UniqueConstraint(columnNames = {"member_id", "place_id"}))
 public class MemberPractice extends BaseEntity {
+
+    /** 직전 방문 후 이 시간 안의 재호출은 같은 방문으로 본다(재시도·연타 흡수, ADR 0012). */
+    public static final int VISIT_COOLDOWN_MINUTES = 10;
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -121,13 +123,29 @@ public class MemberPractice extends BaseEntity {
         return certifiedNow;
     }
 
+    /**
+     * 직전 방문 직후의 중복 호출인지. 방문 기록은 앱이 이동 추적 결과로 자동 호출해 재시도·연타가 그대로 들어오는데, 거리가 레벨로 환산되고 레벨은 내려가지 않아 되돌릴
+     * 수 없다(ADR 0012).
+     *
+     * <p>같은 코스를 {@value #VISIT_COOLDOWN_MINUTES}분 안에 두 번 완주할 일은 없다고 보고, 그 안의 호출은 같은 방문으로 취급한다.
+     */
+    public boolean isWithinVisitCooldown(LocalDateTime now) {
+        return visitedAt != null && visitedAt.plusMinutes(VISIT_COOLDOWN_MINUTES).isAfter(now);
+    }
+
     /** 이번 방문의 인증에 필요한 거리(m). 주행거리가 없는 장소(주차장)는 0 — 인증 대상이 아니다. */
     public int requiredCertificationMeters() {
         return VisitCertification.requiredMeters(courseDistanceMeters());
     }
 
+    /** 이번 방문에서 레벨 누적에 반영할 거리(m). 코스 전체 거리를 넘지 않고, 주차장은 0(스펙 012). */
+    public long accruableMeters(int certifiedMeters) {
+        return VisitCertification.accruableMeters(courseDistanceMeters(), certifiedMeters);
+    }
+
+    /** 프록시로 와도 안전하도록 다형 메서드로 읽는다({@link Place#drivingDistanceMeters()} 주석 참고). */
     private Integer courseDistanceMeters() {
-        return place instanceof Course course ? course.getDistanceMeters() : null;
+        return place.drivingDistanceMeters();
     }
 
     /** 미방문 처리. 사유는 별도 API로 뒤이어 제출되므로 여기서는 상태만 바꾼다. */

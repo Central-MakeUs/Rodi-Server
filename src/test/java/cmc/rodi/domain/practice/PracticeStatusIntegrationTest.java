@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import cmc.rodi.domain.member.entity.Level;
 import cmc.rodi.domain.member.entity.Member;
 import cmc.rodi.domain.member.repository.MemberRepository;
 import cmc.rodi.domain.place.entity.Course;
@@ -19,6 +20,9 @@ import cmc.rodi.domain.practice.repository.MemberPracticeRepository;
 import cmc.rodi.domain.practice.service.PracticeService;
 import cmc.rodi.global.exception.BusinessException;
 import cmc.rodi.support.TestcontainersConfiguration;
+import jakarta.persistence.EntityManager;
+import jakarta.persistence.PersistenceContext;
+import java.time.LocalDateTime;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.locationtech.jts.geom.Coordinate;
@@ -39,6 +43,7 @@ class PracticeStatusIntegrationTest {
 
     @Autowired PracticeService practiceService;
     @Autowired MemberPracticeRepository memberPracticeRepository;
+    @PersistenceContext EntityManager em;
     @Autowired CourseRepository courseRepository;
     @Autowired MemberRepository memberRepository;
 
@@ -58,6 +63,32 @@ class PracticeStatusIntegrationTest {
         return practiceService
                 .register(seedCourse(courseName).getId(), member.getId())
                 .practiceId();
+    }
+
+    private Course seedCourseWithDistance(String name, int distanceMeters) {
+        return courseRepository.save(
+                Course.builder()
+                        .name(name)
+                        .location(GEO.createPoint(new Coordinate(127.0, 37.5)))
+                        .distanceMeters(distanceMeters)
+                        .build());
+    }
+
+    /** 방문 쿨다운(10분)을 지나간 것으로 만든다. 실제로 기다릴 수 없으니 직전 방문 시각을 뒤로 민다 — 서로 다른 방문을 검증하는 테스트에 필요하다. */
+    private void expireCooldown(Long practiceId) {
+        em.flush(); // 직전 방문의 변경을 먼저 내보내야 아래 UPDATE가 그 위에 얹힌다
+        em.createNativeQuery("UPDATE member_practice SET visited_at = ?1 WHERE id = ?2")
+                .setParameter(
+                        1,
+                        LocalDateTime.now().minusMinutes(MemberPractice.VISIT_COOLDOWN_MINUTES + 1))
+                .setParameter(2, practiceId)
+                .executeUpdate();
+        em.clear();
+        System.out.println(
+                ">>> after expire visitedAt="
+                        + memberPracticeRepository.findById(practiceId).orElseThrow().getVisitedAt()
+                        + " now="
+                        + LocalDateTime.now());
     }
 
     private static PracticeVisitRequest visited() {
@@ -84,7 +115,8 @@ class PracticeStatusIntegrationTest {
         assertThat(after.getVisitCount()).isEqualTo(1);
         assertThat(after.getVisitedAt()).isNotNull();
 
-        // 같은 코스 재연습 — 클라이언트가 다시 호출하면 횟수가 또 오른다(중복 방지는 클라 몫)
+        // 같은 코스 재연습 — 쿨다운이 지난 뒤 다시 다녀오면 횟수가 또 오른다
+        expireCooldown(practiceId);
         practiceService.recordVisit(practiceId, me.getId(), visited());
         assertThat(memberPracticeRepository.findById(practiceId).orElseThrow().getVisitCount())
                 .isEqualTo(2);
@@ -111,6 +143,7 @@ class PracticeStatusIntegrationTest {
         assertThat(partial.verified()).isFalse();
 
         // 2km — 도달해 인증
+        expireCooldown(practiceId);
         PracticeVisitResponse certified =
                 practiceService.recordVisit(practiceId, me.getId(), visited(2_000));
         assertThat(certified.certifiedNow()).isTrue();
@@ -158,11 +191,136 @@ class PracticeStatusIntegrationTest {
         Long practiceId = practiceService.register(course.getId(), me.getId()).practiceId();
 
         practiceService.recordVisit(practiceId, me.getId(), visited(800)); // 필요 800m → 인증
+        expireCooldown(practiceId);
         PracticeVisitResponse second =
                 practiceService.recordVisit(practiceId, me.getId(), visited(100));
 
         assertThat(second.certifiedNow()).isFalse(); // 이번 회차는 미달
         assertThat(second.verified()).isTrue(); // 항목은 여전히 인증됨
+    }
+
+    @Test
+    @DisplayName("방문을 기록하면 인정 주행거리가 회원에게 누적되고 기준에 닿으면 레벨이 오른다")
+    void 레벨_누적과_승급() {
+        Member me = seedMember("levelup@kakao.com");
+        me.applyOnboarding(Level.SEED, null); // 0km에서 시작
+        Course course = seedCourseWithDistance("승급 코스", 40_000);
+        Long practiceId = practiceService.register(course.getId(), me.getId()).practiceId();
+
+        PracticeVisitResponse first =
+                practiceService.recordVisit(practiceId, me.getId(), visited(40_000));
+        assertThat(first.totalDistanceKm()).isEqualTo(40.0);
+        assertThat(first.levelUp()).isFalse(); // 50km 미달
+        assertThat(first.newLevel()).isNull();
+
+        expireCooldown(practiceId);
+        PracticeVisitResponse second =
+                practiceService.recordVisit(practiceId, me.getId(), visited(40_000));
+        assertThat(second.totalDistanceKm()).isEqualTo(80.0);
+        assertThat(second.levelUp()).isTrue();
+        assertThat(second.newLevel()).isEqualTo(Level.ROOKIE);
+        assertThat(memberRepository.findById(me.getId()).orElseThrow().getLevel())
+                .isEqualTo(Level.ROOKIE);
+    }
+
+    @Test
+    @DisplayName("측정값이 코스 거리를 넘어도 코스 거리까지만 누적된다")
+    void 누적_상한() {
+        Member me = seedMember("cap@kakao.com");
+        me.applyOnboarding(Level.SEED, null);
+        Course course = seedCourseWithDistance("상한 코스", 5_000);
+        Long practiceId = practiceService.register(course.getId(), me.getId()).practiceId();
+
+        PracticeVisitResponse response =
+                practiceService.recordVisit(practiceId, me.getId(), visited(600_000));
+
+        assertThat(response.addedCertifiedDistanceMeters()).isEqualTo(600_000); // 인증 판정용 원값
+        assertThat(response.totalDistanceKm()).isEqualTo(5.0); // 누적은 코스 거리까지
+        assertThat(response.levelUp()).isFalse(); // 한 방에 Navigator로 뛰지 않는다
+    }
+
+    @Test
+    @DisplayName("주차장 방문과 측정 없는 방문은 누적 거리를 바꾸지 않는다")
+    void 누적되지_않는_방문() {
+        Member me = seedMember("nogain@kakao.com");
+        me.applyOnboarding(Level.ROOKIE, null); // 50km에서 시작
+        Long parkingPracticeId = seedPractice(me, "주차장 대체 코스"); // distanceMeters 없음
+        Course course = seedCourseWithDistance("측정 없는 코스", 5_000);
+        Long practiceId = practiceService.register(course.getId(), me.getId()).practiceId();
+
+        assertThat(
+                        practiceService
+                                .recordVisit(parkingPracticeId, me.getId(), visited(3_000))
+                                .totalDistanceKm())
+                .isEqualTo(50.0);
+        assertThat(practiceService.recordVisit(practiceId, me.getId(), visited()).totalDistanceKm())
+                .isEqualTo(50.0);
+    }
+
+    @Test
+    @DisplayName("직전 방문 직후의 재호출은 아무것도 바꾸지 않고 현재 상태를 돌려준다")
+    void 쿨다운() {
+        Member me = seedMember("cooldown@kakao.com");
+        me.applyOnboarding(Level.SEED, null);
+        Course course = seedCourseWithDistance("쿨다운 코스", 5_000);
+        Long practiceId = practiceService.register(course.getId(), me.getId()).practiceId();
+
+        practiceService.recordVisit(practiceId, me.getId(), visited(5_000));
+
+        // 재시도가 곧바로 들어온 상황
+        PracticeVisitResponse retry =
+                practiceService.recordVisit(practiceId, me.getId(), visited(5_000));
+
+        assertThat(retry.visitCount()).isEqualTo(1); // 횟수 그대로
+        assertThat(retry.addedCertifiedDistanceMeters()).isZero();
+        assertThat(retry.certifiedNow()).isFalse();
+        assertThat(retry.verified()).isTrue(); // 인증 배지는 사실 그대로
+        assertThat(retry.totalDistanceKm()).isEqualTo(5.0); // 두 배로 쌓이지 않는다
+        assertThat(retry.levelUp()).isFalse();
+
+        MemberPractice after = memberPracticeRepository.findById(practiceId).orElseThrow();
+        assertThat(after.getVisitCount()).isEqualTo(1);
+        assertThat(after.getCertifiedDistanceMeters()).isEqualTo(5_000);
+
+        // 쿨다운이 지나면 다시 반영된다
+        expireCooldown(practiceId);
+        PracticeVisitResponse later =
+                practiceService.recordVisit(practiceId, me.getId(), visited(5_000));
+        System.out.println(
+                ">>> member dist="
+                        + memberRepository
+                                .findById(me.getId())
+                                .orElseThrow()
+                                .getTotalDistanceMeters()
+                        + " resp="
+                        + later.totalDistanceKm()
+                        + " added="
+                        + later.addedCertifiedDistanceMeters()
+                        + " count="
+                        + later.visitCount());
+        assertThat(later.visitCount()).isEqualTo(2);
+        assertThat(later.totalDistanceKm()).isEqualTo(10.0);
+    }
+
+    @Test
+    @DisplayName("영속성 컨텍스트가 비어 place가 프록시로 와도 코스 거리를 읽어 인증·누적한다")
+    void 프록시_코스_거리() {
+        Member me = seedMember("proxy@kakao.com");
+        me.applyOnboarding(Level.SEED, null);
+        Course course = seedCourseWithDistance("프록시 코스", 5_000);
+        Long practiceId = practiceService.register(course.getId(), me.getId()).practiceId();
+
+        // 컨텍스트를 비우면 이후 조회에서 place가 지연 로딩 프록시로 온다 —
+        // 하위 타입 검사로 코스 거리를 읽으면 여기서 조용히 0이 된다.
+        em.flush();
+        em.clear();
+
+        PracticeVisitResponse response =
+                practiceService.recordVisit(practiceId, me.getId(), visited(5_000));
+
+        assertThat(response.requiredDistanceMeters()).isEqualTo(2_000); // 5km × 40%
+        assertThat(response.certifiedNow()).isTrue();
+        assertThat(response.totalDistanceKm()).isEqualTo(5.0);
     }
 
     @Test
