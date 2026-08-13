@@ -200,6 +200,12 @@ class PracticeIntegrationTest {
         assertThat(items).extracting(PracticeItem::practiceId).containsExactly(olderId, newerId);
         assertThat(items.get(0).status()).isEqualTo(PracticeStatus.VISITED);
         assertThat(items.get(0).visitCount()).isEqualTo(1);
+
+        // 담기만 한 항목도 카드에 그릴 날짜가 있어야 한다 — 방문 여부는 status로 구분한다
+        assertThat(items).extracting(PracticeItem::lastActivityAt).doesNotContainNull();
+        assertThat(items.get(1).status()).isEqualTo(PracticeStatus.PLANNED);
+        assertThat(items.get(1).lastActivityAt())
+                .isEqualTo(memberPracticeRepository.findById(newerId).orElseThrow().getCreatedAt());
     }
 
     @Test
