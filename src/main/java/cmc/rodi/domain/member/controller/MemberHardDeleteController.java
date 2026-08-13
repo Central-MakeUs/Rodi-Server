@@ -4,6 +4,7 @@ import cmc.rodi.domain.member.service.MemberHardDeleteService;
 import cmc.rodi.global.auth.resolver.CurrentMember;
 import cmc.rodi.global.common.response.ApiResponse;
 import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Profile;
@@ -32,7 +33,9 @@ public class MemberHardDeleteController {
                             + " 토큰의 본인 계정만 지운다(회원 id를 받지 않는다)."
                             + " 운영 프로파일에서는 이 엔드포인트가 아예 등록되지 않는다. JWT 필요.")
     @DeleteMapping("/me/hard")
-    public ApiResponse<Void> hardDelete(@CurrentMember Long memberId) {
+    public ApiResponse<Void> hardDelete(
+            // 토큰에서 꺼내는 값이라 요청 파라미터가 아니다. 감추지 않으면 Swagger가 쿼리 파라미터로 그린다
+            @Parameter(hidden = true) @CurrentMember Long memberId) {
         memberHardDeleteService.hardDelete(memberId);
         return ApiResponse.success(null);
     }

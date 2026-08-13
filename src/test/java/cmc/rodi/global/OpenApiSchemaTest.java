@@ -7,6 +7,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import cmc.rodi.support.TestcontainersConfiguration;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import java.util.ArrayList;
+import java.util.List;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -43,6 +45,49 @@ class OpenApiSchemaTest {
                 .doesNotContain("skipDetailConsistent")
                 .doesNotContain("detailConsistent")
                 .doesNotContain("placeIdConsistent");
+    }
+
+    @Test
+    @DisplayName("@CurrentMember는 요청 파라미터로 노출되지 않는다")
+    void 현재회원_비노출() throws Exception {
+        JsonNode apiDocs = objectMapper.readTree(fetchApiDocs());
+
+        // 토큰에서 꺼내는 값이라 클라이언트가 보낼 것이 아닌데, @Parameter(hidden=true)를 빠뜨리면
+        // springdoc이 required 쿼리 파라미터로 그려 Swagger에서 호출 자체가 막힌다.
+        // 경로 변수 memberId(차단 대상 등)는 진짜 요청값이라 대상이 아니다 — in=query만 본다.
+        List<String> exposed = new ArrayList<>();
+        apiDocs.path("paths")
+                .properties()
+                .forEach(
+                        path ->
+                                path.getValue()
+                                        .properties()
+                                        .forEach(
+                                                operation -> {
+                                                    for (JsonNode parameter :
+                                                            operation
+                                                                    .getValue()
+                                                                    .path("parameters")) {
+                                                        if ("memberId"
+                                                                        .equals(
+                                                                                parameter
+                                                                                        .path(
+                                                                                                "name")
+                                                                                        .asText())
+                                                                && "query"
+                                                                        .equals(
+                                                                                parameter
+                                                                                        .path("in")
+                                                                                        .asText())) {
+                                                            exposed.add(
+                                                                    operation.getKey().toUpperCase()
+                                                                            + " "
+                                                                            + path.getKey());
+                                                        }
+                                                    }
+                                                }));
+
+        assertThat(exposed).as("@Parameter(hidden = true)가 빠진 엔드포인트").isEmpty();
     }
 
     @Test
