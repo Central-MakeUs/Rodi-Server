@@ -117,18 +117,27 @@ public class MemberPractice extends BaseEntity {
      * @return 이번 방문으로 인증되었는지
      */
     public boolean markVisited(LocalDateTime now, int certifiedMeters, Level currentLevel) {
+        int meters = countableMeters(certifiedMeters);
         this.status = PracticeStatus.VISITED;
         this.visitCount += 1;
         this.visitedAt = now;
-        this.certifiedDistanceMeters += certifiedMeters;
+        this.certifiedDistanceMeters += meters;
         clearSkipReason();
 
-        boolean certifiedNow =
-                VisitCertification.isCertified(courseDistanceMeters(), certifiedMeters);
+        boolean certifiedNow = VisitCertification.isCertified(courseDistanceMeters(), meters);
         if (certifiedNow) {
             this.verifiedLevel = currentLevel;
         }
         return certifiedNow;
+    }
+
+    /**
+     * 이 장소에서 의미가 있는 측정값(m). 주행거리가 없는 장소(주차장)는 <b>0</b>이다 — 인증도 레벨 누적도 성립하지 않는데 값만 쌓이면, 아무 데도 쓰이지 않는
+     * 수치가 컬럼과 응답에 남는다.
+     */
+    public int countableMeters(int certifiedMeters) {
+        Integer distance = courseDistanceMeters();
+        return (distance == null || distance <= 0) ? 0 : Math.max(0, certifiedMeters);
     }
 
     /** 그 레벨에서 인증받은 항목인지 — 후기의 인증 배지 판정 기준. */

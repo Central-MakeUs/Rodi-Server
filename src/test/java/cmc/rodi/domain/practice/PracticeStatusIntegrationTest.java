@@ -226,6 +226,26 @@ class PracticeStatusIntegrationTest {
     }
 
     @Test
+    @DisplayName("주행거리가 없는 장소는 측정값을 보내도 0으로 기록된다")
+    void 주차장_측정값_무시() {
+        Member me = seedMember("parking@kakao.com");
+        me.applyOnboarding(Level.ROOKIE, null);
+        Long practiceId = seedPractice(me, "주차장 대체 코스"); // distanceMeters 없음
+
+        PracticeVisitResponse response =
+                practiceService.recordVisit(practiceId, me.getId(), visited(3_000));
+
+        assertThat(response.visitCount()).isEqualTo(1); // 방문 자체는 기록된다
+        assertThat(response.addedCertifiedDistanceMeters()).isZero();
+        assertThat(response.certifiedNow()).isFalse();
+
+        MemberPractice after = memberPracticeRepository.findById(practiceId).orElseThrow();
+        // 인증·레벨 어디에도 쓰이지 않는 값이라 컬럼에도 쌓지 않는다
+        assertThat(after.getCertifiedDistanceMeters()).isZero();
+        assertThat(after.getVerifiedLevel()).isNull();
+    }
+
+    @Test
     @DisplayName("인증과 동시에 승급하면 인증은 승급 전 레벨로 기록된다")
     void 승급_전_레벨로_인증() {
         Member me = seedMember("promote@kakao.com");

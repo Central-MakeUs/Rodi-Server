@@ -18,7 +18,8 @@ public record PracticeVisitResponse(
         @Schema(description = "지금까지 다녀온 횟수") int visitCount,
         @Schema(
                         description =
-                                "이번 방문에서 이 항목에 기록된 인정 주행거리(m) — 앱이 보낸 측정값 그대로다."
+                                "이번 방문에서 이 항목에 기록된 인정 주행거리(m). 앱이 보낸 측정값 그대로이며,"
+                                        + " 주행거리가 없는 장소(주차장)는 값을 보내도 0이다."
                                         + " 레벨에 누적되는 값은 코스 전체 거리로 잘려 이보다 작을 수 있다"
                                         + "(totalDistanceKm의 증가분과 다를 수 있다는 뜻).")
                 int addedCertifiedDistanceMeters,

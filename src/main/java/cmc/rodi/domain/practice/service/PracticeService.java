@@ -89,7 +89,8 @@ public class PracticeService {
 
         // 레벨은 아래 addDistance에서 오를 수 있다. 인증은 이 주행을 시작한 레벨의 것이므로
         // 승급 전 값을 먼저 읽어 넘긴다 — 새 레벨의 인증은 새 레벨에서 다시 받아야 한다(스펙 013).
-        int certifiedMeters = request.metersOrZero();
+        // 주차장처럼 주행거리가 없는 장소는 측정값을 0으로 본다 — 인증·누적 어디에도 쓰이지 않는 값이다.
+        int certifiedMeters = practice.countableMeters(request.metersOrZero());
         boolean certifiedNow = practice.markVisited(now, certifiedMeters, member.getLevel());
         boolean levelUp = member.addDistance(practice.accruableMeters(certifiedMeters));
         return PracticeVisitResponse.of(practice, certifiedMeters, certifiedNow, member, levelUp);
