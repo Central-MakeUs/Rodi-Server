@@ -1,7 +1,6 @@
 package cmc.rodi.domain.practice;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import cmc.rodi.domain.member.entity.Level;
@@ -33,7 +32,7 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.annotation.Import;
 import org.springframework.transaction.annotation.Transactional;
 
-/** 방문 기록·미방문 사유·목록 제거 — 횟수 누적, 인증 판정, 사유 수정 불가, 소유자 검사, 멱등 삭제. */
+/** 방문 기록·미방문 사유 — 횟수 누적, 인증 판정(레벨별), 사유 수정 불가, 소유자 검사. */
 @SpringBootTest
 @Transactional
 @Import(TestcontainersConfiguration.class)
@@ -421,7 +420,7 @@ class PracticeStatusIntegrationTest {
     }
 
     @Test
-    @DisplayName("타인 항목의 방문 기록·삭제는 403")
+    @DisplayName("타인 항목의 방문 기록은 403")
     void 소유자_검사() {
         Member owner = seedMember("owner2@kakao.com");
         Member other = seedMember("other2@kakao.com");
@@ -431,24 +430,5 @@ class PracticeStatusIntegrationTest {
                 .isInstanceOf(BusinessException.class)
                 .extracting(e -> ((BusinessException) e).getErrorCode())
                 .isEqualTo(PracticeErrorCode.NOT_PRACTICE_OWNER);
-        assertThatThrownBy(() -> practiceService.delete(practiceId, other.getId()))
-                .isInstanceOf(BusinessException.class)
-                .extracting(e -> ((BusinessException) e).getErrorCode())
-                .isEqualTo(PracticeErrorCode.NOT_PRACTICE_OWNER);
-    }
-
-    @Test
-    @DisplayName("삭제는 멱등 — 없는 항목을 지워도 성공한다")
-    void 삭제_멱등() {
-        Member me = seedMember("del2@kakao.com");
-        Long practiceId = seedPractice(me, "지울 코스");
-
-        practiceService.delete(practiceId, me.getId());
-        assertThat(memberPracticeRepository.findById(practiceId)).isEmpty();
-
-        assertThatCode(() -> practiceService.delete(practiceId, me.getId()))
-                .doesNotThrowAnyException();
-        assertThatCode(() -> practiceService.delete(999_999L, me.getId()))
-                .doesNotThrowAnyException();
     }
 }

@@ -11,6 +11,7 @@ import cmc.rodi.domain.place.entity.Course;
 import cmc.rodi.domain.place.repository.CourseRepository;
 import cmc.rodi.domain.practice.dto.PracticeVisitRequest;
 import cmc.rodi.domain.practice.entity.MemberPractice;
+import cmc.rodi.domain.practice.repository.MemberPracticeRepository;
 import cmc.rodi.domain.practice.service.PracticeService;
 import cmc.rodi.domain.review.dto.ReviewReportRequest;
 import cmc.rodi.domain.review.dto.ReviewRequest;
@@ -49,6 +50,7 @@ class ReviewWriteIntegrationTest {
 
     @Autowired ReviewService reviewService;
     @Autowired PracticeService practiceService;
+    @Autowired MemberPracticeRepository memberPracticeRepository;
     @Autowired ReviewRepository reviewRepository;
     @Autowired ReviewReportRepository reviewReportRepository;
     @Autowired CourseRepository courseRepository;
@@ -205,7 +207,7 @@ class ReviewWriteIntegrationTest {
         practiceService.recordVisit(practiceId, me.getId(), new PracticeVisitRequest(800));
         Long reviewId = reviewService.create(course.getId(), me.getId(), request("완주")).reviewId();
 
-        practiceService.delete(practiceId, me.getId());
+        memberPracticeRepository.deleteById(practiceId); // 연습 항목이 사라져도 배지는 남아야 한다
 
         assertThat(reviewRepository.findById(reviewId).orElseThrow().isVerifiedVisit()).isTrue();
     }

@@ -121,11 +121,4 @@ public interface PracticeControllerDocs {
             @Parameter(description = "연습 항목 id") Long practiceId,
             @Parameter(hidden = true) Long memberId,
             PracticeSkipReasonRequest request);
-
-    @Operation(
-            summary = "연습 목록에서 제거",
-            description = "연습 항목을 삭제한다(멱등, 없어도 200). 타인 항목은 403. JWT 필요.")
-    ApiResponse<Void> delete(
-            @Parameter(description = "연습 항목 id") Long practiceId,
-            @Parameter(hidden = true) Long memberId);
 }

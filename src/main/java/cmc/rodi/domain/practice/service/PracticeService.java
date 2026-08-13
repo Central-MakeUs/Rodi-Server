@@ -23,7 +23,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-/** 연습 목록 담기·제거와 방문 기록(다녀왔어요·안 했어요). 조회는 {@link PracticeQueryService}. */
+/** 연습 목록 담기와 방문 기록(다녀왔어요·안 했어요). 조회는 {@link PracticeQueryService}. */
 @Service
 @RequiredArgsConstructor
 public class PracticeService {
@@ -123,18 +123,6 @@ public class PracticeService {
         }
         practice.markNotVisited();
         practice.applySkipReason(request.reason(), request.detail());
-    }
-
-    /** 목록에서 제거(멱등). 본인 항목만 지울 수 있고, 없으면 그대로 성공으로 본다. */
-    @Transactional
-    public void delete(Long practiceId, Long memberId) {
-        memberPracticeRepository
-                .findById(practiceId)
-                .ifPresent(
-                        practice -> {
-                            requireOwner(practice, memberId);
-                            memberPracticeRepository.delete(practice);
-                        });
     }
 
     private Member findMember(Long memberId) {

@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import cmc.rodi.domain.member.entity.Level;
@@ -244,7 +245,27 @@ class PracticeIntegrationTest {
                                 .contentType(MediaType.APPLICATION_JSON)
                                 .content("{\"reason\": \"TOO_FAR\"}"))
                 .andExpect(status().isUnauthorized());
-        mockMvc.perform(delete("/api/v1/practices/1")).andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    @DisplayName("연습기록 삭제 엔드포인트는 더 이상 없다")
+    void 삭제_엔드포인트_제거() throws Exception {
+        Member me = seedMember("gone@kakao.com");
+        Long practiceId =
+                practiceService.register(seedCourse("남는 코스").getId(), me.getId()).practiceId();
+        SecurityContextHolder.getContext()
+                .setAuthentication(
+                        new UsernamePasswordAuthenticationToken(me.getId(), null, List.of()));
+        try {
+            // 인증된 요청인데도 매핑이 없어야 한다 — 401로는 제거 여부를 구분할 수 없다.
+            // 이 경로에 남은 메서드가 없어 경로째로 사라지므로 405가 아니라 404다.
+            mockMvc.perform(delete("/api/v1/practices/" + practiceId))
+                    .andExpect(status().isNotFound())
+                    .andExpect(jsonPath("$.code").value("COMMON_404"));
+            assertThat(memberPracticeRepository.findById(practiceId)).isPresent();
+        } finally {
+            SecurityContextHolder.clearContext();
+        }
     }
 
     @Test
