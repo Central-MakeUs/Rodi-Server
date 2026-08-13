@@ -54,7 +54,7 @@ class AuthControllerTest {
         when(authService.login(eq(SocialProvider.KAKAO), eq("kakao-token")))
                 .thenReturn(
                         SocialLoginResponse.success(
-                                new Tokens("access-jwt", "refresh-raw"), true, "차근차근 토끼"));
+                                new Tokens("access-jwt", "refresh-raw"), true, false, "차근차근 토끼"));
 
         mockMvc.perform(
                         post("/api/v1/auth/oauth/kakao")
@@ -67,6 +67,7 @@ class AuthControllerTest {
                 .andExpect(jsonPath("$.data.accessToken").value("access-jwt"))
                 .andExpect(jsonPath("$.data.refreshToken").value("refresh-raw"))
                 .andExpect(jsonPath("$.data.isNewMember").value(true))
+                .andExpect(jsonPath("$.data.isOnboarded").value(false)) // 갓 가입해 온보딩 전
                 .andExpect(jsonPath("$.data.nickname").value("차근차근 토끼"));
     }
 

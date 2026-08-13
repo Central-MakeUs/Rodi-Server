@@ -9,6 +9,7 @@ import static org.mockito.Mockito.when;
 
 import cmc.rodi.domain.member.entity.Member;
 import cmc.rodi.domain.member.exception.MemberErrorCode;
+import cmc.rodi.domain.member.repository.MemberOnboardingRepository;
 import cmc.rodi.domain.member.repository.MemberRepository;
 import cmc.rodi.domain.member.service.NicknameAssigner;
 import cmc.rodi.global.auth.dto.SocialLoginResponse;
@@ -30,6 +31,7 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.test.util.ReflectionTestUtils;
 
 @ExtendWith(MockitoExtension.class)
 class AuthServiceTest {
@@ -47,6 +49,7 @@ class AuthServiceTest {
     @Mock TokenService tokenService;
     @Mock SocialClient socialClient;
     @Mock NicknameAssigner nicknameAssigner;
+    @Mock MemberOnboardingRepository memberOnboardingRepository;
 
     @InjectMocks AuthService authService;
 
@@ -127,6 +130,34 @@ class AuthServiceTest {
         verify(memberRepository, never()).save(any());
         verify(socialAccountRepository, never()).save(any());
         verify(tokenService).issue(existing);
+    }
+
+    @Test
+    @DisplayName("가입 후 온보딩 중 이탈한 회원의 재로그인: isNewMember=false지만 isOnboarded=false")
+    void 온보딩_미완료_재로그인() {
+        stubSocialVerification();
+        Member existing = Member.createBySocial(EMAIL);
+        ReflectionTestUtils.setField(existing, "id", 7L);
+        SocialAccount account =
+                SocialAccount.builder()
+                        .member(existing)
+                        .provider(SocialProvider.KAKAO)
+                        .providerId(PROVIDER_ID)
+                        .email(EMAIL)
+                        .build();
+        when(socialAccountRepository.findByProviderAndProviderId(SocialProvider.KAKAO, PROVIDER_ID))
+                .thenReturn(Optional.of(account));
+        when(tokenService.issue(existing)).thenReturn(new Tokens("access-jwt", "refresh-raw"));
+        when(memberOnboardingRepository.existsById(7L)).thenReturn(false);
+
+        SocialLoginResponse response = authService.login(SocialProvider.KAKAO, CREDENTIAL);
+
+        // isNewMember만 보면 온보딩을 마친 회원과 구분되지 않는다 — 이 필드를 넣은 이유다
+        assertThat(response.isNewMember()).isFalse();
+        assertThat(response.isOnboarded()).isFalse();
+
+        when(memberOnboardingRepository.existsById(7L)).thenReturn(true);
+        assertThat(authService.login(SocialProvider.KAKAO, CREDENTIAL).isOnboarded()).isTrue();
     }
 
     @Test

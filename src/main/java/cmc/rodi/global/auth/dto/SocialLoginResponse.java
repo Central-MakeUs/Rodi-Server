@@ -13,8 +13,14 @@ public record SocialLoginResponse(
         @Schema(description = "SUCCESS | WITHDRAWAL_PENDING") Status status,
         @Schema(description = "API 인증용 access token(JWT). PENDING이면 null") String accessToken,
         @Schema(description = "재발급용 refresh token. PENDING이면 null") String refreshToken,
-        @Schema(description = "신규 가입 여부(온보딩 분기). PENDING이면 false") @JsonProperty("isNewMember")
+        @Schema(description = "이번 요청으로 새로 가입했는지. PENDING이면 false") @JsonProperty("isNewMember")
                 boolean isNewMember,
+        @Schema(
+                        description =
+                                "온보딩을 마쳤는지 — 온보딩 화면 분기 기준. 신규 가입과 토큰 없는 응답(PENDING)은 false."
+                                        + " isNewMember로는 가입 후 온보딩 중 이탈한 회원의 재로그인을 가려낼 수 없다.")
+                @JsonProperty("isOnboarded")
+                boolean isOnboarded,
         @Schema(description = "가입 시 부여된 닉네임. PENDING이면 null") String nickname,
         @Schema(description = "탈퇴 요청 시각(PENDING만)") LocalDateTime withdrawalRequestedAt,
         @Schema(description = "복구 가능 마감 시각(PENDING만)") LocalDateTime recoverableUntil) {
@@ -24,12 +30,14 @@ public record SocialLoginResponse(
         WITHDRAWAL_PENDING
     }
 
-    public static SocialLoginResponse success(Tokens tokens, boolean isNewMember, String nickname) {
+    public static SocialLoginResponse success(
+            Tokens tokens, boolean isNewMember, boolean isOnboarded, String nickname) {
         return new SocialLoginResponse(
                 Status.SUCCESS,
                 tokens.accessToken(),
                 tokens.refreshToken(),
                 isNewMember,
+                isOnboarded,
                 nickname,
                 null,
                 null);
@@ -41,6 +49,7 @@ public record SocialLoginResponse(
                 Status.WITHDRAWAL_PENDING,
                 null,
                 null,
+                false,
                 false,
                 null,
                 withdrawalRequestedAt,
