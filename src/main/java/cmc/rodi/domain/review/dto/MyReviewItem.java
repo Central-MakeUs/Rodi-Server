@@ -13,7 +13,7 @@ public record MyReviewItem(
         @Schema(description = "후기 id") Long reviewId,
         @Schema(description = "후기를 쓴 장소 id") Long placeId,
         @Schema(description = "장소명") String placeName,
-        @Schema(description = "후기 내용") String content,
+        @Schema(description = "후기 내용(없으면 null)") String content,
         @Schema(description = "수정 가능 여부(작성 당시 레벨 = 현재 레벨)") @JsonProperty("isEditable")
                 boolean editable,
         @Schema(description = "신고 누적으로 비공개된 후기인지") @JsonProperty("isHidden") boolean hidden,

@@ -138,6 +138,28 @@ class ReviewControllerTest {
     }
 
     @Test
+    @DisplayName("필수 4개만 보내면 내용 없이도 작성된다")
+    void 내용_없는_작성() throws Exception {
+        authenticate(7L);
+        when(reviewService.create(eq(1L), eq(7L), any())).thenReturn(new ReviewCreateResponse(31L));
+
+        mockMvc.perform(
+                        post("/api/v1/places/1/reviews")
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content(
+                                        """
+                                        {
+                                          "isRecommended": true,
+                                          "difficulty": "EASY",
+                                          "congestion": "NORMAL",
+                                          "practiceMethod": "SOLO"
+                                        }
+                                        """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.reviewId").value(31));
+    }
+
+    @Test
     @DisplayName("수정·삭제는 데이터 없이 200 + 현재 회원 id로 위임")
     void 수정과_삭제() throws Exception {
         authenticate(7L);

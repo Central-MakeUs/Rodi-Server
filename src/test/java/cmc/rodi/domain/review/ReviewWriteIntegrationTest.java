@@ -237,4 +237,72 @@ class ReviewWriteIntegrationTest {
         assertThat(reviewReportRepository.existsByReviewIdAndReporterId(reviewId, other.getId()))
                 .isFalse();
     }
+
+    @Test
+    @DisplayName("내용·주의사항 없이 평가만 남길 수 있고, 공백만 보내면 없는 것으로 저장된다")
+    void 내용_선택_입력() {
+        Course course = seedCourse();
+        Member me = seedMember("nocontent@kakao.com", Level.ROOKIE);
+
+        Long emptyId =
+                reviewService
+                        .create(
+                                course.getId(),
+                                me.getId(),
+                                new ReviewRequest(
+                                        true,
+                                        Difficulty.EASY,
+                                        Congestion.NORMAL,
+                                        PracticeMethod.SOLO,
+                                        null,
+                                        null))
+                        .reviewId();
+        Long blankId =
+                reviewService
+                        .create(
+                                course.getId(),
+                                me.getId(),
+                                new ReviewRequest(
+                                        true,
+                                        Difficulty.EASY,
+                                        Congestion.NORMAL,
+                                        PracticeMethod.SOLO,
+                                        "   ",
+                                        null))
+                        .reviewId();
+        reviewRepository.flush(); // NOT NULL이 남아 있으면 여기서 터진다
+
+        assertThat(reviewRepository.findById(emptyId).orElseThrow().getContent()).isNull();
+        // 빈 문자열을 그대로 두면 "내용 없음"과 "빈 글"이 갈려 화면 분기가 둘로 늘어난다
+        assertThat(reviewRepository.findById(blankId).orElseThrow().getContent()).isNull();
+        // 평가 항목은 그대로 남아 요약 집계에 쓰인다
+        assertThat(reviewRepository.findById(emptyId).orElseThrow().getDifficulty())
+                .isEqualTo(Difficulty.EASY);
+    }
+
+    @Test
+    @DisplayName("수정은 전체 교체라 내용을 비워 보내면 지워진다")
+    void 수정으로_내용_지우기() {
+        Course course = seedCourse();
+        Member me = seedMember("clear@kakao.com", Level.ROOKIE);
+        Long reviewId =
+                reviewService.create(course.getId(), me.getId(), request("지워질 내용")).reviewId();
+
+        reviewService.update(
+                reviewId,
+                me.getId(),
+                new ReviewRequest(
+                        false,
+                        Difficulty.HARD,
+                        Congestion.CROWDED,
+                        PracticeMethod.SOLO,
+                        null,
+                        null));
+        reviewRepository.flush();
+
+        Review updated = reviewRepository.findById(reviewId).orElseThrow();
+        assertThat(updated.getContent()).isNull();
+        assertThat(updated.getCaution()).isNull();
+        assertThat(updated.getDifficulty()).isEqualTo(Difficulty.HARD);
+    }
 }

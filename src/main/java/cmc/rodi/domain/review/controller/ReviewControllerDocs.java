@@ -52,6 +52,8 @@ public interface ReviewControllerDocs {
             summary = "후기 작성",
             description =
                     "장소(코스·주차장)에 후기를 남긴다. 작성 당시 회원 레벨을 서버가 스냅샷으로 저장하며, 같은 장소에 여러 번 쓸 수 있다."
+                            + " 필수는 isRecommended·difficulty·congestion·practiceMethod 넷이고"
+                            + " content·caution은 선택이라 글 없이 평가만 남길 수 있다(공백만 보내면 없는 것으로 저장)."
                             + " 레벨이 없는 회원(온보딩 미완료)은 409. JWT 필요.")
     ApiResponse<ReviewCreateResponse> createReview(
             @Parameter(description = "장소 id") Long placeId,
@@ -134,7 +136,9 @@ public interface ReviewControllerDocs {
 
     @Operation(
             summary = "후기 수정",
-            description = "본인 후기를 전체 교체한다. 작성 당시 레벨과 현재 레벨이 다르면 409, 타인 후기면 403. JWT 필요.")
+            description =
+                    "본인 후기를 전체 교체한다. 작성과 같은 바디를 쓰며, 전체 교체라 content·caution을 비워 보내면"
+                            + " 기존 값이 지워진다. 작성 당시 레벨과 현재 레벨이 다르면 409, 타인 후기면 403. JWT 필요.")
     ApiResponse<Void> updateReview(
             @Parameter(description = "후기 id") Long reviewId,
             @Parameter(hidden = true) Long memberId,
