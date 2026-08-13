@@ -76,6 +76,10 @@ public interface ReviewRepository extends JpaRepository<Review, Long> {
     /** 내가 쓴 후기 총계(첫 페이지 전용). 비공개 후기도 센다. */
     long countByMemberId(Long memberId);
 
+    /** 후기 상세(수정 폼 프리필). 장소명을 함께 읽는다. 비공개 여부로 거르지 않는다 — 본인에게는 보여야 한다. */
+    @Query("SELECT r FROM Review r JOIN FETCH r.place WHERE r.id = :id")
+    Optional<Review> findDetailById(@Param("id") Long id);
+
     /** 목록 totalCount(첫 페이지 전용). 레벨 필터·차단 제외 조건은 목록과 동일하다. */
     @Query(
             """

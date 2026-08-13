@@ -12,7 +12,11 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import cmc.rodi.domain.review.dto.ReviewCreateResponse;
+import cmc.rodi.domain.review.dto.ReviewDetailResponse;
 import cmc.rodi.domain.review.dto.ReviewListRequest;
+import cmc.rodi.domain.review.entity.Congestion;
+import cmc.rodi.domain.review.entity.Difficulty;
+import cmc.rodi.domain.review.entity.PracticeMethod;
 import cmc.rodi.domain.review.service.ReviewQueryService;
 import cmc.rodi.domain.review.service.ReviewService;
 import cmc.rodi.global.auth.jwt.JwtAuthenticationFilter;
@@ -25,6 +29,7 @@ import cmc.rodi.global.common.pagination.CursorPage;
 import cmc.rodi.global.config.SecurityConfig;
 import cmc.rodi.global.config.WebConfig;
 import cmc.rodi.global.exception.GlobalExceptionHandler;
+import java.time.LocalDateTime;
 import java.util.List;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.DisplayName;
@@ -220,5 +225,61 @@ class ReviewControllerTest {
                 .andExpect(jsonPath("$.data.options[1].requiresTextInput").value(true))
                 .andExpect(jsonPath("$.data.options[1].textInputPlaceholder").value("이유를 작성해주세요"))
                 .andExpect(jsonPath("$.data.options[1].textInputMaxLength").value(100));
+    }
+
+    @Test
+    @DisplayName("후기 상세 — 값이 없는 content·caution도 키를 남긴다")
+    void 후기_상세() throws Exception {
+        authenticate(7L);
+        when(reviewQueryService.getReview(31L, 7L))
+                .thenReturn(
+                        new ReviewDetailResponse(
+                                31L,
+                                1L,
+                                "한강 코스",
+                                true,
+                                Difficulty.EASY,
+                                Congestion.NORMAL,
+                                PracticeMethod.SOLO,
+                                null,
+                                null,
+                                true,
+                                false,
+                                true,
+                                LocalDateTime.of(2026, 8, 6, 14, 2, 11)));
+
+        mockMvc.perform(get("/api/v1/reviews/31"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.placeName").value("한강 코스"))
+                .andExpect(jsonPath("$.data.isRecommended").value(true))
+                .andExpect(jsonPath("$.data.congestion").value("NORMAL"))
+                .andExpect(jsonPath("$.data.isEditable").value(true))
+                .andExpect(jsonPath("$.data.isVerifiedVisit").value(true))
+                // 폼이 항상 같은 필드를 읽도록 키를 빼지 않는다
+                .andExpect(jsonPath("$.data.content").doesNotExist())
+                .andExpect(jsonPath("$.data").value(org.hamcrest.Matchers.hasKey("content")))
+                .andExpect(jsonPath("$.data").value(org.hamcrest.Matchers.hasKey("caution")));
+    }
+
+    @Test
+    @DisplayName("report-form은 후기 상세({reviewId})가 아니라 폼 조회로 매칭된다")
+    void 폼_경로_우선() throws Exception {
+        authenticate(7L);
+        when(reviewService.getReportForm())
+                .thenReturn(
+                        new FormResponse(
+                                "REVIEW_REPORT_REASON",
+                                FormType.SINGLE_SELECT,
+                                "신고 사유",
+                                null,
+                                true,
+                                List.of(FormOption.of("SPAM", "스팸/광고", 1))));
+
+        // /reviews/{reviewId}가 생기면서 리터럴 경로와 겹친다. 변수보다 리터럴이 우선해야 한다.
+        mockMvc.perform(get("/api/v1/reviews/report-form"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.questionId").value("REVIEW_REPORT_REASON"));
+
+        verify(reviewQueryService, org.mockito.Mockito.never()).getReview(any(), any());
     }
 }

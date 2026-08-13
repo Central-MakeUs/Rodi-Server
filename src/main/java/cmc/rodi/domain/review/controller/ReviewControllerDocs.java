@@ -2,6 +2,7 @@ package cmc.rodi.domain.review.controller;
 
 import cmc.rodi.domain.review.dto.MyReviewItem;
 import cmc.rodi.domain.review.dto.ReviewCreateResponse;
+import cmc.rodi.domain.review.dto.ReviewDetailResponse;
 import cmc.rodi.domain.review.dto.ReviewItem;
 import cmc.rodi.domain.review.dto.ReviewReportRequest;
 import cmc.rodi.domain.review.dto.ReviewRequest;
@@ -118,6 +119,17 @@ public interface ReviewControllerDocs {
                                             },
                                             example = "ROOKIE"))
                     String level,
+            @Parameter(hidden = true) Long memberId);
+
+    @Operation(
+            summary = "후기 상세 조회",
+            description =
+                    "후기 한 건의 전체 값을 준다. 수정 화면이 폼을 채우는 용도라 수정 요청(PUT)이 요구하는 필드를 모두 담는다."
+                            + " 목록에 없는 caution까지 주므로 본인 후기만 조회할 수 있다(타인 403)."
+                            + " 신고 누적으로 비공개된 내 후기도 조회되며 isHidden=true로 온다."
+                            + " 내용이 없는 후기는 content가 null이다. 없는 후기는 404. JWT 필요.")
+    ApiResponse<ReviewDetailResponse> getReview(
+            @Parameter(description = "후기 id") Long reviewId,
             @Parameter(hidden = true) Long memberId);
 
     @Operation(
