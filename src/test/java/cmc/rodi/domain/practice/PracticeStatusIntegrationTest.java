@@ -83,11 +83,6 @@ class PracticeStatusIntegrationTest {
                 .setParameter(2, practiceId)
                 .executeUpdate();
         em.clear();
-        System.out.println(
-                ">>> after expire visitedAt="
-                        + memberPracticeRepository.findById(practiceId).orElseThrow().getVisitedAt()
-                        + " now="
-                        + LocalDateTime.now());
     }
 
     private static PracticeVisitRequest visited() {
@@ -341,18 +336,6 @@ class PracticeStatusIntegrationTest {
         expireCooldown(practiceId);
         PracticeVisitResponse later =
                 practiceService.recordVisit(practiceId, me.getId(), visited(5_000));
-        System.out.println(
-                ">>> member dist="
-                        + memberRepository
-                                .findById(me.getId())
-                                .orElseThrow()
-                                .getTotalDistanceMeters()
-                        + " resp="
-                        + later.totalDistanceKm()
-                        + " added="
-                        + later.addedCertifiedDistanceMeters()
-                        + " count="
-                        + later.visitCount());
         assertThat(later.visitCount()).isEqualTo(2);
         assertThat(later.totalDistanceKm()).isEqualTo(10.0);
     }
