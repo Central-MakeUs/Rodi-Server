@@ -95,7 +95,9 @@ public interface AuthControllerDocs {
             summary = "토큰 재발급",
             description =
                     "refresh token으로 access token을 재발급한다(회전). "
-                            + "이미 폐기된 토큰 재제출 시 재사용 탐지로 회원의 전체 세션이 폐기된다.")
+                            + "이미 폐기된 토큰 재제출 시 재사용 탐지로 회원의 전체 세션이 폐기된다. "
+                            + "토큰만 갱신하고 들어온 앱도 화면을 분기할 수 있게 isOnboarded를 함께 준다. "
+                            + "재발급은 가입이 아니므로 isNewMember는 없다.")
     ApiResponse<TokenResponse> reissue(@RequestBody TokenRefreshRequest request);
 
     @Operation(summary = "로그아웃", description = "전달한 refresh token 세션을 폐기한다.")

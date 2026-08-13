@@ -161,16 +161,21 @@ class AuthServiceTest {
     }
 
     @Test
-    @DisplayName("재발급: TokenService.reissue에 위임하고 isNewMember=false")
+    @DisplayName("재발급: 회전한 토큰과 함께 그 회원의 온보딩 완료 여부를 준다")
     void 재발급() {
+        Member member = Member.createBySocial(EMAIL);
+        ReflectionTestUtils.setField(member, "id", 7L);
         when(tokenService.reissue("refresh-raw"))
-                .thenReturn(new Tokens("new-access", "new-refresh"));
+                .thenReturn(
+                        new TokenService.Reissued(new Tokens("new-access", "new-refresh"), member));
+        when(memberOnboardingRepository.existsById(7L)).thenReturn(true);
 
         TokenResponse response = authService.reissue("refresh-raw");
 
-        assertThat(response.isNewMember()).isFalse();
         assertThat(response.accessToken()).isEqualTo("new-access");
         assertThat(response.refreshToken()).isEqualTo("new-refresh");
+        // 토큰만 갱신하고 들어온 앱도 온보딩 화면 분기를 할 수 있어야 한다
+        assertThat(response.isOnboarded()).isTrue();
         verify(tokenService).reissue("refresh-raw");
     }
 

@@ -14,7 +14,6 @@ import cmc.rodi.global.auth.entity.SocialProvider;
 import cmc.rodi.global.auth.repository.SocialAccountRepository;
 import cmc.rodi.global.auth.social.OAuthUserInfo;
 import cmc.rodi.global.auth.social.SocialClientResolver;
-import cmc.rodi.global.auth.vo.Tokens;
 import cmc.rodi.global.exception.BusinessException;
 import java.time.LocalDateTime;
 import lombok.RequiredArgsConstructor;
@@ -109,11 +108,11 @@ public class AuthService {
                 tokenService.issue(member), false, isOnboarded(member), member.getNickname());
     }
 
-    /** refresh token으로 재발급(회전 + 재사용 탐지). 신규 가입이 아니므로 isNewMember=false. */
+    /** refresh token으로 재발급(회전 + 재사용 탐지). 토큰만 갱신하고 들어온 앱도 온보딩 분기를 할 수 있게 완료 여부를 함께 준다. */
     @Transactional
     public TokenResponse reissue(String refreshToken) {
-        Tokens tokens = tokenService.reissue(refreshToken);
-        return TokenResponse.of(tokens, false);
+        TokenService.Reissued reissued = tokenService.reissue(refreshToken);
+        return TokenResponse.of(reissued.tokens(), isOnboarded(reissued.member()));
     }
 
     /** 로그아웃(해당 refresh token 세션만 폐기). */
