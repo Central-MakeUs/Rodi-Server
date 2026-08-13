@@ -4,11 +4,15 @@ import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import io.swagger.v3.oas.annotations.media.Schema;
 
-/** 선택지 하나. 텍스트 입력이 없는 항목은 {@code textInput*} 필드를 아예 내려보내지 않는다(NON_NULL). */
+/**
+ * 선택지 하나. 텍스트 입력이 없는 항목은 {@code textInput*} 필드를 아예 내려보내지 않는다(NON_NULL).
+ *
+ * <p>example은 {@link FormResponse}와 같은 이유로 달지 않는다 — 여러 폼이 공유하는 스키마다.
+ */
 @JsonInclude(JsonInclude.Include.NON_NULL)
 public record FormOption(
-        @Schema(description = "선택지 코드(제출 시 이 값을 보낸다)", example = "SPAM") String code,
-        @Schema(description = "화면 표시 문구", example = "스팸/광고") String label,
+        @Schema(description = "선택지 코드(제출 시 이 값을 보낸다)") String code,
+        @Schema(description = "화면 표시 문구") String label,
         @Schema(description = "노출 순서(1부터)") int order,
         @Schema(description = "선택 시 텍스트 입력이 필요한지") @JsonProperty("requiresTextInput")
                 boolean requiresTextInput,

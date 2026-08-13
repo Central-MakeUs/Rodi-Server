@@ -10,11 +10,42 @@ import cmc.rodi.global.common.pagination.CursorPage;
 import cmc.rodi.global.common.response.ApiResponse;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.media.Content;
+import io.swagger.v3.oas.annotations.media.ExampleObject;
+import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.tags.Tag;
 
 /** 연습 코스 API의 Swagger 문서 스펙. 매핑·구현은 {@link PracticeController}. */
 @Tag(name = "Practice", description = "사용자 연습 코스")
 public interface PracticeControllerDocs {
+
+    /**
+     * 미방문 이유 폼의 실제 응답. 공용 {@code FormResponse} 스키마를 신고 사유 폼과 나눠 쓰는데 springdoc은 스키마 단위로 example을
+     * 그리므로, 폼별 예시는 이렇게 엔드포인트에서 준다.
+     */
+    String SKIP_REASON_FORM_EXAMPLE =
+            """
+            {
+              "isSuccess": true,
+              "code": "COMMON_200",
+              "message": "요청에 성공했습니다.",
+              "data": {
+                "questionId": "WHY_NOT_PRACTICED",
+                "type": "SINGLE_SELECT",
+                "title": "왜 연습을 다녀오지 않았나요?",
+                "description": "이유를 알려주시면 더 나은 코스를 추천해드릴게요!",
+                "required": true,
+                "options": [
+                  { "code": "CHECK_REALTIME_TRAFFIC", "label": "실시간 교통정보를 보려고 했어요", "order": 1, "requiresTextInput": false },
+                  { "code": "TOO_FAR", "label": "생각보다 멀었어요", "order": 2, "requiresTextInput": false },
+                  { "code": "ROUTE_SEEMED_DIFFICULT", "label": "길이 어려워 보여요", "order": 3, "requiresTextInput": false },
+                  { "code": "SCHEDULE_DID_NOT_MATCH", "label": "일정이 맞지 않았어요", "order": 4, "requiresTextInput": false },
+                  { "code": "OTHER", "label": "기타", "order": 5, "requiresTextInput": true,
+                    "textInputPlaceholder": "이유를 작성해주세요", "textInputMaxLength": 100 }
+                ]
+              }
+            }
+            """;
 
     @Operation(
             summary = "연습 목록에 담기",
@@ -60,6 +91,18 @@ public interface PracticeControllerDocs {
                     "\"안 했어요\" 화면에 그릴 사유 선택지를 내려준다(order 오름차순). 문구·순서를 서버가 정의하므로 앱 배포 없이 바꿀 수 있다."
                             + " OTHER(기타)는 requiresTextInput=true이며 placeholder·최대 길이가 함께 온다."
                             + " 선택지의 code가 그대로 사유 제출 요청의 reason 값이다. JWT 필요.")
+    @io.swagger.v3.oas.annotations.responses.ApiResponse(
+            responseCode = "200",
+            // 없으면 예시만 남고 응답 스키마가 통째로 사라진다(필드 설명이 안 보인다)
+            useReturnTypeSchema = true,
+            content =
+                    @Content(
+                            mediaType = "application/json",
+                            schema = @Schema(ref = "#/components/schemas/ApiResponseFormResponse"),
+                            examples =
+                                    @ExampleObject(
+                                            name = "미방문 사유 폼",
+                                            value = SKIP_REASON_FORM_EXAMPLE)))
     ApiResponse<FormResponse> getSkipReasonForm();
 
     @Operation(

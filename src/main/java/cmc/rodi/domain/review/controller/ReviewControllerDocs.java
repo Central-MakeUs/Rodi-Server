@@ -11,12 +11,41 @@ import cmc.rodi.global.common.pagination.CursorPage;
 import cmc.rodi.global.common.response.ApiResponse;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.media.Content;
+import io.swagger.v3.oas.annotations.media.ExampleObject;
 import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.tags.Tag;
 
 /** 후기 API의 Swagger 문서 스펙. 매핑·구현은 {@link ReviewController}. */
 @Tag(name = "Review", description = "장소 후기")
 public interface ReviewControllerDocs {
+
+    /**
+     * 신고 사유 폼의 실제 응답. 공용 {@code FormResponse} 스키마를 미방문 사유 폼과 나눠 쓰는데 springdoc은 스키마 단위로 example을
+     * 그리므로, 폼별 예시는 이렇게 엔드포인트에서 준다.
+     */
+    String REPORT_FORM_EXAMPLE =
+            """
+            {
+              "isSuccess": true,
+              "code": "COMMON_200",
+              "message": "요청에 성공했습니다.",
+              "data": {
+                "questionId": "REVIEW_REPORT_REASON",
+                "type": "SINGLE_SELECT",
+                "title": "신고 사유",
+                "required": true,
+                "options": [
+                  { "code": "SPAM", "label": "스팸/광고", "order": 1, "requiresTextInput": false },
+                  { "code": "ABUSE", "label": "욕설, 음란성, 혐오 표현", "order": 2, "requiresTextInput": false },
+                  { "code": "IRRELEVANT", "label": "코스와 무관한 내용", "order": 3, "requiresTextInput": false },
+                  { "code": "FALSE_INFO", "label": "허위정보", "order": 4, "requiresTextInput": false },
+                  { "code": "OTHER", "label": "기타", "order": 5, "requiresTextInput": true,
+                    "textInputPlaceholder": "이유를 작성해주세요", "textInputMaxLength": 100 }
+                ]
+              }
+            }
+            """;
 
     @Operation(
             summary = "후기 작성",
@@ -111,6 +140,16 @@ public interface ReviewControllerDocs {
             description =
                     "후기 신고 화면에 그릴 사유 선택지를 내려준다(order 오름차순). 문구·순서를 서버가 정의하므로 앱 배포 없이 바꿀 수 있다."
                             + " OTHER(기타)는 requiresTextInput=true이며 placeholder·최대 길이가 함께 온다. JWT 필요.")
+    @io.swagger.v3.oas.annotations.responses.ApiResponse(
+            responseCode = "200",
+            // 없으면 예시만 남고 응답 스키마가 통째로 사라진다(필드 설명이 안 보인다)
+            useReturnTypeSchema = true,
+            content =
+                    @Content(
+                            mediaType = "application/json",
+                            schema = @Schema(ref = "#/components/schemas/ApiResponseFormResponse"),
+                            examples =
+                                    @ExampleObject(name = "신고 사유 폼", value = REPORT_FORM_EXAMPLE)))
     ApiResponse<FormResponse> getReportForm();
 
     @Operation(

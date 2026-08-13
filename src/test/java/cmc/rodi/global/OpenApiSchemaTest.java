@@ -5,6 +5,8 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import cmc.rodi.support.TestcontainersConfiguration;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -23,6 +25,7 @@ import org.springframework.test.web.servlet.MockMvc;
 class OpenApiSchemaTest {
 
     @Autowired MockMvc mockMvc;
+    @Autowired ObjectMapper objectMapper;
 
     @Test
     @DisplayName("검증 메서드는 OpenAPI 스키마에 필드로 노출되지 않는다")
@@ -40,5 +43,66 @@ class OpenApiSchemaTest {
                 .doesNotContain("skipDetailConsistent")
                 .doesNotContain("detailConsistent")
                 .doesNotContain("placeIdConsistent");
+    }
+
+    @Test
+    @DisplayName("폼 엔드포인트는 각자의 응답 예시를 갖는다")
+    void 폼_예시_분리() throws Exception {
+        JsonNode apiDocs = objectMapper.readTree(fetchApiDocs());
+
+        String skipReasonExample = responseExample(apiDocs, "/api/v1/practices/skip-reason-form");
+        assertThat(skipReasonExample)
+                .contains("WHY_NOT_PRACTICED")
+                .contains("TOO_FAR")
+                .doesNotContain("REVIEW_REPORT_REASON")
+                .doesNotContain("SPAM");
+
+        String reportExample = responseExample(apiDocs, "/api/v1/reviews/report-form");
+        assertThat(reportExample)
+                .contains("REVIEW_REPORT_REASON")
+                .contains("SPAM")
+                .doesNotContain("WHY_NOT_PRACTICED");
+
+        // 근본 원인 차단 — 공용 스키마에 example이 붙으면 예시를 안 준 폼이 남의 도메인 값을 그린다
+        assertThat(apiDocs.at("/components/schemas/FormResponse").toString())
+                .as("공용 폼 스키마에 example이 붙어 있다")
+                .doesNotContain("\"example\"");
+        assertThat(apiDocs.at("/components/schemas/FormOption").toString())
+                .as("공용 선택지 스키마에 example이 붙어 있다")
+                .doesNotContain("\"example\"");
+    }
+
+    /**
+     * 공용 {@code FormResponse} 스키마에 한쪽 도메인 값을 example로 달면 두 폼이 같은 예시를 그린다. 문서 전체를 문자열로 훑으면 두 값이 모두
+     * 들어 있어 잡히지 않으므로, 엔드포인트별 응답 예시만 떼어내 확인한다.
+     */
+    private String responseExample(JsonNode apiDocs, String path) {
+        JsonNode content =
+                apiDocs.at(
+                        "/paths/"
+                                + path.replace("/", "~1")
+                                + "/get/responses/200/content/application~1json");
+
+        // @Content를 직접 주면 응답 스키마가 통째로 빠진다(예시만 남고 필드 설명이 사라진다).
+        // useReturnTypeSchema로 스키마를 등록하고 ref로 다시 붙여둔 상태를 지킨다.
+        String ref = content.at("/schema/$ref").asText();
+        assertThat(ref).as("%s 의 200 응답에 스키마가 붙어 있지 않다", path).isNotEmpty();
+        assertThat(apiDocs.at(ref.substring(1)).isMissingNode())
+                .as("%s 가 가리키는 스키마(%s)가 문서에 없다 — 끊어진 ref다", path, ref)
+                .isFalse();
+
+        JsonNode examples = content.path("examples");
+        assertThat(examples.isMissingNode() || examples.isEmpty())
+                .as("%s 의 200 응답 예시가 없다", path)
+                .isFalse();
+        return examples.toString();
+    }
+
+    private String fetchApiDocs() throws Exception {
+        return mockMvc.perform(get("/v3/api-docs"))
+                .andExpect(status().isOk())
+                .andReturn()
+                .getResponse()
+                .getContentAsString();
     }
 }
