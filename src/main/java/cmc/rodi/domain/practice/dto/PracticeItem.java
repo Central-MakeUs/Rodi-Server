@@ -22,7 +22,6 @@ public record PracticeItem(
         @Schema(description = "상태") PracticeStatus status,
         @Schema(description = "다녀온 횟수") int visitCount,
         @Schema(description = "마지막 방문 시각(없으면 null)") LocalDateTime visitedAt,
-        @Schema(description = "방문 인증을 받은 항목인지") @JsonProperty("isVerified") boolean verified,
         @Schema(description = "이 장소에 내가 후기를 썼는지(후기 쓰기 버튼 노출 판단)") @JsonProperty("hasReview")
                 boolean hasReview) {
 
@@ -36,7 +35,6 @@ public record PracticeItem(
                 practice.getStatus(),
                 practice.getVisitCount(),
                 practice.getVisitedAt(),
-                practice.isVerified(),
                 hasReview);
     }
 

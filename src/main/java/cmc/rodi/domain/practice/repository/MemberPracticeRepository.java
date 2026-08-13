@@ -1,5 +1,6 @@
 package cmc.rodi.domain.practice.repository;
 
+import cmc.rodi.domain.member.entity.Level;
 import cmc.rodi.domain.practice.entity.MemberPractice;
 import jakarta.persistence.LockModeType;
 import java.time.LocalDateTime;
@@ -45,8 +46,12 @@ public interface MemberPracticeRepository extends JpaRepository<MemberPractice, 
             nativeQuery = true)
     int insertIfAbsent(@Param("memberId") Long memberId, @Param("placeId") Long placeId);
 
-    /** 이 회원이 그 장소에서 GPS 방문 인증에 성공한 이력이 있는지(후기 "인증된 후기" 배지 판정). */
-    boolean existsByMemberIdAndPlaceIdAndVerifiedTrue(Long memberId, Long placeId);
+    /**
+     * 이 회원이 그 장소에서 <b>그 레벨로</b> GPS 방문 인증에 성공했는지(후기 "인증된 후기" 배지 판정).
+     *
+     * <p>레벨을 조건에 넣는 이유 — 배지가 "한 번이라도 인증했는가"면 Seed 때 받은 인증으로 Rookie가 된 뒤 쓴 후기까지 인증으로 표시된다(스펙 013).
+     */
+    boolean existsByMemberIdAndPlaceIdAndVerifiedLevel(Long memberId, Long placeId, Level level);
 
     /**
      * 내 연습 목록 한 페이지(최근 방문순 keyset). 방문 이력이 없는 항목은 담은 시각을 정렬값으로 써서 같은 축에 섞는다.

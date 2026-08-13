@@ -126,6 +126,7 @@ class PracticeStatusIntegrationTest {
     @DisplayName("인정 주행거리가 필요 거리(코스 5km의 40% = 2km)에 도달하면 서버가 인증으로 판정한다")
     void 방문_인증() {
         Member me = seedMember("certify@kakao.com");
+        me.applyOnboarding(Level.ROOKIE, null); // 인증은 레벨과 함께 기록된다
         Course course =
                 courseRepository.save(
                         Course.builder()
@@ -140,17 +141,15 @@ class PracticeStatusIntegrationTest {
                 practiceService.recordVisit(practiceId, me.getId(), visited(1_900));
         assertThat(partial.requiredDistanceMeters()).isEqualTo(2_000);
         assertThat(partial.certifiedNow()).isFalse();
-        assertThat(partial.verified()).isFalse();
 
         // 2km — 도달해 인증
         expireCooldown(practiceId);
         PracticeVisitResponse certified =
                 practiceService.recordVisit(practiceId, me.getId(), visited(2_000));
         assertThat(certified.certifiedNow()).isTrue();
-        assertThat(certified.verified()).isTrue();
 
         MemberPractice after = memberPracticeRepository.findById(practiceId).orElseThrow();
-        assertThat(after.isVerified()).isTrue();
+        assertThat(after.getVerifiedLevel()).isEqualTo(Level.ROOKIE); // 인증받은 레벨이 남는다
         assertThat(after.getCertifiedDistanceMeters()).isEqualTo(3_900); // 1900 + 2000
         assertThat(after.getVisitCount()).isEqualTo(2);
     }
@@ -174,13 +173,15 @@ class PracticeStatusIntegrationTest {
         assertThat(response.visitCount()).isEqualTo(1); // 연습기록은 남는다
         assertThat(response.addedCertifiedDistanceMeters()).isZero();
         assertThat(response.certifiedNow()).isFalse();
-        assertThat(response.verified()).isFalse();
+        assertThat(memberPracticeRepository.findById(practiceId).orElseThrow().getVerifiedLevel())
+                .isNull();
     }
 
     @Test
-    @DisplayName("한 번 인증되면 이후 미인증 방문이 있어도 인증 상태는 유지된다")
+    @DisplayName("레벨이 그대로면 이후 미인증 방문이 있어도 인증받은 레벨은 유지된다")
     void 인증_유지() {
         Member me = seedMember("keep@kakao.com");
+        me.applyOnboarding(Level.ROOKIE, null);
         Course course =
                 courseRepository.save(
                         Course.builder()
@@ -196,7 +197,8 @@ class PracticeStatusIntegrationTest {
                 practiceService.recordVisit(practiceId, me.getId(), visited(100));
 
         assertThat(second.certifiedNow()).isFalse(); // 이번 회차는 미달
-        assertThat(second.verified()).isTrue(); // 항목은 여전히 인증됨
+        assertThat(memberPracticeRepository.findById(practiceId).orElseThrow().getVerifiedLevel())
+                .isEqualTo(Level.ROOKIE); // 인증받은 레벨은 그대로
     }
 
     @Test
@@ -221,6 +223,41 @@ class PracticeStatusIntegrationTest {
         assertThat(second.newLevel()).isEqualTo(Level.ROOKIE);
         assertThat(memberRepository.findById(me.getId()).orElseThrow().getLevel())
                 .isEqualTo(Level.ROOKIE);
+    }
+
+    @Test
+    @DisplayName("인증과 동시에 승급하면 인증은 승급 전 레벨로 기록된다")
+    void 승급_전_레벨로_인증() {
+        Member me = seedMember("promote@kakao.com");
+        me.applyOnboarding(Level.SEED, null);
+        Course course = seedCourseWithDistance("승급 유발 코스", 60_000); // 필요 5km(상한), 누적 60km
+        Long practiceId = practiceService.register(course.getId(), me.getId()).practiceId();
+
+        PracticeVisitResponse response =
+                practiceService.recordVisit(practiceId, me.getId(), visited(60_000));
+
+        assertThat(response.certifiedNow()).isTrue();
+        assertThat(response.levelUp()).isTrue();
+        assertThat(response.newLevel()).isEqualTo(Level.ROOKIE);
+        // 이 주행은 Seed로 시작했다 — Rookie의 인증은 Rookie가 되어 다시 받아야 한다
+        assertThat(memberPracticeRepository.findById(practiceId).orElseThrow().getVerifiedLevel())
+                .isEqualTo(Level.SEED);
+    }
+
+    @Test
+    @DisplayName("레벨 없는 회원(온보딩 미완료)의 인증은 레벨을 남기지 않는다")
+    void 레벨_없는_회원_인증() {
+        Member me = seedMember("nolevel@kakao.com"); // 온보딩 전이라 level == null
+        Course course = seedCourseWithDistance("레벨 없는 코스", 2_000);
+        Long practiceId = practiceService.register(course.getId(), me.getId()).practiceId();
+
+        PracticeVisitResponse response =
+                practiceService.recordVisit(practiceId, me.getId(), visited(800));
+
+        // 거리 판정은 통과하지만 남길 레벨이 없다 — 온보딩 후 그 레벨에서 다시 인증받는다
+        assertThat(response.certifiedNow()).isTrue();
+        assertThat(memberPracticeRepository.findById(practiceId).orElseThrow().getVerifiedLevel())
+                .isNull();
     }
 
     @Test
@@ -274,7 +311,6 @@ class PracticeStatusIntegrationTest {
         assertThat(retry.visitCount()).isEqualTo(1); // 횟수 그대로
         assertThat(retry.addedCertifiedDistanceMeters()).isZero();
         assertThat(retry.certifiedNow()).isFalse();
-        assertThat(retry.verified()).isTrue(); // 인증 배지는 사실 그대로
         assertThat(retry.totalDistanceKm()).isEqualTo(5.0); // 두 배로 쌓이지 않는다
         assertThat(retry.levelUp()).isFalse();
 

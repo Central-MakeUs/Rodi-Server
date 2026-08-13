@@ -23,7 +23,7 @@ public record ReviewItem(
                 boolean editable,
         @Schema(description = "신고 누적으로 비공개된 후기인지(내 후기에서만 true로 내려간다)") @JsonProperty("isHidden")
                 boolean hidden,
-        @Schema(description = "작성 시점에 GPS 방문 인증 이력이 있었는지(\"인증된 후기\" 배지)")
+        @Schema(description = "작성 당시 레벨에서 GPS 방문 인증을 받았는지(\"인증된 후기\" 배지)")
                 @JsonProperty("isVerifiedVisit")
                 boolean verifiedVisit,
         @Schema(description = "작성 시각") LocalDateTime createdAt) {

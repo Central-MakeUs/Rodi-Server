@@ -80,7 +80,11 @@ public class Review extends BaseEntity {
     @Column(name = "hidden_at")
     private LocalDateTime hiddenAt;
 
-    /** 작성 시점에 GPS 방문 인증 이력이 있었는지(스냅샷). "다녀왔어요"만 누른 기록은 인증으로 보지 않는다. 스냅샷이라 이후 연습 항목을 지워도 값은 그대로다. */
+    /**
+     * 작성 당시 레벨에서 GPS 방문 인증을 받았는지(스냅샷). "다녀왔어요"만 누른 기록은 인증으로 보지 않는다.
+     *
+     * <p>스냅샷이라 이후 레벨이 오르거나 연습 항목을 지워도 값은 그대로다. 다만 <b>새 후기</b>는 그 레벨에서 다시 인증받아야 true가 된다(스펙 013).
+     */
     @Column(name = "is_verified_visit", nullable = false)
     private boolean verifiedVisit;
 

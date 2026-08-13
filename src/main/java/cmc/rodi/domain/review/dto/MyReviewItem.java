@@ -17,7 +17,7 @@ public record MyReviewItem(
         @Schema(description = "수정 가능 여부(작성 당시 레벨 = 현재 레벨)") @JsonProperty("isEditable")
                 boolean editable,
         @Schema(description = "신고 누적으로 비공개된 후기인지") @JsonProperty("isHidden") boolean hidden,
-        @Schema(description = "작성 시점에 GPS 방문 인증 이력이 있었는지") @JsonProperty("isVerifiedVisit")
+        @Schema(description = "작성 당시 레벨에서 GPS 방문 인증을 받았는지") @JsonProperty("isVerifiedVisit")
                 boolean verifiedVisit,
         @Schema(description = "작성 시각") LocalDateTime createdAt) {
 

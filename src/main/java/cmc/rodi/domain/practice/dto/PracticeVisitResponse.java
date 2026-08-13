@@ -25,8 +25,6 @@ public record PracticeVisitResponse(
         @Schema(description = "인증에 필요한 거리(m). 주차장 등 주행거리가 없는 장소는 0") int requiredDistanceMeters,
         @Schema(description = "이번 방문으로 인증되었는지") @JsonProperty("isCertifiedNow")
                 boolean certifiedNow,
-        @Schema(description = "이 항목이 한 번이라도 인증된 적 있는지") @JsonProperty("isVerified")
-                boolean verified,
         @Schema(description = "레벨 게이지 기준 누적 주행거리(km)") double totalDistanceKm,
         @Schema(description = "이번 방문으로 레벨이 올랐는지") boolean levelUp,
         @Schema(description = "오른 뒤의 레벨(두 단계 이상이면 최종 레벨). 승급하지 않았으면 생략") Level newLevel) {
@@ -42,7 +40,6 @@ public record PracticeVisitResponse(
                 addedMeters,
                 practice.requiredCertificationMeters(),
                 certifiedNow,
-                practice.isVerified(),
                 toKm(member.getTotalDistanceMeters()),
                 levelUp,
                 levelUp ? member.getLevel() : null);
@@ -50,7 +47,7 @@ public record PracticeVisitResponse(
 
     /**
      * 쿨다운에 걸려 <b>아무것도 바꾸지 않은</b> 결과. 재시도한 앱이 실패로 보지 않도록 현재 상태를 그대로 돌려준다 — 이번 회차로 반영된 게 없으니 거리는 0이고
-     * {@code isCertifiedNow}·{@code levelUp}은 false이며, 인증 배지({@code isVerified})는 사실 그대로다.
+     * {@code isCertifiedNow}·{@code levelUp}은 false다.
      */
     public static PracticeVisitResponse unchanged(MemberPractice practice, Member member) {
         return new PracticeVisitResponse(
@@ -58,7 +55,6 @@ public record PracticeVisitResponse(
                 0,
                 practice.requiredCertificationMeters(),
                 false,
-                practice.isVerified(),
                 toKm(member.getTotalDistanceMeters()),
                 false,
                 null);

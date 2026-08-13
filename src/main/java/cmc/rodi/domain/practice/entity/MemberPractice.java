@@ -1,5 +1,6 @@
 package cmc.rodi.domain.practice.entity;
 
+import cmc.rodi.domain.member.entity.Level;
 import cmc.rodi.domain.member.entity.Member;
 import cmc.rodi.domain.place.entity.Place;
 import cmc.rodi.global.common.entity.BaseEntity;
@@ -66,9 +67,15 @@ public class MemberPractice extends BaseEntity {
     @Column(name = "certified_distance_meters", nullable = false)
     private long certifiedDistanceMeters;
 
-    /** 한 번이라도 방문 인증에 성공했는지. 후기의 방문 인증 배지 판정 기준이며 내려가지 않는다. */
-    @Column(nullable = false)
-    private boolean verified;
+    /**
+     * 마지막으로 인증에 성공했을 때의 회원 레벨(null=인증 이력 없음).
+     *
+     * <p>후기의 인증 배지는 <b>작성 당시 레벨에서 인증했는지</b>로 판정한다 — 레벨이 오르면 그 레벨에서 다시 인증해야 한다. 그래서 boolean이 아니라 레벨을
+     * 남긴다. 레벨은 내려가지 않으므로 이 값은 항상 회원의 현재 레벨 이하다.
+     */
+    @Enumerated(EnumType.STRING)
+    @Column(name = "verified_level", length = 20)
+    private Level verifiedLevel;
 
     @Enumerated(EnumType.STRING)
     @Column(name = "skip_reason", length = 30)
@@ -103,12 +110,13 @@ public class MemberPractice extends BaseEntity {
     /**
      * 방문 처리. 호출될 때마다 횟수가 오르므로 한 번의 방문에서 중복 호출하지 않는 건 클라이언트 몫이다.
      *
-     * <p>{@code certifiedMeters}는 앱이 GPS로 측정한 인정 주행거리다(측정 없이 "다녀왔어요"만 누르면 0). 필요 거리에 도달하면 인증되고, 한 번
-     * 인증된 항목은 이후 미인증 방문이 있어도 인증 상태를 유지한다.
+     * <p>{@code certifiedMeters}는 앱이 GPS로 측정한 인정 주행거리다(측정 없이 "다녀왔어요"만 누르면 0). 필요 거리에 도달하면 인증된다.
      *
-     * @return 이번 방문으로 인증되었는지(이미 인증된 항목이면 이번 회차 기준)
+     * @param currentLevel 이 방문을 시작한 시점의 회원 레벨. 이 주행 거리로 곧바로 승급하더라도 <b>승급 전 레벨</b>로 인증을 기록한다 — 새 레벨의
+     *     인증은 새 레벨에서 받는다.
+     * @return 이번 방문으로 인증되었는지
      */
-    public boolean markVisited(LocalDateTime now, int certifiedMeters) {
+    public boolean markVisited(LocalDateTime now, int certifiedMeters, Level currentLevel) {
         this.status = PracticeStatus.VISITED;
         this.visitCount += 1;
         this.visitedAt = now;
@@ -118,9 +126,14 @@ public class MemberPractice extends BaseEntity {
         boolean certifiedNow =
                 VisitCertification.isCertified(courseDistanceMeters(), certifiedMeters);
         if (certifiedNow) {
-            this.verified = true;
+            this.verifiedLevel = currentLevel;
         }
         return certifiedNow;
+    }
+
+    /** 그 레벨에서 인증받은 항목인지 — 후기의 인증 배지 판정 기준. */
+    public boolean isVerifiedAt(Level level) {
+        return verifiedLevel != null && verifiedLevel == level;
     }
 
     /**
