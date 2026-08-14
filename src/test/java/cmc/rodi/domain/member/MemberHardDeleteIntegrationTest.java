@@ -3,11 +3,15 @@ package cmc.rodi.domain.member;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import cmc.rodi.domain.member.entity.DrivingPeriod;
 import cmc.rodi.domain.member.entity.Level;
 import cmc.rodi.domain.member.entity.Member;
+import cmc.rodi.domain.member.entity.MemberOnboarding;
+import cmc.rodi.domain.member.entity.PracticeType;
 import cmc.rodi.domain.member.repository.MemberOnboardingRepository;
 import cmc.rodi.domain.member.repository.MemberRepository;
 import cmc.rodi.domain.member.service.MemberHardDeleteService;
+import cmc.rodi.domain.place.entity.Bookmark;
 import cmc.rodi.domain.place.entity.Course;
 import cmc.rodi.domain.place.repository.BookmarkRepository;
 import cmc.rodi.domain.place.repository.CourseRepository;
@@ -22,11 +26,14 @@ import cmc.rodi.domain.review.service.ReviewService;
 import cmc.rodi.global.auth.entity.SocialAccount;
 import cmc.rodi.global.auth.entity.SocialProvider;
 import cmc.rodi.global.auth.repository.SocialAccountRepository;
+import cmc.rodi.global.auth.service.RefreshTokenService;
 import cmc.rodi.global.exception.BusinessException;
 import cmc.rodi.global.exception.ErrorCode;
 import cmc.rodi.support.TestcontainersConfiguration;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.PersistenceContext;
+import java.time.LocalDateTime;
+import java.util.List;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.locationtech.jts.geom.Coordinate;
@@ -56,6 +63,7 @@ class MemberHardDeleteIntegrationTest {
     @Autowired ReviewService reviewService;
     @Autowired ReviewRepository reviewRepository;
     @Autowired MemberPracticeRepository memberPracticeRepository;
+    @Autowired RefreshTokenService refreshTokenService;
 
     @PersistenceContext EntityManager em;
 
@@ -88,6 +96,17 @@ class MemberHardDeleteIntegrationTest {
                                 .location(GEO.createPoint(new Coordinate(127.0, 37.5)))
                                 .build());
         practiceService.register(course.getId(), memberId);
+        // CASCADE가 없어 직접 지워야 하는 테이블들 — 행이 없으면 아래 단언이 헛돌아 누락을 못 잡는다
+        bookmarkRepository.save(Bookmark.builder().member(me).place(course).build());
+        refreshTokenService.issue(me);
+        // applyOnboarding은 member 컬럼만 채운다 — 온보딩 행은 따로 있어야 한다
+        memberOnboardingRepository.save(
+                MemberOnboarding.builder()
+                        .member(me)
+                        .drivingPeriod(DrivingPeriod.MONTHS_1_2)
+                        .practiceTypes(List.of(PracticeType.STRAIGHT))
+                        .onboardedAt(LocalDateTime.now())
+                        .build());
         reviewService.create(
                 course.getId(),
                 memberId,
@@ -99,6 +118,12 @@ class MemberHardDeleteIntegrationTest {
                         "지워질 후기",
                         null));
         em.flush();
+
+        // 지우기 전에 실제로 있었음을 확인한다
+        assertThat(countBy("bookmark", memberId)).isPositive();
+        assertThat(countBy("refresh_token", memberId)).isPositive();
+        assertThat(countBy("social_account", memberId)).isPositive();
+        assertThat(countBy("member_onboarding", memberId)).isPositive();
 
         memberHardDeleteService.hardDelete(memberId);
 

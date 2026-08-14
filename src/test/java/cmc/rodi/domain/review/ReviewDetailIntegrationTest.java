@@ -8,6 +8,8 @@ import cmc.rodi.domain.member.entity.Member;
 import cmc.rodi.domain.member.repository.MemberRepository;
 import cmc.rodi.domain.place.entity.Course;
 import cmc.rodi.domain.place.repository.CourseRepository;
+import cmc.rodi.domain.practice.dto.PracticeVisitRequest;
+import cmc.rodi.domain.practice.service.PracticeService;
 import cmc.rodi.domain.review.dto.ReviewDetailResponse;
 import cmc.rodi.domain.review.dto.ReviewRequest;
 import cmc.rodi.domain.review.entity.Congestion;
@@ -43,6 +45,7 @@ class ReviewDetailIntegrationTest {
     @Autowired ReviewQueryService reviewQueryService;
     @Autowired ReviewRepository reviewRepository;
     @Autowired CourseRepository courseRepository;
+    @Autowired PracticeService practiceService;
     @Autowired MemberRepository memberRepository;
 
     private Course seedCourse(String name) {
@@ -50,7 +53,14 @@ class ReviewDetailIntegrationTest {
                 Course.builder()
                         .name(name)
                         .location(GEO.createPoint(new Coordinate(127.2, 37.7)))
+                        .distanceMeters(2_000) // 필요 거리 800m — GPS 인증을 태울 수 있게
                         .build());
+    }
+
+    /** 그 레벨에서 방문 인증까지 받아둔다 — 후기의 isVerifiedVisit이 true로 저장되는 조건. */
+    private void certifyVisit(Course course, Member member) {
+        Long practiceId = practiceService.register(course.getId(), member.getId()).practiceId();
+        practiceService.recordVisit(practiceId, member.getId(), new PracticeVisitRequest(800));
     }
 
     private Member seedMember(String email, Level level) {
@@ -79,6 +89,7 @@ class ReviewDetailIntegrationTest {
     void 수정_폼_프리필() {
         Course course = seedCourse("상세 코스");
         Member me = seedMember("detail@kakao.com", Level.ROOKIE);
+        certifyVisit(course, me);
         Long reviewId = write(course, me);
 
         ReviewDetailResponse detail = reviewQueryService.getReview(reviewId, me.getId());
@@ -96,6 +107,8 @@ class ReviewDetailIntegrationTest {
         assertThat(detail.content()).isEqualTo("퇴근시간엔 정체가 심했어요.");
         assertThat(detail.editable()).isTrue();
         assertThat(detail.hidden()).isFalse();
+        // 저장된 스냅샷이 응답까지 그대로 오는지 — 목 없이 실제 인증 이력으로 확인한다
+        assertThat(detail.verifiedVisit()).isTrue();
         assertThat(detail.createdAt()).isNotNull();
     }
 
