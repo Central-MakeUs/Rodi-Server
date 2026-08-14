@@ -6,6 +6,7 @@
 |------|--------|-----------|
 | 2026-08-13 | Draft | 최초 작성 — 프론트 연동 중 나온 6건 + 주차장 측정값 처리 |
 | 2026-08-13 | Draft | 리뷰 반영 — 연습기록 삭제 API 제거, 내부 테스트용 즉시 탈퇴 API 추가, 연습 목록 `visitedAt` → `lastActivityAt`. 미해결 질문 1~4 해소 |
+| 2026-08-14 | **Implemented** | 구현 완료 — 10개 항목 전부. V22(`review.content` NULL 허용)·V23(`verified_level` 교체), 재가입 대기 안내는 [ADR 0013](../adr/0013-withdrawal-locked-as-status.md)으로 기록. 구현 중 추가된 것: 매핑 없는 요청의 500 → 404·405 수정, 토큰 재발급 응답에도 `isOnboarded` |
 
 ## 배경 / 목적
 
@@ -19,7 +20,6 @@
 
 | # | 요청 | 성격 | 관련 스펙 |
 |---|------|------|-----------|
-
 | 1 | 후기 수정 화면에 채울 기존 값을 받을 API가 없다 | 신규 API | 010 |
 | 2 | 후기 내용을 필수에서 선택으로 | 검증·스키마 변경 | 010 |
 | 3 | 방문 인증을 **레벨마다 새로** 받게 | 정책 변경 | 011 · 010 |
@@ -91,9 +91,9 @@ ALTER TABLE member_practice DROP COLUMN verified;
 - **백필은 회원의 현재 레벨**로 한다 — 기존 인증자가 마이그레이션 직후 배지를 잃지 않게 한다.
 - 레벨은 내려가지 않으므로 `verified_level`은 항상 회원의 현재 레벨 **이하**다.
 
-### ERD 갱신 필요
+### ERD 반영
 
-[docs/erd.md](../erd.md)의 `member_practice`(`verified` → `verified_level`)와 `review`(`content` NULL 허용)를 반영한다.
+[docs/erd.md](../erd.md)에 `member_practice` 테이블(스펙 011 이후 누락돼 있었다)을 추가하고, `verified_level`·`review.content` NULL 허용·`review.is_verified_visit`을 반영했다.
 
 ## API 명세
 
@@ -299,49 +299,49 @@ DELETE FROM member            WHERE id = :memberId;
 
 **후기 상세·내용 선택**
 
-- [ ] `GET /reviews/{reviewId}`가 PUT 요청에 필요한 6개 필드를 모두 돌려준다.
-- [ ] 타인 후기 상세 조회는 403, 없는 후기는 404.
-- [ ] 비공개된 내 후기도 상세 조회되고 `isHidden: true`로 표시된다.
-- [ ] `content` 없이 필수 4개만 보낸 후기 작성이 성공한다.
-- [ ] 내용 있는 후기를 `content` 없이 수정하면 내용이 지워진다.
-- [ ] 공백만 보낸 `content`는 NULL로 저장된다.
-- [ ] 151자 `content`는 여전히 400.
+- [x] `GET /reviews/{reviewId}`가 PUT 요청에 필요한 6개 필드를 모두 돌려준다.
+- [x] 타인 후기 상세 조회는 403, 없는 후기는 404.
+- [x] 비공개된 내 후기도 상세 조회되고 `isHidden: true`로 표시된다.
+- [x] `content` 없이 필수 4개만 보낸 후기 작성이 성공한다.
+- [x] 내용 있는 후기를 `content` 없이 수정하면 내용이 지워진다.
+- [x] 공백만 보낸 `content`는 NULL로 저장된다.
+- [x] 151자 `content`는 여전히 400.
 
 **레벨별 방문 인증**
 
-- [ ] SEED에서 인증한 회원이 ROOKIE 승급 후 새로 쓴 후기는 `isVerifiedVisit=false`.
-- [ ] SEED 때 쓴 후기의 `isVerifiedVisit`은 승급 후에도 `true`로 남는다.
-- [ ] ROOKIE로 재인증하면 그 뒤 후기는 `isVerifiedVisit=true`.
-- [ ] 인증과 동시에 승급한 방문은 `verified_level`이 **승급 전** 레벨로 기록된다.
-- [ ] 레벨 없는 회원의 인증은 `verified_level`을 남기지 않는다.
-- [ ] V23 백필 후 기존 인증자의 후기 작성이 `isVerifiedVisit=true`로 유지된다.
+- [x] SEED에서 인증한 회원이 ROOKIE 승급 후 새로 쓴 후기는 `isVerifiedVisit=false`.
+- [x] SEED 때 쓴 후기의 `isVerifiedVisit`은 승급 후에도 `true`로 남는다.
+- [x] ROOKIE로 재인증하면 그 뒤 후기는 `isVerifiedVisit=true`.
+- [x] 인증과 동시에 승급한 방문은 `verified_level`이 **승급 전** 레벨로 기록된다.
+- [x] 레벨 없는 회원의 인증은 `verified_level`을 남기지 않는다.
+- [x] V23 백필 후 기존 인증자의 후기 작성이 `isVerifiedVisit=true`로 유지된다.
 
 **응답 정리**
 
-- [ ] 연습 목록·방문 기록 응답에 `isVerified`가 없다.
-- [ ] 방문 기록 응답의 `isCertifiedNow`는 그대로 동작한다.
-- [ ] `member_practice.verified` 컬럼이 제거되고 참조하는 코드가 없다.
-- [ ] 주차장에 `certifiedDistanceMeters`를 보내도 `certified_distance_meters`가 늘지 않고 응답이 0이다.
+- [x] 연습 목록·방문 기록 응답에 `isVerified`가 없다.
+- [x] 방문 기록 응답의 `isCertifiedNow`는 그대로 동작한다.
+- [x] `member_practice.verified` 컬럼이 제거되고 참조하는 코드가 없다.
+- [x] 주차장에 `certifiedDistanceMeters`를 보내도 `certified_distance_meters`가 늘지 않고 응답이 0이다.
 
 **인증 응답**
 
-- [ ] 온보딩 미완료 회원이 재로그인하면 `isOnboarded=false`.
-- [ ] 온보딩 완료 회원은 로그인·복구 모두 `isOnboarded=true`.
-- [ ] 탈퇴 5일 경과 회원의 로그인·복구가 200 `WITHDRAWAL_LOCKED` + `reRegisterableAt`(탈퇴+10일)로 응답한다.
+- [x] 온보딩 미완료 회원이 재로그인하면 `isOnboarded=false`.
+- [x] 온보딩 완료 회원은 로그인·복구 모두 `isOnboarded=true`.
+- [x] 탈퇴 5일 경과 회원의 로그인·복구가 200 `WITHDRAWAL_LOCKED` + `reRegisterableAt`(탈퇴+10일)로 응답한다.
 
 **엔드포인트 추가·삭제**
 
-- [ ] `DELETE /practices/{practiceId}` 호출이 404다(매핑이 사라졌다).
-- [ ] 즉시 탈퇴 후 같은 소셜 계정으로 **신규 가입**(`isNewMember=true`)이 된다.
-- [ ] 즉시 탈퇴로 `bookmark`·`refresh_token`·`social_account`·`member_onboarding`·`member`와 CASCADE 대상 행이 모두 사라진다.
-- [ ] `prod` 프로파일에서는 즉시 탈퇴 엔드포인트가 등록되지 않는다.
-- [ ] 연습 목록의 `lastActivityAt`이 미방문 항목은 담은 시각, 방문 항목은 마지막 방문 시각으로 채워진다(항상 non-null).
+- [x] `DELETE /practices/{practiceId}` 호출이 404다(매핑이 사라졌다).
+- [x] 즉시 탈퇴 후 같은 소셜 계정으로 **신규 가입**(`isNewMember=true`)이 된다.
+- [x] 즉시 탈퇴로 `bookmark`·`refresh_token`·`social_account`·`member_onboarding`·`member`와 CASCADE 대상 행이 모두 사라진다.
+- [x] `prod` 프로파일에서는 즉시 탈퇴 엔드포인트가 등록되지 않는다.
+- [x] 연습 목록의 `lastActivityAt`이 미방문 항목은 담은 시각, 방문 항목은 마지막 방문 시각으로 채워진다(항상 non-null).
 
 **공통**
 
-- [ ] `./gradlew test` 통과.
-- [ ] 스펙 010·011·001·003의 Status 표에 이 문서를 가리키는 갱신 행을 추가한다(구현 완료 시점).
-- [ ] [docs/erd.md](../erd.md) 반영.
+- [x] `./gradlew test` 통과.
+- [x] 스펙 010·011·001·003의 Status 표에 이 문서를 가리키는 갱신 행을 추가한다(구현 완료 시점).
+- [x] [docs/erd.md](../erd.md) 반영.
 
 ## 확정된 결정 (리뷰 반영)
 

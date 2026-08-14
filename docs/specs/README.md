@@ -33,4 +33,4 @@
 | [장소 후기](010-place-review.md) | 후기 작성/수정/삭제·레벨별 목록·난이도 분포 요약·신고/차단(좋아요는 추후) | Implemented |
 | [연습 코스 목록](011-practice-course.md) | 코스 담기·방문 기록·방문 인증·미방문 이유 폼 | Implemented |
 | [레벨 진행도](012-level-progress.md) | 누적 주행거리로 레벨 자동 승급·마이페이지 레벨업 게이지 | Implemented |
-| [앱 연동 보완](013-app-integration-refinements.md) | 후기 상세 조회·내용 선택 입력·레벨별 방문 인증·로그인 응답 보강·즉시 탈퇴(테스트용) | Draft |
+| [앱 연동 보완](013-app-integration-refinements.md) | 후기 상세 조회·내용 선택 입력·레벨별 방문 인증·로그인 응답 보강·즉시 탈퇴(테스트용) | Implemented |

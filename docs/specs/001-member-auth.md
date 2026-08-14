@@ -6,6 +6,7 @@
 |------|--------|-----------|
 | 2026-07-03 | Draft | 최초 작성 (카카오 우선, 애플 확장 설계) |
 | 2026-07-03 | Approved | 결정 반영(authorizationCode·해시·탈퇴 후순위·/api/v1) |
+| 2026-08-14 | Draft | [스펙 013](013-app-integration-refinements.md) 반영 — 로그인·복구·토큰 재발급 응답에 `isOnboarded` 추가. 재발급 응답의 `isNewMember`는 항상 false라 제거 |
 
 ## 배경 / 목적
 

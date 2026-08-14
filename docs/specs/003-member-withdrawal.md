@@ -6,6 +6,7 @@
 |------|--------|-----------|
 | 2026-07-05 | Draft | 최초 작성(즉시 삭제안) |
 | 2026-07-07 | Draft | PM 정책 반영 — 3일 복구 / 3일 익명화 / 10일 재가입 단계화 |
+| 2026-08-14 | Draft | [스펙 013](013-app-integration-refinements.md) 반영 — 재가입 대기(Day 3~10)를 409가 아니라 200 `WITHDRAWAL_LOCKED` + `reRegisterableAt`으로 응답([ADR 0013](../adr/0013-withdrawal-locked-as-status.md)). 내부 테스트용 즉시 탈퇴 API(`DELETE /members/me/hard`, 비운영) 추가 |
 
 ## 배경 / 목적
 

@@ -16,6 +16,7 @@
 | 2026-08-08 | **Implemented** | 목록 응답 정리 — 카드에 쓰는 값만 남기고 추천 여부·난이도·혼잡도·작성 당시 레벨·`caution`을 뺐다 |
 | 2026-08-08 | **Implemented** | **내가 쓴 후기 목록**(`GET /members/me/reviews`) 추가 — 레벨 필터 없이 내 후기를 전부 보여줘, 레벨이 바뀌면 자기 후기가 기본 화면에서 사라지던 문제를 푼다 |
 | 2026-08-08 | **Implemented** | **차단한 회원 목록**(`GET /members/me/blocks`) 추가 — 마이페이지에서 차단을 관리할 수 있게 됐다(미해결 질문 6 해소) |
+| 2026-08-14 | Implemented | [스펙 013](013-app-integration-refinements.md) 반영 — 후기 상세 조회 API(`GET /reviews/{reviewId}`) 추가, `content`·`caution`을 선택 입력으로 완화(V22), 인증 배지(`isVerifiedVisit`)를 **작성 당시 레벨에서 인증받았는지**로 판정 |
 
 ## 배경 / 목적
 

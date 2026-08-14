@@ -9,6 +9,7 @@
 - **지역 그룹핑(`region`)·운전기록(`driving_record`)은 추후**(ADR 0003 설계만, V7 미구현) — 아래 "추후" 참고.
 - **회원 탈퇴는 soft delete**(`member.deleted_at`) + PII 익명화 → [ADR 0004](adr/0004-member-soft-delete.md).
 - **소셜 로그인은 `social_account`(신원)·`refresh_token`(세션) 분리** → [ADR 0008](adr/0008-social-login.md)·[ADR 0009](adr/0009-authentication-authorization.md).
+- **연습 목록은 `member_practice`**(회원 ↔ place). 같은 장소는 한 행만 두고 재연습은 `visit_count`로 누적한다. 방문 인증은 boolean이 아니라 **인증받은 레벨**(`verified_level`)로 남겨, 후기 배지를 작성 당시 레벨 기준으로 판정한다 → [스펙 013](specs/013-app-integration-refinements.md).
 
 ## ER 다이어그램
 
@@ -29,6 +30,8 @@ erDiagram
     review ||--o{ review_report : ""
     member ||--o{ review_report : "신고"
     member ||--o{ member_block : "차단"
+    member ||--o{ member_practice : "연습 목록"
+    place ||--o{ member_practice : ""
 
     member {
         bigint id PK
@@ -156,9 +159,10 @@ erDiagram
         varchar difficulty "체감 난이도(VERY_EASY…VERY_HARD)"
         varchar congestion "혼잡도(QUIET/NORMAL/CROWDED)"
         varchar practice_method "SOLO|ACCOMPANIED"
-        varchar content "후기 내용(최대 150자)"
+        varchar content "후기 내용(선택, 최대 150자). null=평가만 남긴 후기"
         text caution "주의사항(선택)"
         varchar member_level "작성 당시 작성자 레벨(스냅샷)"
+        boolean is_verified_visit "작성 당시 레벨에서 GPS 방문 인증을 받았는지(스냅샷)"
         timestamptz hidden_at "신고 5명 누적 비공개 시각(null=공개)"
         timestamptz created_at
         timestamptz updated_at
@@ -181,6 +185,21 @@ erDiagram
         timestamptz created_at
         timestamptz updated_at
     }
+
+    member_practice {
+        bigint id PK
+        bigint member_id FK "회원"
+        bigint place_id FK "장소(코스·주차장 공통)"
+        varchar status "PLANNED/VISITED/NOT_VISITED"
+        int visit_count "다녀온 횟수(재연습마다 +1)"
+        timestamptz visited_at "마지막 방문 시각(미방문이면 null)"
+        bigint certified_distance_meters "누적 인정 주행거리(m). 주차장은 쌓지 않음"
+        varchar verified_level "마지막 인증 성공 시점의 회원 레벨(null=인증 이력 없음)"
+        varchar skip_reason "미방문 사유(null 가능)"
+        varchar skip_detail "미방문 사유 직접 입력(OTHER 전용)"
+        timestamptz created_at
+        timestamptz updated_at
+    }
 ```
 
 ## Enum
@@ -195,6 +214,9 @@ erDiagram
 | `member_onboarding.solo_driving_range` (Q4) | NEAR_HOME / FAMILIAR_ROAD / UNFAMILIAR_ROAD / HIGHWAY_LONG |
 | `member_onboarding.solo_parking_level` (Q5) | NONE / WIDE_ONLY / FAMILIAR_PLACE / MOSTLY_POSSIBLE |
 | `member_onboarding.practice_types` (jsonb, 순위) | U_TURN / LEFT_RIGHT_TURN / PARKING / LANE_CHANGE / INTERSECTION / ROUNDABOUT / UNPROTECTED_LEFT_TURN / HIGHWAY_ENTRY / CORNERING / NARROW_ROAD / MULTILANE / MERGING / STRAIGHT |
+| `member_practice.status` | PLANNED(예정) / VISITED(다녀옴) / NOT_VISITED(안 감) |
+| `member_practice.verified_level` | `member.level`과 같은 값 |
+| `member_practice.skip_reason` | CHECK_REALTIME_TRAFFIC / TOO_FAR / ROUTE_SEEMED_DIFFICULT / SCHEDULE_DID_NOT_MATCH / OTHER |
 | `place.place_type` | PARKING / COURSE |
 | `waypoint.waypoint_type` | START(출발지) / VIA(경유지) / DESTINATION(목적지) |
 | `course_practice_type.practice_type` | `PracticeType` 재사용(U_TURN … STRAIGHT, 13종) |
