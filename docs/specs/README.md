@@ -34,3 +34,7 @@
 | [연습 코스 목록](011-practice-course.md) | 코스 담기·방문 기록·방문 인증·미방문 이유 폼 | Implemented |
 | [레벨 진행도](012-level-progress.md) | 누적 주행거리로 레벨 자동 승급·마이페이지 레벨업 게이지 | Implemented |
 | [앱 연동 보완](013-app-integration-refinements.md) | 후기 상세 조회·내용 선택 입력·레벨별 방문 인증·로그인 응답 보강·즉시 탈퇴(테스트용) | Implemented |
+| [코스 등록](014-course-registration.md) | 사용자 코스 등록(경로·연습유형·한줄소개)·등록 폼·승인 전 비노출 필터 | Draft |
+| [내 코스 관리](015-my-course-management.md) | 내가 등록한 코스 상태별 목록·삭제(수정은 범위 밖) | Draft |
+| [코스 승인](016-course-approval.md) | 승인 상태 변경(임시로 로그인 사용자 전체, 추후 관리자 전용) | Draft |
+| [코스 등록 튜토리얼](017-course-tutorial.md) | 코스 등록 튜토리얼 완료 저장·로그인 응답으로 완료 여부 전달 | Draft |
