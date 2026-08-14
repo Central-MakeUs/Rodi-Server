@@ -8,7 +8,7 @@ import java.util.List;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
-/** 코스 등록 폼의 카테고리 구성(스펙 014) — 매핑·순서·"전체" 버튼 규칙. */
+/** 코스 등록 폼의 카테고리 구성(스펙 014) — 매핑·순서. */
 class PracticeCategoryTest {
 
     @Test
@@ -21,24 +21,26 @@ class PracticeCategoryTest {
     }
 
     @Test
-    @DisplayName("항목이 4개인 복합 상황만 전체 버튼이 없다 — 전체 선택이 최대 3개를 넘기 때문")
-    void 전체_버튼() {
-        assertThat(PracticeCategory.COMPLEX.getPracticeTypes()).hasSize(4);
-        assertThat(PracticeCategory.COMPLEX.isSelectAllEnabled()).isFalse();
-
-        assertThat(
-                        Arrays.stream(PracticeCategory.values())
-                                .filter(c -> !c.isSelectAllEnabled())
-                                .toList())
-                .containsExactly(PracticeCategory.COMPLEX);
-    }
-
-    @Test
-    @DisplayName("주차는 PARKING 하나이고, 도심 기본에도 PARKING이 겹쳐 들어간다")
-    void 주차_중복_노출() {
+    @DisplayName("카테고리별 연습유형은 기획 표 순서 그대로 내려간다")
+    void 카테고리_매핑() {
+        assertThat(PracticeCategory.BASIC_DRIVING.getPracticeTypes())
+                .containsExactly(
+                        PracticeType.STRAIGHT,
+                        PracticeType.LEFT_RIGHT_TURN,
+                        PracticeType.LANE_CHANGE);
+        assertThat(PracticeCategory.CITY_BASIC.getPracticeTypes())
+                .containsExactly(PracticeType.INTERSECTION, PracticeType.U_TURN);
         assertThat(PracticeCategory.PARKING_SPACE.getPracticeTypes())
                 .containsExactly(PracticeType.PARKING);
-        assertThat(PracticeCategory.CITY_BASIC.getPracticeTypes()).contains(PracticeType.PARKING);
+        assertThat(PracticeCategory.TRAFFIC_FLOW.getPracticeTypes())
+                .containsExactly(
+                        PracticeType.MULTILANE, PracticeType.MERGING, PracticeType.HIGHWAY_ENTRY);
+        assertThat(PracticeCategory.COMPLEX.getPracticeTypes())
+                .containsExactly(
+                        PracticeType.ROUNDABOUT,
+                        PracticeType.UNPROTECTED_LEFT_TURN,
+                        PracticeType.NARROW_ROAD,
+                        PracticeType.CORNERING);
     }
 
     @Test

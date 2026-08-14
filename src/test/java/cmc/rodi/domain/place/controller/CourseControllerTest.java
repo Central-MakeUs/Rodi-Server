@@ -245,7 +245,7 @@ class CourseControllerTest {
     }
 
     @Test
-    @DisplayName("등록 폼: 카테고리 5개를 order 순으로 반환하고 복합 상황만 전체 버튼이 없다")
+    @DisplayName("등록 폼: 소제목과 카테고리 5개를 반환하고 전체 선택 필드는 없다")
     void 등록_폼() throws Exception {
         authenticate(7L);
         when(courseService.getRegistrationForm())
@@ -254,22 +254,46 @@ class CourseControllerTest {
         mockMvc.perform(get("/api/v1/courses/registration-form"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.maxWaypoints").value(3))
+                .andExpect(jsonPath("$.data.sections.basicInfo").value("기본정보"))
+                .andExpect(
+                        jsonPath("$.data.sections.practiceCategory")
+                                .value("연습유형 카테고리 고르기"))
+                .andExpect(jsonPath("$.data.sections.practiceType").value("연습유형"))
+                .andExpect(jsonPath("$.data.sections.caution").value("주의사항 작성"))
+                .andExpect(jsonPath("$.data.sections.description").value("한줄 소개"))
                 .andExpect(jsonPath("$.data.practiceType.maxSelect").value(3))
                 .andExpect(
                         jsonPath("$.data.practiceType.maxSelectExceededMessage")
                                 .value("연습유형은 최대 3개까지 선택할 수 있어요."))
+                .andExpect(jsonPath("$.data.practiceType.selectAllLabel").doesNotExist())
                 .andExpect(jsonPath("$.data.practiceType.categories.length()").value(5))
                 .andExpect(
                         jsonPath("$.data.practiceType.categories[0].code").value("BASIC_DRIVING"))
                 .andExpect(jsonPath("$.data.practiceType.categories[0].label").value("기초 주행"))
                 .andExpect(
-                        jsonPath("$.data.practiceType.categories[0].selectAllEnabled").value(true))
+                        jsonPath("$.data.practiceType.categories[0].selectAllEnabled")
+                                .doesNotExist())
+                .andExpect(jsonPath("$.data.practiceType.categories[1].code").value("CITY_BASIC"))
                 .andExpect(
-                        jsonPath("$.data.practiceType.categories[0].practiceTypes[0].label")
-                                .value("직선주행"))
+                        jsonPath("$.data.practiceType.categories[1].practiceTypes.length()")
+                                .value(2))
+                .andExpect(
+                        jsonPath("$.data.practiceType.categories[1].practiceTypes[0].label")
+                                .value("교차로"))
+                .andExpect(
+                        jsonPath("$.data.practiceType.categories[1].practiceTypes[1].label")
+                                .value("유턴"))
+                .andExpect(jsonPath("$.data.practiceType.categories[3].code").value("TRAFFIC_FLOW"))
+                .andExpect(
+                        jsonPath("$.data.practiceType.categories[3].practiceTypes[0].label")
+                                .value("다차로주행"))
                 .andExpect(jsonPath("$.data.practiceType.categories[4].code").value("COMPLEX"))
                 .andExpect(
-                        jsonPath("$.data.practiceType.categories[4].selectAllEnabled").value(false))
+                        jsonPath("$.data.practiceType.categories[4].selectAllEnabled")
+                                .doesNotExist())
+                .andExpect(
+                        jsonPath("$.data.practiceType.categories[4].practiceTypes[0].label")
+                                .value("회전교차로"))
                 .andExpect(jsonPath("$.data.inputs.description.minLength").value(10))
                 .andExpect(jsonPath("$.data.inputs.description.maxLength").value(30))
                 .andExpect(jsonPath("$.data.inputs.caution.maxLength").value(100))

@@ -9,6 +9,7 @@
 | 2026-08-14 | Draft | 구현 반영 — 등록 응답을 **201 → 200**(프로젝트의 모든 POST가 200), 카테고리의 "전체" 버튼 노출은 **항목 수 ≤ 최대 선택 개수로 파생**(구성이 바뀌어도 규칙이 따라온다) |
 | 2026-08-14 | Draft | 구현 반영 — **미승인 코스 상세를 `COURSE_404_1`이 아니라 공통 `COMMON_404`로** 응답한다. 전용 코드를 주면 id를 훑어 심사 중인 코스의 존재를 알아낼 수 있다(삭제는 알려주는 게 목적이라 전용 코드 유지) |
 | 2026-08-14 | Draft | 미해결 질문 4건 해소 — **코스명은 `name` 선택 필드 유지 + 미제공 시 출발지 지점명**(START의 `name` 필수), **주행거리 필수**, 연습유형 1~3개 필수, 미승인 코스 상세는 등록자 본인만 200. 삭제가 **soft delete로 확정**되어 `deleted_at` 컬럼 추가·**FK cascade 재정의 철회**, 노출 필터에 `deleted_at IS NULL` 추가 |
+| 2026-08-14 | Draft | 등록 폼 UI 반영 — 연습유형 **전체 선택 제거**, 섹션 소제목(`기본정보` 등) 응답 추가, 카테고리별 연습유형 매핑·순서를 최신 기획표로 수정 |
 
 > 3차 업데이트 코스 도메인은 4개 문서로 나뉜다. **이 문서가 도메인 모델(마이그레이션 V24)·승인 상태·노출 규칙의 기준**이고 나머지는 여기를 참조한다.
 > [015 내 코스 관리](015-my-course-management.md) · [016 코스 승인](016-course-approval.md) · [017 코스 등록 튜토리얼](017-course-tutorial.md)
@@ -100,16 +101,16 @@ CREATE INDEX idx_course_created_by ON course (created_by_member_id, place_id DES
 
 [스펙 007](007-course-search-filter.md)의 홈 필터 카테고리와 **같은 구성**이다(007은 클라 소유였고, 여기서 **서버가 폼으로 내려주는 정의**를 갖는다 — DB에는 넣지 않는다).
 
-| code | 표시명 | 순서 | 전체 버튼 | 연습유형 |
-|------|--------|------|-----------|----------|
-| BASIC_DRIVING | 기초 주행 | 1 | O | STRAIGHT · LEFT_RIGHT_TURN · LANE_CHANGE |
-| CITY_BASIC | 도심 기본 | 2 | O | U_TURN · INTERSECTION · PARKING |
-| PARKING_SPACE | 주차 | 3 | O | PARKING |
-| TRAFFIC_FLOW | 도로 흐름 | 4 | O | HIGHWAY_ENTRY · MERGING · MULTILANE |
-| COMPLEX | 복합 상황 | 5 | **X** | UNPROTECTED_LEFT_TURN · ROUNDABOUT · NARROW_ROAD · CORNERING |
+| code | 표시명 | 순서 | 연습유형 |
+|------|--------|------|----------|
+| BASIC_DRIVING | 기초 주행 | 1 | STRAIGHT · LEFT_RIGHT_TURN · LANE_CHANGE |
+| CITY_BASIC | 도심 기본 | 2 | INTERSECTION · U_TURN |
+| PARKING_SPACE | 주차 | 3 | PARKING |
+| TRAFFIC_FLOW | 도로 흐름 | 4 | MULTILANE · MERGING · HIGHWAY_ENTRY |
+| COMPLEX | 복합 상황 | 5 | ROUNDABOUT · UNPROTECTED_LEFT_TURN · NARROW_ROAD · CORNERING |
 
-- **`PARKING`은 코스 태그로 허용한다** — 경로 중간에 주차 연습 구간이 있을 수 있다. `PARKING`이 도심 기본·주차 양쪽에 나오지만(겹침) 저장 값은 연습유형 집합이라 서버에는 영향이 없다.
-- **복합 상황에만 전체 버튼이 없다** — 항목이 4개라 "전체"가 최대 3개 제한을 넘기 때문. 나머지 카테고리는 전체를 눌러도 3개 이하다.
+- **`PARKING`은 코스 태그로 허용한다** — 경로 중간에 주차 연습 구간이 있을 수 있다. 다만 최신 등록 폼에서는 `PARKING`이 **주차 카테고리에만** 나온다.
+- **카테고리별 "전체" 선택 버튼은 내려주지 않는다** — UI에서 제거됐다.
 - 카테고리 code `PARKING_SPACE`는 `PracticeType.PARKING`과 이름이 겹치지 않게 붙였다(007의 "넓은 공간"에 해당, 표시명만 "주차").
 
 ### 연습유형 선택 규칙
@@ -121,7 +122,6 @@ CREATE INDEX idx_course_created_by ON course (created_by_member_id, place_id DES
 | 카테고리를 넘나들며 **통합 최대 3개** | 서버 검증 + 앱 |
 | 카테고리를 바꿔도 기존 선택값 유지 | 앱 |
 | 선택된 유형 재선택 시 해제 | 앱 |
-| 같은 카테고리의 개별 유형 선택 시 "전체" 해제 | 앱 |
 | 3개 선택 후 추가 선택 시 기존 유지 + 안내(CM-08) | 앱 (문구는 서버가 폼으로 내려줌) |
 
 ## API 명세 (패키지 `domain.place`)
@@ -209,13 +209,19 @@ CREATE INDEX idx_course_created_by ON course (created_by_member_id, place_id DES
 // Response data
 {
   "maxWaypoints": 3,
+  "sections": {
+    "basicInfo": "기본정보",
+    "practiceCategory": "연습유형 카테고리 고르기",
+    "practiceType": "연습유형",
+    "caution": "주의사항 작성",
+    "description": "한줄 소개"
+  },
   "practiceType": {
     "maxSelect": 3,
     "maxSelectExceededMessage": "연습유형은 최대 3개까지 선택할 수 있어요.",
-    "selectAllLabel": "전체",
     "categories": [
       {
-        "code": "BASIC_DRIVING", "label": "기초 주행", "order": 1, "selectAllEnabled": true,
+        "code": "BASIC_DRIVING", "label": "기초 주행", "order": 1,
         "practiceTypes": [
           { "code": "STRAIGHT",        "label": "직선주행", "order": 1 },
           { "code": "LEFT_RIGHT_TURN", "label": "좌우회전", "order": 2 },
@@ -223,10 +229,10 @@ CREATE INDEX idx_course_created_by ON course (created_by_member_id, place_id DES
         ]
       },
       {
-        "code": "COMPLEX", "label": "복합 상황", "order": 5, "selectAllEnabled": false,
+        "code": "COMPLEX", "label": "복합 상황", "order": 5,
         "practiceTypes": [
-          { "code": "UNPROTECTED_LEFT_TURN", "label": "비보호좌회전", "order": 1 },
-          { "code": "ROUNDABOUT",            "label": "회전교차로",   "order": 2 },
+          { "code": "ROUNDABOUT",            "label": "회전교차로",   "order": 1 },
+          { "code": "UNPROTECTED_LEFT_TURN", "label": "비보호좌회전", "order": 2 },
           { "code": "NARROW_ROAD",           "label": "좁은 도로",    "order": 3 },
           { "code": "CORNERING",             "label": "코너링",      "order": 4 }
         ]
@@ -243,7 +249,7 @@ CREATE INDEX idx_course_created_by ON course (created_by_member_id, place_id DES
 - 위 예시는 카테고리 2개만 보였고 실제로는 **5개 전부**를 order 순으로 내려준다.
 - `code`가 그대로 등록 요청의 `practiceTypes` 값이 된다.
 - **`global.common.form`의 `FormResponse`를 재사용하지 않는다** — 그쪽은 단일 선택 문항 하나(신고 사유·미방문 사유)를 위한 구조라 2단 트리·입력 제약을 담을 수 없다. 전용 DTO `CourseRegistrationFormResponse`를 둔다.
-- 한글 라벨·순서·전체 버튼 노출 여부·안내 문구를 서버가 쥐고 있어 앱 배포 없이 바꿀 수 있다.
+- 한글 라벨·순서·섹션 제목·안내 문구를 서버가 쥐고 있어 앱 배포 없이 바꿀 수 있다.
 
 ### 3. 노출 필터 (기존 조회 API 수정)
 
@@ -298,7 +304,7 @@ AND (p.place_type <> 'COURSE'
 - [ ] `name`을 생략하면 코스명이 **출발지(`START`)의 `name`** 으로 저장되고, 보내면 그 값이 저장된다.
 - [ ] START의 `name`이 없으면 400이다(경유지·도착지의 `name`은 없어도 등록된다).
 - [ ] `distanceMeters`가 없거나 0 이하면 400이다.
-- [ ] 등록 폼이 카테고리 5개를 order 순으로 반환하고, **복합 상황만 `selectAllEnabled=false`**이며 최대 개수 3·초과 안내 문구·한줄소개 10~30 제약을 담는다.
+- [ ] 등록 폼이 섹션 소제목 5개와 카테고리 5개를 order 순으로 반환하고, **전체 선택 필드는 내려주지 않으며**, 최대 개수 3·초과 안내 문구·한줄소개 10~30 제약을 담는다.
 - [ ] 등록 직후 그 코스가 **뷰포트 목록·필터 목록·키워드 검색·연관검색어·마커 좌표에 나오지 않는다**(각각 검증).
 - [ ] 미승인 코스 상세는 제3자에게 **없는 장소와 같은 404(`COMMON_404`)**, **등록자 본인에게는 200**이다.
 - [ ] 삭제된 코스는 전체 조회 어디에도 없고, 상세는 등록자 본인에게도 **404 `COURSE_404_2`("삭제된 코스입니다.")** 다.

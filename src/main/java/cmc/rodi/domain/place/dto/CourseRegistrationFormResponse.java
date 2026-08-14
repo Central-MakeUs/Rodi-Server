@@ -16,22 +16,29 @@ import java.util.List;
  */
 public record CourseRegistrationFormResponse(
         @Schema(description = "경유지 최대 개수") int maxWaypoints,
+        @Schema(description = "등록 화면 소제목") Sections sections,
         @Schema(description = "연습유형 선택 정의") PracticeTypeForm practiceType,
         @Schema(description = "텍스트 입력 제약") Inputs inputs) {
+
+    /** 앱 화면에 노출할 소제목. */
+    public record Sections(
+            @Schema(description = "기본 정보 섹션 제목") String basicInfo,
+            @Schema(description = "연습유형 카테고리 선택 제목") String practiceCategory,
+            @Schema(description = "연습유형 선택 제목") String practiceType,
+            @Schema(description = "주의사항 입력 제목") String caution,
+            @Schema(description = "한줄 소개 입력 제목") String description) {}
 
     /** 연습유형 선택 규칙 + 카테고리 트리. */
     public record PracticeTypeForm(
             @Schema(description = "최대 선택 개수(카테고리 합산)") int maxSelect,
             @Schema(description = "최대 개수 초과 시 안내 문구") String maxSelectExceededMessage,
-            @Schema(description = "전체 선택 버튼 문구") String selectAllLabel,
             @Schema(description = "카테고리(order 오름차순)") List<CategoryItem> categories) {}
 
-    /** 카테고리 하나. {@code selectAllEnabled=false}면 "전체" 버튼을 그리지 않는다. */
+    /** 카테고리 하나. */
     public record CategoryItem(
             @Schema(description = "카테고리 코드") String code,
             @Schema(description = "화면 표시 문구") String label,
             @Schema(description = "노출 순서(1부터)") int order,
-            @Schema(description = "전체 선택 버튼 노출 여부") boolean selectAllEnabled,
             @Schema(description = "하위 연습유형(order 오름차순)") List<PracticeTypeItem> practiceTypes) {}
 
     /** 연습유형 하나. {@code code}가 그대로 등록 요청의 {@code practiceTypes} 값이 된다. */
@@ -57,10 +64,10 @@ public record CourseRegistrationFormResponse(
             int maxWaypoints, InputSpec caution, InputSpec description) {
         return new CourseRegistrationFormResponse(
                 maxWaypoints,
+                new Sections("기본정보", "연습유형 카테고리 고르기", "연습유형", "주의사항 작성", "한줄 소개"),
                 new PracticeTypeForm(
                         PracticeCategory.MAX_SELECT,
                         PracticeCategory.MAX_SELECT_EXCEEDED_MESSAGE,
-                        PracticeCategory.SELECT_ALL_LABEL,
                         categories()),
                 new Inputs(caution, description));
     }
@@ -74,7 +81,6 @@ public record CourseRegistrationFormResponse(
                                         category.name(),
                                         category.getLabel(),
                                         category.getOrder(),
-                                        category.isSelectAllEnabled(),
                                         practiceTypes(category)))
                 .toList();
     }
