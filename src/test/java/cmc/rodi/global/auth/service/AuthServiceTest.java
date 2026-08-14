@@ -9,6 +9,8 @@ import static org.mockito.Mockito.when;
 
 import cmc.rodi.domain.member.entity.Member;
 import cmc.rodi.domain.member.exception.MemberErrorCode;
+import cmc.rodi.domain.member.policy.WithdrawalPolicy;
+import cmc.rodi.domain.member.repository.MemberOnboardingRepository;
 import cmc.rodi.domain.member.repository.MemberRepository;
 import cmc.rodi.domain.member.service.NicknameAssigner;
 import cmc.rodi.global.auth.dto.SocialLoginResponse;
@@ -30,6 +32,7 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.test.util.ReflectionTestUtils;
 
 @ExtendWith(MockitoExtension.class)
 class AuthServiceTest {
@@ -47,6 +50,7 @@ class AuthServiceTest {
     @Mock TokenService tokenService;
     @Mock SocialClient socialClient;
     @Mock NicknameAssigner nicknameAssigner;
+    @Mock MemberOnboardingRepository memberOnboardingRepository;
 
     @InjectMocks AuthService authService;
 
@@ -130,16 +134,49 @@ class AuthServiceTest {
     }
 
     @Test
-    @DisplayName("재발급: TokenService.reissue에 위임하고 isNewMember=false")
+    @DisplayName("가입 후 온보딩 중 이탈한 회원의 재로그인: isNewMember=false지만 isOnboarded=false")
+    void 온보딩_미완료_재로그인() {
+        stubSocialVerification();
+        Member existing = Member.createBySocial(EMAIL);
+        ReflectionTestUtils.setField(existing, "id", 7L);
+        SocialAccount account =
+                SocialAccount.builder()
+                        .member(existing)
+                        .provider(SocialProvider.KAKAO)
+                        .providerId(PROVIDER_ID)
+                        .email(EMAIL)
+                        .build();
+        when(socialAccountRepository.findByProviderAndProviderId(SocialProvider.KAKAO, PROVIDER_ID))
+                .thenReturn(Optional.of(account));
+        when(tokenService.issue(existing)).thenReturn(new Tokens("access-jwt", "refresh-raw"));
+        when(memberOnboardingRepository.existsById(7L)).thenReturn(false);
+
+        SocialLoginResponse response = authService.login(SocialProvider.KAKAO, CREDENTIAL);
+
+        // isNewMember만 보면 온보딩을 마친 회원과 구분되지 않는다 — 이 필드를 넣은 이유다
+        assertThat(response.isNewMember()).isFalse();
+        assertThat(response.isOnboarded()).isFalse();
+
+        when(memberOnboardingRepository.existsById(7L)).thenReturn(true);
+        assertThat(authService.login(SocialProvider.KAKAO, CREDENTIAL).isOnboarded()).isTrue();
+    }
+
+    @Test
+    @DisplayName("재발급: 회전한 토큰과 함께 그 회원의 온보딩 완료 여부를 준다")
     void 재발급() {
+        Member member = Member.createBySocial(EMAIL);
+        ReflectionTestUtils.setField(member, "id", 7L);
         when(tokenService.reissue("refresh-raw"))
-                .thenReturn(new Tokens("new-access", "new-refresh"));
+                .thenReturn(
+                        new TokenService.Reissued(new Tokens("new-access", "new-refresh"), member));
+        when(memberOnboardingRepository.existsById(7L)).thenReturn(true);
 
         TokenResponse response = authService.reissue("refresh-raw");
 
-        assertThat(response.isNewMember()).isFalse();
         assertThat(response.accessToken()).isEqualTo("new-access");
         assertThat(response.refreshToken()).isEqualTo("new-refresh");
+        // 토큰만 갱신하고 들어온 앱도 온보딩 화면 분기를 할 수 있어야 한다
+        assertThat(response.isOnboarded()).isTrue();
         verify(tokenService).reissue("refresh-raw");
     }
 
@@ -169,20 +206,23 @@ class AuthServiceTest {
     }
 
     @Test
-    @DisplayName("탈퇴 유예 경과 로그인: WITHDRAWAL_LOCKED")
+    @DisplayName("탈퇴 유예 경과 로그인: 오류가 아니라 200 + 재가입 가능 시각")
     void 탈퇴유예경과_로그인_잠금() {
         stubSocialVerification();
         Member withdrawn = Member.createBySocial(EMAIL);
-        withdrawn.withdraw(LocalDateTime.now().minusDays(5)); // 3일 경과 → LOCKED
+        LocalDateTime withdrawnAt = LocalDateTime.now().minusDays(5); // 3일 경과 → LOCKED
+        withdrawn.withdraw(withdrawnAt);
         when(socialAccountRepository.findByProviderAndProviderId(SocialProvider.KAKAO, PROVIDER_ID))
                 .thenReturn(Optional.of(accountOf(withdrawn)));
 
-        assertThatThrownBy(() -> authService.login(SocialProvider.KAKAO, CREDENTIAL))
-                .isInstanceOfSatisfying(
-                        BusinessException.class,
-                        e ->
-                                assertThat(e.getErrorCode())
-                                        .isEqualTo(MemberErrorCode.WITHDRAWAL_LOCKED));
+        SocialLoginResponse response = authService.login(SocialProvider.KAKAO, CREDENTIAL);
+
+        assertThat(response.status()).isEqualTo(SocialLoginResponse.Status.WITHDRAWAL_LOCKED);
+        assertThat(response.accessToken()).isNull();
+        // 앱이 "N일 남았습니다"를 그리려면 날짜가 값으로 와야 한다 — 에러 응답으로는 실을 수 없었다
+        assertThat(response.reRegisterableAt())
+                .isEqualTo(withdrawnAt.plus(WithdrawalPolicy.RE_REGISTERABLE_WINDOW));
+        assertThat(response.withdrawalRequestedAt()).isEqualTo(withdrawnAt);
         verify(tokenService, never()).issue(any());
     }
 
@@ -204,7 +244,7 @@ class AuthServiceTest {
     }
 
     @Test
-    @DisplayName("복구: 유예 경과면 WITHDRAWAL_LOCKED")
+    @DisplayName("복구: 유예 경과면 오류가 아니라 200 + 재가입 가능 시각")
     void 복구_잠금() {
         stubSocialVerification();
         Member withdrawn = Member.createBySocial(EMAIL);
@@ -212,12 +252,12 @@ class AuthServiceTest {
         when(socialAccountRepository.findByProviderAndProviderId(SocialProvider.KAKAO, PROVIDER_ID))
                 .thenReturn(Optional.of(accountOf(withdrawn)));
 
-        assertThatThrownBy(() -> authService.restore(SocialProvider.KAKAO, CREDENTIAL))
-                .isInstanceOfSatisfying(
-                        BusinessException.class,
-                        e ->
-                                assertThat(e.getErrorCode())
-                                        .isEqualTo(MemberErrorCode.WITHDRAWAL_LOCKED));
+        // 복구로 들어와도 같은 안내를 준다 — 한쪽만 고치면 다른 쪽에서 날짜를 못 받는다
+        SocialLoginResponse response = authService.restore(SocialProvider.KAKAO, CREDENTIAL);
+
+        assertThat(response.status()).isEqualTo(SocialLoginResponse.Status.WITHDRAWAL_LOCKED);
+        assertThat(response.reRegisterableAt()).isNotNull();
+        verify(tokenService, never()).issue(any());
     }
 
     @Test

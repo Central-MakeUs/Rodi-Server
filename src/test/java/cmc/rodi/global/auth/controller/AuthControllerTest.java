@@ -54,7 +54,7 @@ class AuthControllerTest {
         when(authService.login(eq(SocialProvider.KAKAO), eq("kakao-token")))
                 .thenReturn(
                         SocialLoginResponse.success(
-                                new Tokens("access-jwt", "refresh-raw"), true, "차근차근 토끼"));
+                                new Tokens("access-jwt", "refresh-raw"), true, false, "차근차근 토끼"));
 
         mockMvc.perform(
                         post("/api/v1/auth/oauth/kakao")
@@ -67,6 +67,7 @@ class AuthControllerTest {
                 .andExpect(jsonPath("$.data.accessToken").value("access-jwt"))
                 .andExpect(jsonPath("$.data.refreshToken").value("refresh-raw"))
                 .andExpect(jsonPath("$.data.isNewMember").value(true))
+                .andExpect(jsonPath("$.data.isOnboarded").value(false)) // 갓 가입해 온보딩 전
                 .andExpect(jsonPath("$.data.nickname").value("차근차근 토끼"));
     }
 
@@ -98,7 +99,7 @@ class AuthControllerTest {
     @DisplayName("토큰 재발급 성공: 200 + 새 토큰 반환")
     void 재발급_성공() throws Exception {
         when(authService.reissue("refresh-raw"))
-                .thenReturn(new TokenResponse("new-access", "new-refresh", false));
+                .thenReturn(new TokenResponse("new-access", "new-refresh", true));
 
         mockMvc.perform(
                         post("/api/v1/auth/token/refresh")
@@ -106,7 +107,9 @@ class AuthControllerTest {
                                 .content("{\"refreshToken\":\"refresh-raw\"}"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.accessToken").value("new-access"))
-                .andExpect(jsonPath("$.data.isNewMember").value(false));
+                .andExpect(jsonPath("$.data.isOnboarded").value(true))
+                // 재발급은 가입이 아니라 항상 false였던 필드 — 정보가 없어 뺐다
+                .andExpect(jsonPath("$.data.isNewMember").doesNotExist());
     }
 
     @Test

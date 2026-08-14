@@ -10,6 +10,8 @@ import cmc.rodi.domain.member.repository.MemberRepository;
 import cmc.rodi.domain.place.entity.Course;
 import cmc.rodi.domain.place.repository.CourseRepository;
 import cmc.rodi.domain.practice.dto.PracticeVisitRequest;
+import cmc.rodi.domain.practice.entity.MemberPractice;
+import cmc.rodi.domain.practice.repository.MemberPracticeRepository;
 import cmc.rodi.domain.practice.service.PracticeService;
 import cmc.rodi.domain.review.dto.ReviewReportRequest;
 import cmc.rodi.domain.review.dto.ReviewRequest;
@@ -25,6 +27,9 @@ import cmc.rodi.domain.review.service.ReviewService;
 import cmc.rodi.global.exception.BusinessException;
 import cmc.rodi.global.exception.ErrorCode;
 import cmc.rodi.support.TestcontainersConfiguration;
+import jakarta.persistence.EntityManager;
+import jakarta.persistence.PersistenceContext;
+import java.time.LocalDateTime;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.locationtech.jts.geom.Coordinate;
@@ -45,9 +50,11 @@ class ReviewWriteIntegrationTest {
 
     @Autowired ReviewService reviewService;
     @Autowired PracticeService practiceService;
+    @Autowired MemberPracticeRepository memberPracticeRepository;
     @Autowired ReviewRepository reviewRepository;
     @Autowired ReviewReportRepository reviewReportRepository;
     @Autowired CourseRepository courseRepository;
+    @PersistenceContext EntityManager em;
     @Autowired MemberRepository memberRepository;
 
     private Course seedCourse() {
@@ -74,6 +81,18 @@ class ReviewWriteIntegrationTest {
                 PracticeMethod.ACCOMPANIED,
                 content,
                 "주말 오후엔 자전거가 많습니다.");
+    }
+
+    /** 재인증을 확인하려면 같은 항목을 두 번 방문해야 하는데, 10분 쿨다운이 두 번째 호출을 흡수한다. */
+    private void expireCooldown(Long practiceId) {
+        em.flush(); // 직전 방문의 변경을 먼저 내보내야 아래 UPDATE가 그 위에 얹힌다
+        em.createNativeQuery("UPDATE member_practice SET visited_at = ?1 WHERE id = ?2")
+                .setParameter(
+                        1,
+                        LocalDateTime.now().minusMinutes(MemberPractice.VISIT_COOLDOWN_MINUTES + 1))
+                .setParameter(2, practiceId)
+                .executeUpdate();
+        em.clear();
     }
 
     @Test
@@ -137,6 +156,43 @@ class ReviewWriteIntegrationTest {
     }
 
     @Test
+    @DisplayName("레벨이 오르면 인증을 다시 받아야 배지가 붙고, 이미 쓴 후기의 배지는 그대로다")
+    void 작성_방문인증_레벨별() {
+        Member me = seedMember("relevel@kakao.com", Level.SEED);
+        Course course =
+                courseRepository.save(
+                        Course.builder()
+                                .name("레벨별 인증 코스")
+                                .location(GEO.createPoint(new Coordinate(127.0, 37.5)))
+                                .distanceMeters(2_000) // 필요 거리 800m
+                                .build());
+        Long practiceId = practiceService.register(course.getId(), me.getId()).practiceId();
+
+        practiceService.recordVisit(practiceId, me.getId(), new PracticeVisitRequest(800));
+        Long seedReviewId =
+                reviewService.create(course.getId(), me.getId(), request("Seed 때 완주")).reviewId();
+
+        me.addDistance(60_000); // SEED → ROOKIE
+        Long afterLevelUpId =
+                reviewService.create(course.getId(), me.getId(), request("Rookie가 된 뒤")).reviewId();
+
+        // 승급 뒤 첫 후기 — 인증은 Seed 것이라 배지가 붙지 않는다
+        assertThat(reviewRepository.findById(afterLevelUpId).orElseThrow().isVerifiedVisit())
+                .isFalse();
+        // 이미 쓴 후기는 작성 시점 스냅샷이라 승급과 무관하게 유지된다
+        assertThat(reviewRepository.findById(seedReviewId).orElseThrow().isVerifiedVisit())
+                .isTrue();
+
+        expireCooldown(practiceId);
+        practiceService.recordVisit(practiceId, me.getId(), new PracticeVisitRequest(800));
+        Long recertifiedId =
+                reviewService.create(course.getId(), me.getId(), request("Rookie로 재인증")).reviewId();
+
+        assertThat(reviewRepository.findById(recertifiedId).orElseThrow().isVerifiedVisit())
+                .isTrue();
+    }
+
+    @Test
     @DisplayName("인증 이력 스냅샷은 연습 항목을 지워도 남는다")
     void 작성_방문인증_스냅샷_유지() {
         Member me = seedMember("keepBadge@kakao.com", Level.ROOKIE);
@@ -151,7 +207,7 @@ class ReviewWriteIntegrationTest {
         practiceService.recordVisit(practiceId, me.getId(), new PracticeVisitRequest(800));
         Long reviewId = reviewService.create(course.getId(), me.getId(), request("완주")).reviewId();
 
-        practiceService.delete(practiceId, me.getId());
+        memberPracticeRepository.deleteById(practiceId); // 연습 항목이 사라져도 배지는 남아야 한다
 
         assertThat(reviewRepository.findById(reviewId).orElseThrow().isVerifiedVisit()).isTrue();
     }
@@ -236,5 +292,73 @@ class ReviewWriteIntegrationTest {
         assertThat(reviewRepository.findById(reviewId)).isEmpty();
         assertThat(reviewReportRepository.existsByReviewIdAndReporterId(reviewId, other.getId()))
                 .isFalse();
+    }
+
+    @Test
+    @DisplayName("내용·주의사항 없이 평가만 남길 수 있고, 공백만 보내면 없는 것으로 저장된다")
+    void 내용_선택_입력() {
+        Course course = seedCourse();
+        Member me = seedMember("nocontent@kakao.com", Level.ROOKIE);
+
+        Long emptyId =
+                reviewService
+                        .create(
+                                course.getId(),
+                                me.getId(),
+                                new ReviewRequest(
+                                        true,
+                                        Difficulty.EASY,
+                                        Congestion.NORMAL,
+                                        PracticeMethod.SOLO,
+                                        null,
+                                        null))
+                        .reviewId();
+        Long blankId =
+                reviewService
+                        .create(
+                                course.getId(),
+                                me.getId(),
+                                new ReviewRequest(
+                                        true,
+                                        Difficulty.EASY,
+                                        Congestion.NORMAL,
+                                        PracticeMethod.SOLO,
+                                        "   ",
+                                        null))
+                        .reviewId();
+        reviewRepository.flush(); // NOT NULL이 남아 있으면 여기서 터진다
+
+        assertThat(reviewRepository.findById(emptyId).orElseThrow().getContent()).isNull();
+        // 빈 문자열을 그대로 두면 "내용 없음"과 "빈 글"이 갈려 화면 분기가 둘로 늘어난다
+        assertThat(reviewRepository.findById(blankId).orElseThrow().getContent()).isNull();
+        // 평가 항목은 그대로 남아 요약 집계에 쓰인다
+        assertThat(reviewRepository.findById(emptyId).orElseThrow().getDifficulty())
+                .isEqualTo(Difficulty.EASY);
+    }
+
+    @Test
+    @DisplayName("수정은 전체 교체라 내용을 비워 보내면 지워진다")
+    void 수정으로_내용_지우기() {
+        Course course = seedCourse();
+        Member me = seedMember("clear@kakao.com", Level.ROOKIE);
+        Long reviewId =
+                reviewService.create(course.getId(), me.getId(), request("지워질 내용")).reviewId();
+
+        reviewService.update(
+                reviewId,
+                me.getId(),
+                new ReviewRequest(
+                        false,
+                        Difficulty.HARD,
+                        Congestion.CROWDED,
+                        PracticeMethod.SOLO,
+                        null,
+                        null));
+        reviewRepository.flush();
+
+        Review updated = reviewRepository.findById(reviewId).orElseThrow();
+        assertThat(updated.getContent()).isNull();
+        assertThat(updated.getCaution()).isNull();
+        assertThat(updated.getDifficulty()).isEqualTo(Difficulty.HARD);
     }
 }

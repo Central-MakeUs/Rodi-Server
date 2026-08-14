@@ -32,3 +32,4 @@
 | [0010](0010-list-query-cursor-postgis.md) | 목록 조회 전략 — 커서 페이지네이션 (QueryDSL 배제) | Accepted |
 | [0011](0011-place-search-and-filter-sort.md) | 장소 검색·필터 정렬 — 별도 엔드포인트·ILIKE·서버 저장 필터 | Accepted |
 | [0012](0012-visit-record-duplicate-guard.md) | 방문 기록 중복 방지 — 쿨다운 | Accepted |
+| [0013](0013-withdrawal-locked-as-status.md) | 재가입 대기 안내 — 에러 대신 상태 응답 | Accepted |

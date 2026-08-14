@@ -23,7 +23,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-/** 연습 목록 담기·제거와 방문 기록(다녀왔어요·안 했어요). 조회는 {@link PracticeQueryService}. */
+/** 연습 목록 담기와 방문 기록(다녀왔어요·안 했어요). 조회는 {@link PracticeQueryService}. */
 @Service
 @RequiredArgsConstructor
 public class PracticeService {
@@ -84,11 +84,14 @@ public class PracticeService {
             return PracticeVisitResponse.unchanged(practice, findMember(memberId));
         }
 
-        int certifiedMeters = request.metersOrZero();
-        boolean certifiedNow = practice.markVisited(now, certifiedMeters);
-
         // 누적은 읽고-더하고-쓰기라 같은 회원의 방문이 겹치면 한쪽이 사라진다. 행을 잠가 직렬화한다.
         Member member = findMemberForUpdate(memberId);
+
+        // 레벨은 아래 addDistance에서 오를 수 있다. 인증은 이 주행을 시작한 레벨의 것이므로
+        // 승급 전 값을 먼저 읽어 넘긴다 — 새 레벨의 인증은 새 레벨에서 다시 받아야 한다(스펙 013).
+        // 주차장처럼 주행거리가 없는 장소는 측정값을 0으로 본다 — 인증·누적 어디에도 쓰이지 않는 값이다.
+        int certifiedMeters = practice.countableMeters(request.metersOrZero());
+        boolean certifiedNow = practice.markVisited(now, certifiedMeters, member.getLevel());
         boolean levelUp = member.addDistance(practice.accruableMeters(certifiedMeters));
         return PracticeVisitResponse.of(practice, certifiedMeters, certifiedNow, member, levelUp);
     }
@@ -120,18 +123,6 @@ public class PracticeService {
         }
         practice.markNotVisited();
         practice.applySkipReason(request.reason(), request.detail());
-    }
-
-    /** 목록에서 제거(멱등). 본인 항목만 지울 수 있고, 없으면 그대로 성공으로 본다. */
-    @Transactional
-    public void delete(Long practiceId, Long memberId) {
-        memberPracticeRepository
-                .findById(practiceId)
-                .ifPresent(
-                        practice -> {
-                            requireOwner(practice, memberId);
-                            memberPracticeRepository.delete(practice);
-                        });
     }
 
     private Member findMember(Long memberId) {

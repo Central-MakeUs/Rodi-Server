@@ -5,11 +5,13 @@ import cmc.rodi.domain.member.entity.Member;
 import cmc.rodi.domain.member.repository.MemberRepository;
 import cmc.rodi.domain.place.repository.PlaceRepository;
 import cmc.rodi.domain.review.dto.MyReviewItem;
+import cmc.rodi.domain.review.dto.ReviewDetailResponse;
 import cmc.rodi.domain.review.dto.ReviewItem;
 import cmc.rodi.domain.review.dto.ReviewListRequest;
 import cmc.rodi.domain.review.dto.ReviewSummaryResponse;
 import cmc.rodi.domain.review.entity.Difficulty;
 import cmc.rodi.domain.review.entity.Review;
+import cmc.rodi.domain.review.exception.ReviewErrorCode;
 import cmc.rodi.domain.review.repository.LevelCountRow;
 import cmc.rodi.domain.review.repository.ReviewRepository;
 import cmc.rodi.domain.review.repository.ReviewSummaryRow;
@@ -105,6 +107,22 @@ public class ReviewQueryService {
         }
         return CursorPage.first(
                 items, hasNext, nextCursor, reviewRepository.countByMemberId(memberId));
+    }
+
+    /**
+     * 후기 상세(수정 화면 프리필). <b>본인 후기만</b> 열린다 — 목록에 내리지 않는 {@code caution}까지 주기 때문이다. 비공개 처리된 후기도 본인에게는
+     * 보여야 하므로 걸러내지 않는다.
+     */
+    @Transactional(readOnly = true)
+    public ReviewDetailResponse getReview(Long reviewId, Long memberId) {
+        Review review =
+                reviewRepository
+                        .findDetailById(reviewId)
+                        .orElseThrow(() -> new BusinessException(ErrorCode.ENTITY_NOT_FOUND));
+        if (!review.isOwnedBy(memberId)) {
+            throw new BusinessException(ReviewErrorCode.NOT_REVIEW_OWNER);
+        }
+        return ReviewDetailResponse.of(review, findMember(memberId).getLevel());
     }
 
     /**

@@ -17,13 +17,13 @@ public record ReviewItem(
         @Schema(description = "작성자 회원 id(신고·차단 대상 지정용)") Long memberId,
         @Schema(description = "작성자 닉네임(탈퇴·익명화 시 null)") String nickname,
         @Schema(description = "연습 방법") PracticeMethod practiceMethod,
-        @Schema(description = "후기 내용") String content,
+        @Schema(description = "후기 내용(없으면 null)") String content,
         @Schema(description = "내가 쓴 후기인지") @JsonProperty("isMine") boolean mine,
         @Schema(description = "수정 가능 여부(내 후기이고 작성 당시 레벨 = 현재 레벨)") @JsonProperty("isEditable")
                 boolean editable,
         @Schema(description = "신고 누적으로 비공개된 후기인지(내 후기에서만 true로 내려간다)") @JsonProperty("isHidden")
                 boolean hidden,
-        @Schema(description = "작성 시점에 GPS 방문 인증 이력이 있었는지(\"인증된 후기\" 배지)")
+        @Schema(description = "작성 당시 레벨에서 GPS 방문 인증을 받았는지(\"인증된 후기\" 배지)")
                 @JsonProperty("isVerifiedVisit")
                 boolean verifiedVisit,
         @Schema(description = "작성 시각") LocalDateTime createdAt) {

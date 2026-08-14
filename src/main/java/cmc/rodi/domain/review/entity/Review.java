@@ -63,7 +63,8 @@ public class Review extends BaseEntity {
     @Column(name = "practice_method", nullable = false, length = 20)
     private PracticeMethod practiceMethod;
 
-    @Column(nullable = false, length = MAX_CONTENT_LENGTH)
+    /** 후기 내용(선택). 글 없이 평가만 남길 수 있다 — 빈 문자열은 저장하지 않고 null로 정규화한다. */
+    @Column(length = MAX_CONTENT_LENGTH)
     private String content;
 
     /** 주의사항(선택, 길이 제한 없음). */
@@ -79,7 +80,11 @@ public class Review extends BaseEntity {
     @Column(name = "hidden_at")
     private LocalDateTime hiddenAt;
 
-    /** 작성 시점에 GPS 방문 인증 이력이 있었는지(스냅샷). "다녀왔어요"만 누른 기록은 인증으로 보지 않는다. 스냅샷이라 이후 연습 항목을 지워도 값은 그대로다. */
+    /**
+     * 작성 당시 레벨에서 GPS 방문 인증을 받았는지(스냅샷). "다녀왔어요"만 누른 기록은 인증으로 보지 않는다.
+     *
+     * <p>스냅샷이라 이후 레벨이 오르거나 연습 항목을 지워도 값은 그대로다. 다만 <b>새 후기</b>는 그 레벨에서 다시 인증받아야 true가 된다(스펙 013).
+     */
     @Column(name = "is_verified_visit", nullable = false)
     private boolean verifiedVisit;
 
@@ -101,13 +106,13 @@ public class Review extends BaseEntity {
         this.difficulty = difficulty;
         this.congestion = congestion;
         this.practiceMethod = practiceMethod;
-        this.content = content;
+        this.content = blankToNull(content);
         this.caution = blankToNull(caution);
         this.memberLevel = memberLevel;
         this.verifiedVisit = verifiedVisit;
     }
 
-    /** 후기 내용 교체(전체 수정). 레벨·작성자·대상 장소는 바뀌지 않는다. */
+    /** 후기 내용 교체(전체 수정). 레벨·작성자·대상 장소는 바뀌지 않는다. 내용을 비워 보내면 지워진다(PUT은 전체 교체). */
     public void update(
             boolean recommended,
             Difficulty difficulty,
@@ -119,7 +124,7 @@ public class Review extends BaseEntity {
         this.difficulty = difficulty;
         this.congestion = congestion;
         this.practiceMethod = practiceMethod;
-        this.content = content;
+        this.content = blankToNull(content);
         this.caution = blankToNull(caution);
     }
 

@@ -15,7 +15,6 @@ import cmc.rodi.global.exception.BusinessException;
 import cmc.rodi.global.exception.ErrorCode;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
-import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -82,13 +81,6 @@ public class PracticeController implements PracticeControllerDocs {
             @CurrentMember Long memberId,
             @Valid @RequestBody PracticeSkipReasonRequest request) {
         practiceService.submitSkipReason(practiceId, memberId, request);
-        return ApiResponse.success(null);
-    }
-
-    @Override
-    @DeleteMapping("/practices/{practiceId}")
-    public ApiResponse<Void> delete(@PathVariable Long practiceId, @CurrentMember Long memberId) {
-        practiceService.delete(practiceId, memberId);
         return ApiResponse.success(null);
     }
 }

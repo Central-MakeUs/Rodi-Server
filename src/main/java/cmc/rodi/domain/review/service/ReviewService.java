@@ -66,9 +66,10 @@ public class ReviewService {
                         .content(request.content())
                         .caution(request.caution())
                         .memberLevel(member.getLevel()) // 작성 시점 레벨 스냅샷
+                        // 현재 레벨에서 인증받았을 때만 배지가 붙는다 — 레벨이 오르면 다시 인증해야 한다
                         .verifiedVisit(
-                                memberPracticeRepository.existsByMemberIdAndPlaceIdAndVerifiedTrue(
-                                        memberId, placeId)) // GPS 인증 이력 스냅샷
+                                memberPracticeRepository.existsByMemberIdAndPlaceIdAndVerifiedLevel(
+                                        memberId, placeId, member.getLevel()))
                         .build();
         return new ReviewCreateResponse(reviewRepository.save(review).getId());
     }

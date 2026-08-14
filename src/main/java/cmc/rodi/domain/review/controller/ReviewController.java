@@ -2,6 +2,7 @@ package cmc.rodi.domain.review.controller;
 
 import cmc.rodi.domain.review.dto.MyReviewItem;
 import cmc.rodi.domain.review.dto.ReviewCreateResponse;
+import cmc.rodi.domain.review.dto.ReviewDetailResponse;
 import cmc.rodi.domain.review.dto.ReviewItem;
 import cmc.rodi.domain.review.dto.ReviewListRequest;
 import cmc.rodi.domain.review.dto.ReviewReportRequest;
@@ -85,6 +86,13 @@ public class ReviewController implements ReviewControllerDocs {
             @CurrentMember Long memberId) {
         return ApiResponse.success(
                 reviewQueryService.getSummary(placeId, memberId, ReviewListRequest.ofLevel(level)));
+    }
+
+    @Override
+    @GetMapping("/reviews/{reviewId}")
+    public ApiResponse<ReviewDetailResponse> getReview(
+            @PathVariable Long reviewId, @CurrentMember Long memberId) {
+        return ApiResponse.success(reviewQueryService.getReview(reviewId, memberId));
     }
 
     @Override

@@ -16,6 +16,7 @@
 | 2026-08-08 | **Implemented** | 목록 응답 정리 — 카드에 쓰는 값만 남기고 추천 여부·난이도·혼잡도·작성 당시 레벨·`caution`을 뺐다 |
 | 2026-08-08 | **Implemented** | **내가 쓴 후기 목록**(`GET /members/me/reviews`) 추가 — 레벨 필터 없이 내 후기를 전부 보여줘, 레벨이 바뀌면 자기 후기가 기본 화면에서 사라지던 문제를 푼다 |
 | 2026-08-08 | **Implemented** | **차단한 회원 목록**(`GET /members/me/blocks`) 추가 — 마이페이지에서 차단을 관리할 수 있게 됐다(미해결 질문 6 해소) |
+| 2026-08-14 | Implemented | [스펙 013](013-app-integration-refinements.md) 반영 — 후기 상세 조회 API(`GET /reviews/{reviewId}`) 추가, `content`·`caution`을 선택 입력으로 완화(V22), 인증 배지(`isVerifiedVisit`)를 **작성 당시 레벨에서 인증받았는지**로 판정 |
 
 ## 배경 / 목적
 
@@ -149,6 +150,7 @@
 | GET | /api/v1/places/{placeId}/reviews | 후기 목록(레벨 필터·최신순 커서, 기본=내 레벨) | JWT |
 | GET | /api/v1/places/{placeId}/reviews/summary | 후기 요약(레벨별 난이도 분포 등, 기본=내 레벨) | JWT |
 | GET | /api/v1/members/me/reviews | 내가 쓴 후기 목록(레벨 필터 없음, 최신순 커서) | JWT |
+| GET | /api/v1/reviews/{reviewId} | 후기 상세(수정 폼 프리필, 본인 전용) | JWT |
 | PUT | /api/v1/reviews/{reviewId} | 후기 수정(전체 교체) | JWT |
 | DELETE | /api/v1/reviews/{reviewId} | 후기 삭제 | JWT |
 | GET | /api/v1/reviews/report-form | 신고 사유 폼(선택지 정의) | JWT |
@@ -182,7 +184,10 @@
 ```
 
 - `member_level`은 **요청에 없다** — 서버가 `member.level`을 스냅샷으로 저장한다.
-- 검증: `isRecommended`·`difficulty`·`congestion`·`practiceMethod`·`content` 필수, `content` 1~150자, enum 유효값 아니면 **400**.
+- 검증: **필수는 `isRecommended`·`difficulty`·`congestion`·`practiceMethod` 넷**이고 enum 유효값이 아니면 **400**.
+- `content`·`caution`은 **선택**이다(스펙 013). 글 없이 평가만 남길 수 있다.
+  - `content`는 있으면 **150자 이하**. **공백만 보내면 `caution`과 같은 방식으로 NULL로 정규화**한다 — 빈 문자열을 그대로 두면 "내용 없음"과 "빈 글"이 갈려 화면 분기가 둘로 늘어난다.
+  - 수정(PUT)은 전체 교체라 이 둘을 비워 보내면 기존 값이 지워진다.
 - 레벨 미배정(온보딩 미완료) → **409 `REVIEW_409_2`**.
 - **같은 장소에 이미 후기가 있어도 계속 작성할 수 있다**(중복 제약 없음).
 - 없는 `placeId` → **404**.
@@ -322,6 +327,29 @@ GET /api/v1/members/me/blocks?size=20&cursor=   (JWT)
 - 항목의 `memberId`가 그대로 해제 요청(`DELETE /members/{memberId}/block`)의 경로 값이다.
 - 해제 버튼만 있는 화면이라 레벨·프로필은 싣지 않는다. 탈퇴·익명화된 회원은 `nickname`이 `null`이며, **차단 행 자체는 지우지 않는다**(지우면 복구 시 차단이 풀린다).
 - 차단 수가 많지 않아 페이지네이션이 과해 보일 수 있으나, 다른 목록과 규칙을 맞춰 화면이 무한스크롤로 바뀌어도 서버를 고치지 않아도 되게 한다.
+
+### 3-3. 후기 상세 조회 (스펙 013)
+
+```json
+// GET /api/v1/reviews/31   (JWT)
+// Response data
+{
+  "reviewId": 31, "placeId": 1, "placeName": "한강 코스",
+  "isRecommended": true, "difficulty": "EASY", "congestion": "NORMAL",
+  "practiceMethod": "ACCOMPANIED",
+  "content": "차선이 넓고 신호가 단순해서 처음 도로 나갈 때 딱이었어요.",
+  "caution": "주말 오후엔 자전거 통행이 많습니다.",
+  "isEditable": true, "isHidden": false, "isVerifiedVisit": true,
+  "createdAt": "2026-08-06T14:02:11"
+}
+```
+
+수정 화면이 폼을 채우는 용도라 **수정 요청(PUT)이 요구하는 값을 하나도 빠뜨리지 않는다**. 목록 아이템에는 없는 값들이다.
+
+- **본인 후기만** — 타인 후기는 **403 `REVIEW_403_1`**. 목록에 내리지 않는 `caution`까지 주므로 공개할 수 없다.
+- **비공개 처리된 내 후기도 조회된다**(`isHidden: true`). 작성자 본인에게는 보이는 것이 기존 정책이다.
+- 값이 없는 `content`·`caution`은 키를 남긴 채 `null`로 내려간다.
+- 없는 `reviewId` → 404.
 
 ### 4. 후기 수정 (전체 교체)
 

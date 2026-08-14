@@ -4,6 +4,7 @@ import cmc.rodi.domain.member.entity.Member;
 import cmc.rodi.domain.member.entity.MemberStatus;
 import cmc.rodi.domain.member.exception.MemberErrorCode;
 import cmc.rodi.domain.member.policy.WithdrawalPolicy;
+import cmc.rodi.domain.member.repository.MemberOnboardingRepository;
 import cmc.rodi.domain.member.repository.MemberRepository;
 import cmc.rodi.domain.member.service.NicknameAssigner;
 import cmc.rodi.global.auth.dto.SocialLoginResponse;
@@ -13,7 +14,6 @@ import cmc.rodi.global.auth.entity.SocialProvider;
 import cmc.rodi.global.auth.repository.SocialAccountRepository;
 import cmc.rodi.global.auth.social.OAuthUserInfo;
 import cmc.rodi.global.auth.social.SocialClientResolver;
-import cmc.rodi.global.auth.vo.Tokens;
 import cmc.rodi.global.exception.BusinessException;
 import java.time.LocalDateTime;
 import lombok.RequiredArgsConstructor;
@@ -28,6 +28,7 @@ public class AuthService {
     private final SocialClientResolver socialClientResolver;
     private final SocialAccountRepository socialAccountRepository;
     private final MemberRepository memberRepository;
+    private final MemberOnboardingRepository memberOnboardingRepository;
     private final TokenService tokenService;
     private final NicknameAssigner nicknameAssigner;
 
@@ -47,7 +48,7 @@ public class AuthService {
         if (account == null) {
             Member member = register(userInfo);
             return SocialLoginResponse.success(
-                    tokenService.issue(member), true, member.getNickname());
+                    tokenService.issue(member), true, false, member.getNickname());
         }
 
         Member member = account.getMember();
@@ -55,7 +56,7 @@ public class AuthService {
                 member.withdrawalState(LocalDateTime.now(), WithdrawalPolicy.RECOVERABLE_WINDOW);
 
         if (state == MemberStatus.WITHDRAWAL_LOCKED) {
-            throw new BusinessException(MemberErrorCode.WITHDRAWAL_LOCKED);
+            return withdrawalLocked(member);
         }
         if (state == MemberStatus.WITHDRAWAL_PENDING) {
             return SocialLoginResponse.withdrawalPending(
@@ -68,7 +69,8 @@ public class AuthService {
                 userInfo.providerRefreshToken(),
                 userInfo.providerNickname(),
                 userInfo.providerProfileImageUrl());
-        return SocialLoginResponse.success(tokenService.issue(member), false, member.getNickname());
+        return SocialLoginResponse.success(
+                tokenService.issue(member), false, isOnboarded(member), member.getNickname());
     }
 
     /**
@@ -92,7 +94,7 @@ public class AuthService {
                 member.withdrawalState(LocalDateTime.now(), WithdrawalPolicy.RECOVERABLE_WINDOW);
 
         if (state == MemberStatus.WITHDRAWAL_LOCKED) {
-            throw new BusinessException(MemberErrorCode.WITHDRAWAL_LOCKED);
+            return withdrawalLocked(member);
         }
         if (state == MemberStatus.WITHDRAWAL_PENDING) {
             member.restore();
@@ -102,20 +104,36 @@ public class AuthService {
                     userInfo.providerProfileImageUrl());
         }
         // ACTIVE(이미 정상) 또는 방금 복구 → 로그인 토큰 발급
-        return SocialLoginResponse.success(tokenService.issue(member), false, member.getNickname());
+        return SocialLoginResponse.success(
+                tokenService.issue(member), false, isOnboarded(member), member.getNickname());
     }
 
-    /** refresh token으로 재발급(회전 + 재사용 탐지). 신규 가입이 아니므로 isNewMember=false. */
+    /** refresh token으로 재발급(회전 + 재사용 탐지). 토큰만 갱신하고 들어온 앱도 온보딩 분기를 할 수 있게 완료 여부를 함께 준다. */
     @Transactional
     public TokenResponse reissue(String refreshToken) {
-        Tokens tokens = tokenService.reissue(refreshToken);
-        return TokenResponse.of(tokens, false);
+        TokenService.Reissued reissued = tokenService.reissue(refreshToken);
+        return TokenResponse.of(reissued.tokens(), isOnboarded(reissued.member()));
     }
 
     /** 로그아웃(해당 refresh token 세션만 폐기). */
     @Transactional
     public void logout(String refreshToken) {
         tokenService.logout(refreshToken);
+    }
+
+    /** 재가입 가능 시각은 탈퇴 요청 시각 + 재가입 대기 기간이다. 로그인·복구 어느 쪽으로 들어와도 같은 안내를 준다. */
+    private SocialLoginResponse withdrawalLocked(Member member) {
+        return SocialLoginResponse.withdrawalLocked(
+                member.getDeletedAt(),
+                member.getDeletedAt().plus(WithdrawalPolicy.RE_REGISTERABLE_WINDOW));
+    }
+
+    /**
+     * 온보딩 완료 여부. 판정 기준은 {@code member_onboarding} 행의 존재로, 온보딩 재제출을 거부할 때 쓰는 기준과 같다(레벨 보유 여부로도 사실상
+     * 같은 답이 나오지만 정본은 이쪽이다).
+     */
+    private boolean isOnboarded(Member member) {
+        return memberOnboardingRepository.existsById(member.getId());
     }
 
     /** 소셜 신규 가입. 후보 풀에서 닉네임을 부여해 회원을 만들고 소셜 계정을 연결한다. */

@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import cmc.rodi.domain.member.entity.Level;
@@ -117,7 +118,7 @@ class PracticeIntegrationTest {
 
         // 방문 처리 후 다시 담기
         MemberPractice practice = memberPracticeRepository.findById(practiceId).orElseThrow();
-        practice.markVisited(LocalDateTime.now(), 0);
+        practice.markVisited(LocalDateTime.now(), 0, null);
 
         var again = practiceService.register(course.getId(), me.getId());
 
@@ -191,7 +192,7 @@ class PracticeIntegrationTest {
         memberPracticeRepository
                 .findById(olderId)
                 .orElseThrow()
-                .markVisited(LocalDateTime.now().plusMinutes(1), 0);
+                .markVisited(LocalDateTime.now().plusMinutes(1), 0, null);
 
         List<PracticeItem> items =
                 practiceQueryService.getMyPractices(me.getId(), 10, null).items();
@@ -199,6 +200,12 @@ class PracticeIntegrationTest {
         assertThat(items).extracting(PracticeItem::practiceId).containsExactly(olderId, newerId);
         assertThat(items.get(0).status()).isEqualTo(PracticeStatus.VISITED);
         assertThat(items.get(0).visitCount()).isEqualTo(1);
+
+        // 담기만 한 항목도 카드에 그릴 날짜가 있어야 한다 — 방문 여부는 status로 구분한다
+        assertThat(items).extracting(PracticeItem::lastActivityAt).doesNotContainNull();
+        assertThat(items.get(1).status()).isEqualTo(PracticeStatus.PLANNED);
+        assertThat(items.get(1).lastActivityAt())
+                .isEqualTo(memberPracticeRepository.findById(newerId).orElseThrow().getCreatedAt());
     }
 
     @Test
@@ -244,7 +251,27 @@ class PracticeIntegrationTest {
                                 .contentType(MediaType.APPLICATION_JSON)
                                 .content("{\"reason\": \"TOO_FAR\"}"))
                 .andExpect(status().isUnauthorized());
-        mockMvc.perform(delete("/api/v1/practices/1")).andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    @DisplayName("연습기록 삭제 엔드포인트는 더 이상 없다")
+    void 삭제_엔드포인트_제거() throws Exception {
+        Member me = seedMember("gone@kakao.com");
+        Long practiceId =
+                practiceService.register(seedCourse("남는 코스").getId(), me.getId()).practiceId();
+        SecurityContextHolder.getContext()
+                .setAuthentication(
+                        new UsernamePasswordAuthenticationToken(me.getId(), null, List.of()));
+        try {
+            // 인증된 요청인데도 매핑이 없어야 한다 — 401로는 제거 여부를 구분할 수 없다.
+            // 이 경로에 남은 메서드가 없어 경로째로 사라지므로 405가 아니라 404다.
+            mockMvc.perform(delete("/api/v1/practices/" + practiceId))
+                    .andExpect(status().isNotFound())
+                    .andExpect(jsonPath("$.code").value("COMMON_404"));
+            assertThat(memberPracticeRepository.findById(practiceId)).isPresent();
+        } finally {
+            SecurityContextHolder.clearContext();
+        }
     }
 
     @Test
