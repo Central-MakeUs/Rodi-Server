@@ -6,6 +6,8 @@ import cmc.rodi.domain.place.dto.CourseRegisterRequest;
 import cmc.rodi.domain.place.dto.CourseRegisterResponse;
 import cmc.rodi.domain.place.dto.CourseRegistrationFormResponse;
 import cmc.rodi.domain.place.dto.CourseRegistrationFormResponse.InputSpec;
+import cmc.rodi.domain.place.dto.CourseApprovalRequest;
+import cmc.rodi.domain.place.dto.CourseApprovalResponse;
 import cmc.rodi.domain.place.entity.Course;
 import cmc.rodi.domain.place.exception.CourseErrorCode;
 import cmc.rodi.domain.place.repository.CourseRepository;
@@ -98,6 +100,26 @@ public class CourseService {
             throw new BusinessException(CourseErrorCode.NOT_COURSE_OWNER);
         }
         course.delete(LocalDateTime.now()); // 이미 삭제됐으면 최초 시각 유지
+    }
+
+    /**
+     * 관리자용 승인 상태 변경(스펙 016).
+     *
+     * <p><b>임시 정책</b>: 계정 권한 작업 전이라 호출자가 로그인했는지만 컨트롤러에서 보장하고, 여기서는 관리자 권한을 검사하지 않는다. 권한 체계가 생기면
+     * 이 메서드 진입 전에 관리자 검사를 추가한다.
+     */
+    @Transactional
+    public CourseApprovalResponse changeApprovalStatus(
+            Long courseId, CourseApprovalRequest request) {
+        Course course =
+                courseRepository
+                        .findById(courseId)
+                        .orElseThrow(() -> new BusinessException(CourseErrorCode.COURSE_NOT_FOUND));
+        if (course.isDeleted()) {
+            throw new BusinessException(CourseErrorCode.COURSE_DELETED);
+        }
+        course.changeApprovalStatus(request.approvalStatus(), LocalDateTime.now());
+        return CourseApprovalResponse.from(course);
     }
 
     /** 등록 폼. 카테고리 트리·입력 제약을 서버가 정의해 내려준다(앱 배포 없이 문구 변경). */

@@ -6,6 +6,7 @@
 |------|--------|-----------|
 | 2026-08-14 | Draft | 최초 작성 (3차 업데이트 6번 — 승인 상태 변경). **권한 부여 전이라 임시로 로그인 사용자 전체 허용**, 추후 관리자 전용으로 좁힌다 |
 | 2026-08-14 | Draft | develop 병합 — 번호 015→**016**, 마이그레이션 V22→**V24** |
+| 2026-08-14 | Implemented | 구현 완료 — `PATCH /api/v1/admin/courses/{courseId}/approval`, 자유 전이·멱등·삭제 코스 차단·전체 조회 즉시 반영 검증 |
 
 > 도메인 모델(`course.approval_status`·`approved_at`, 마이그레이션 V24)은 [014 코스 등록](014-course-registration.md)에 정의돼 있다.
 
