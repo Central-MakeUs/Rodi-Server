@@ -11,7 +11,6 @@ import cmc.rodi.domain.place.dto.CourseRegistrationFormResponse.InputSpec;
 import cmc.rodi.domain.place.entity.Course;
 import cmc.rodi.domain.place.exception.CourseErrorCode;
 import cmc.rodi.domain.place.repository.CourseRepository;
-import cmc.rodi.domain.place.repository.PlaceRepository;
 import cmc.rodi.global.exception.BusinessException;
 import cmc.rodi.global.exception.ErrorCode;
 import java.time.LocalDateTime;
@@ -36,14 +35,12 @@ public class CourseService {
     private static final String DESCRIPTION_PLACEHOLDER = "예) 차선이 넓고, 직선 구간이 길어요.";
 
     private final CourseRepository courseRepository;
-    private final PlaceRepository placeRepository;
     private final MemberRepository memberRepository;
 
     /**
      * 코스 등록. 승인 대기 상태로 저장되며, 관리자가 승인하기 전까지 전체 목록·검색에 나오지 않는다.
      *
-     * <p>대표 좌표(`place.location`)와 코스명은 <b>출발지에서 가져온다</b> — 코스 목록·지도가 시작점을 기준으로 그려지고, 등록 화면에 코스명
-     * 입력란이 없기 때문이다.
+     * <p>대표 좌표(`place.location`)는 출발지에서 가져온다. 코스명은 요청 {@code name}이 있으면 그 값을 쓰고, 없으면 출발지 지점명을 쓴다.
      */
     @Transactional
     public CourseRegisterResponse register(CourseRegisterRequest request, Long memberId) {
@@ -84,17 +81,13 @@ public class CourseService {
      * <p>물리 삭제하면 다른 사용자의 북마크·후기·연습기록까지 조용히 사라져, 담아둔 사람은 항목이 없어진 이유를 알 수 없다. 표시만 남겨두면 목록에서 {@code
      * isDeleted}로 구분하고 상세에서 "삭제된 코스입니다"를 띄울 수 있다.
      *
-     * <p>승인 상태와 무관하게 지울 수 있고, <b>이미 삭제됐거나 없는 코스는 멱등하게 200</b>이다.
+     * <p>승인 상태와 무관하게 지울 수 있고, 이미 삭제된 기존 코스는 멱등하게 200이다. 없는 id는 404다.
      */
     @Transactional
     public void delete(Long courseId, Long memberId) {
         Course course = courseRepository.findById(courseId).orElse(null);
         if (course == null) {
-            // 코스가 아닌 place(주차장)를 지우려 한 것과, 아예 없는 id를 구분한다
-            if (placeRepository.existsById(courseId)) {
-                throw new BusinessException(CourseErrorCode.COURSE_NOT_FOUND);
-            }
-            return; // 없는 코스 — 멱등
+            throw new BusinessException(CourseErrorCode.COURSE_NOT_FOUND);
         }
         if (!course.isOwnedBy(memberId)) {
             throw new BusinessException(CourseErrorCode.NOT_COURSE_OWNER);

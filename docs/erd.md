@@ -32,7 +32,7 @@ erDiagram
     member ||--o{ member_block : "차단"
     member ||--o{ member_practice : "연습 목록"
     place ||--o{ member_practice : ""
-    member ||--o{ course : "등록"
+    member |o--o{ course : "등록"
 
     member {
         bigint id PK

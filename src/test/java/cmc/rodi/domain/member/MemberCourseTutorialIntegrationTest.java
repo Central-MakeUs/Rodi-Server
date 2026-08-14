@@ -9,6 +9,8 @@ import cmc.rodi.domain.member.entity.Member;
 import cmc.rodi.domain.member.repository.MemberRepository;
 import cmc.rodi.domain.member.service.MemberCourseTutorialService;
 import cmc.rodi.support.TestcontainersConfiguration;
+import jakarta.persistence.EntityManager;
+import jakarta.persistence.PersistenceContext;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -28,6 +30,7 @@ class MemberCourseTutorialIntegrationTest {
     @Autowired MemberCourseTutorialService memberCourseTutorialService;
     @Autowired MemberRepository memberRepository;
     @Autowired MockMvc mockMvc;
+    @PersistenceContext EntityManager em;
 
     @Test
     @DisplayName("처음 호출하면 완료 시각을 저장하고, 다시 호출해도 최초 시각을 유지한다")
@@ -42,12 +45,12 @@ class MemberCourseTutorialIntegrationTest {
 
         assertThat(first.courseTutorialCompletedAt()).isNotNull();
         assertThat(second.courseTutorialCompletedAt()).isEqualTo(first.courseTutorialCompletedAt());
-        assertThat(
-                        memberRepository
-                                .findById(member.getId())
-                                .orElseThrow()
-                                .isCourseTutorialCompleted())
-                .isTrue();
+        memberRepository.flush();
+        em.clear();
+
+        Member reloaded = memberRepository.findById(member.getId()).orElseThrow();
+        assertThat(reloaded.getCourseTutorialCompletedAt())
+                .isEqualTo(first.courseTutorialCompletedAt());
     }
 
     @Test

@@ -140,6 +140,7 @@ class CourseApprovalIntegrationTest {
                         Parking.builder().name("주차장").location(point(36.36, 127.36)).build());
         Course deleted = course("삭제됨", ApprovalStatus.APPROVED);
         deleted.delete(LocalDateTime.now());
+        courseRepository.saveAndFlush(deleted);
 
         CourseApprovalRequest request = new CourseApprovalRequest(ApprovalStatus.APPROVED);
 

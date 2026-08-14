@@ -45,7 +45,7 @@
 | Method | Path | 설명 | 인증 |
 |--------|------|------|------|
 | GET | /api/v1/members/me/courses | 내가 등록한 코스 목록(상태 필터·커서) | JWT |
-| DELETE | /api/v1/courses/{courseId} | 내 코스 삭제(soft delete, 멱등) | JWT |
+| DELETE | /api/v1/courses/{courseId} | 내 코스 삭제(soft delete, 이미 삭제된 코스는 멱등) | JWT |
 
 기존 API 확장: **저장 목록**(`GET /places/bookmarks`)·**연습 목록**(`GET /members/me/practices`) 응답에 `isDeleted` 추가(아래 3번).
 
@@ -89,7 +89,7 @@ DELETE /api/v1/courses/101   (JWT)
 
 - 응답 데이터 없음(200). `course.deleted_at = now`로 **표시만 하고 행은 남긴다**.
 - **승인 상태와 무관하게 삭제된다**(승인 대기·승인·반려 전부).
-- 없는 `courseId`·이미 삭제된 코스는 **멱등 200**([011](011-practice-course.md) 삭제와 동일 규칙).
+- 이미 삭제된 기존 코스는 **멱등 200**이다. 없는 `courseId` 또는 주차장 `placeId`는 404(코스가 아니다).
 - 남의 코스·운영자 시딩 코스(`created_by_member_id IS NULL`)는 **403 `COURSE_403_1`**.
 - 주차장 `placeId`를 보내면 404(코스가 아니다).
 
@@ -146,7 +146,7 @@ DELETE /api/v1/courses/101   (JWT)
 - [ ] 승인된 코스를 삭제해도 다른 사용자의 `bookmark`·`review`·`member_practice` 행이 **그대로 남는다**.
 - [ ] 삭제된 코스를 담고 있던 사용자의 **저장 목록·연습 목록 항목에 `isDeleted=true`** 가 실리고, 살아 있는 코스·주차장은 `false`다.
 - [ ] 뷰포트 목록·검색 응답의 `isDeleted`는 항상 `false`다(삭제된 코스가 애초에 나오지 않는다).
-- [ ] 남의 코스·운영자 코스(`created_by IS NULL`) 삭제는 403, 없는 id·이미 삭제된 코스는 200(멱등), 주차장 id는 404다.
+- [ ] 남의 코스·운영자 코스(`created_by IS NULL`) 삭제는 403, 이미 삭제된 기존 코스는 200(멱등), 없는 id·주차장 id는 404다.
 - [ ] 모든 엔드포인트가 미인증 시 401이다.
 - [ ] 관련 테스트 통과 (`./gradlew test`).
 

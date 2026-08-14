@@ -101,9 +101,9 @@ public interface CourseControllerDocs {
                     전체 목록·검색·내 코스 목록에서 빠지고, 이미 담아둔 사용자의 저장·연습 목록에는
                     `isDeleted=true`로 남으며 상세 진입 시 `COURSE_404_2`가 내려간다.
 
-                    - 없는 코스·이미 삭제된 코스는 **멱등하게 200**.
+                    - 이미 삭제된 기존 코스는 **멱등하게 200**.
+                    - 없는 id와 주차장 id는 404(코스가 아니다).
                     - 남의 코스와 운영자가 등록한 코스는 403.
-                    - 주차장 id를 보내면 404(코스가 아니다).
                     """)
     ApiResponse<Void> delete(
             @Parameter(description = "코스 id") Long courseId,

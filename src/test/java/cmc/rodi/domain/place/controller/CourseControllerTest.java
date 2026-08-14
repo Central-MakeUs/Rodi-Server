@@ -249,7 +249,7 @@ class CourseControllerTest {
     void 등록_폼() throws Exception {
         authenticate(7L);
         when(courseService.getRegistrationForm())
-                .thenReturn(new CourseService(null, null, null).getRegistrationForm());
+                .thenReturn(new CourseService(null, null).getRegistrationForm());
 
         mockMvc.perform(get("/api/v1/courses/registration-form"))
                 .andExpect(status().isOk())

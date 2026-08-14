@@ -23,6 +23,8 @@ import cmc.rodi.domain.place.service.CourseService;
 import cmc.rodi.domain.place.service.PlaceQueryService;
 import cmc.rodi.global.common.pagination.CursorPage;
 import cmc.rodi.support.TestcontainersConfiguration;
+import jakarta.persistence.EntityManager;
+import jakarta.persistence.PersistenceContext;
 import java.util.List;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -50,6 +52,7 @@ class CourseRegisterIntegrationTest {
     @Autowired CourseRepository courseRepository;
     @Autowired MemberRepository memberRepository;
     @Autowired MockMvc mockMvc;
+    @PersistenceContext EntityManager em;
 
     private Member me;
 
@@ -110,10 +113,15 @@ class CourseRegisterIntegrationTest {
     @DisplayName("등록: 대표 좌표는 출발지 좌표(SRID 4326)다")
     void 대표_좌표() {
         Course course = register(request(null, fullRoute()));
+        Long courseId = course.getId();
+        courseRepository.flush();
+        em.clear();
 
-        assertThat(course.getLocation().getY()).isCloseTo(START_LAT, within(1e-6)); // 위도
-        assertThat(course.getLocation().getX()).isCloseTo(START_LNG, within(1e-6)); // 경도
-        assertThat(course.getLocation().getSRID()).isEqualTo(4326);
+        Course reloaded = courseRepository.findById(courseId).orElseThrow();
+
+        assertThat(reloaded.getLocation().getY()).isCloseTo(START_LAT, within(1e-6)); // 위도
+        assertThat(reloaded.getLocation().getX()).isCloseTo(START_LNG, within(1e-6)); // 경도
+        assertThat(reloaded.getLocation().getSRID()).isEqualTo(4326);
     }
 
     @Test

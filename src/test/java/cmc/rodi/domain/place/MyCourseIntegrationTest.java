@@ -218,7 +218,7 @@ class MyCourseIntegrationTest {
     }
 
     @Test
-    @DisplayName("삭제: 없는 코스·이미 삭제한 코스는 멱등하게 성공한다")
+    @DisplayName("삭제: 이미 삭제한 기존 코스는 멱등하게 성공한다")
     void 삭제_멱등() {
         Course course = register("두번삭제", me, ApprovalStatus.PENDING);
         courseService.delete(course.getId(), me.getId());
@@ -226,10 +226,18 @@ class MyCourseIntegrationTest {
                 courseRepository.findById(course.getId()).orElseThrow().getDeletedAt();
 
         courseService.delete(course.getId(), me.getId()); // 두 번째
-        courseService.delete(999_999L, me.getId()); // 없는 id
 
         assertThat(courseRepository.findById(course.getId()).orElseThrow().getDeletedAt())
                 .isEqualTo(first);
+    }
+
+    @Test
+    @DisplayName("삭제: 없는 id를 보내면 404")
+    void 삭제_없는_id() {
+        assertThatThrownBy(() -> courseService.delete(999_999L, me.getId()))
+                .isInstanceOf(BusinessException.class)
+                .extracting(e -> ((BusinessException) e).getErrorCode())
+                .isEqualTo(CourseErrorCode.COURSE_NOT_FOUND);
     }
 
     @Test
