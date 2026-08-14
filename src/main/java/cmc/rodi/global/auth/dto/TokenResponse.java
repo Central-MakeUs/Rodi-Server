@@ -22,6 +22,9 @@ public record TokenResponse(
     public static TokenResponse of(
             Tokens tokens, boolean isOnboarded, boolean isCourseTutorialCompleted) {
         return new TokenResponse(
-                tokens.accessToken(), tokens.refreshToken(), isOnboarded, isCourseTutorialCompleted);
+                tokens.accessToken(),
+                tokens.refreshToken(),
+                isOnboarded,
+                isCourseTutorialCompleted);
     }
 }

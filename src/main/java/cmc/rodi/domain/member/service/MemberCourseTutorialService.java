@@ -20,7 +20,8 @@ public class MemberCourseTutorialService {
     /**
      * 완료 시각을 저장한다. 이미 완료한 회원이면 기존 시각을 그대로 반환한다.
      *
-     * <p>앱은 로그인·토큰 재발급 응답의 {@code isCourseTutorialCompleted}로 사전에 표시 여부를 결정하고, 튜토리얼을 끝낸 순간 이 API를 호출한다.
+     * <p>앱은 로그인·토큰 재발급 응답의 {@code isCourseTutorialCompleted}로 사전에 표시 여부를 결정하고, 튜토리얼을 끝낸 순간 이 API를
+     * 호출한다.
      */
     @Transactional
     public CourseTutorialCompletionResponse complete(Long memberId) {

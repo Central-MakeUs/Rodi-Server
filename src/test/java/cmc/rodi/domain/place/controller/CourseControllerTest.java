@@ -255,9 +255,7 @@ class CourseControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.maxWaypoints").value(3))
                 .andExpect(jsonPath("$.data.sections.basicInfo").value("기본정보"))
-                .andExpect(
-                        jsonPath("$.data.sections.practiceCategory")
-                                .value("연습유형 카테고리 고르기"))
+                .andExpect(jsonPath("$.data.sections.practiceCategory").value("연습유형 카테고리 고르기"))
                 .andExpect(jsonPath("$.data.sections.practiceType").value("연습유형"))
                 .andExpect(jsonPath("$.data.sections.caution").value("주의사항 작성"))
                 .andExpect(jsonPath("$.data.sections.description").value("한줄 소개"))

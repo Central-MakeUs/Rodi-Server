@@ -35,12 +35,18 @@ class MemberCourseTutorialIntegrationTest {
         Member member = memberRepository.save(Member.createBySocial("tutorial@kakao.com"));
         assertThat(member.isCourseTutorialCompleted()).isFalse();
 
-        CourseTutorialCompletionResponse first = memberCourseTutorialService.complete(member.getId());
-        CourseTutorialCompletionResponse second = memberCourseTutorialService.complete(member.getId());
+        CourseTutorialCompletionResponse first =
+                memberCourseTutorialService.complete(member.getId());
+        CourseTutorialCompletionResponse second =
+                memberCourseTutorialService.complete(member.getId());
 
         assertThat(first.courseTutorialCompletedAt()).isNotNull();
         assertThat(second.courseTutorialCompletedAt()).isEqualTo(first.courseTutorialCompletedAt());
-        assertThat(memberRepository.findById(member.getId()).orElseThrow().isCourseTutorialCompleted())
+        assertThat(
+                        memberRepository
+                                .findById(member.getId())
+                                .orElseThrow()
+                                .isCourseTutorialCompleted())
                 .isTrue();
     }
 

@@ -12,11 +12,11 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import cmc.rodi.domain.member.dto.CourseTutorialCompletionResponse;
 import cmc.rodi.domain.member.dto.LevelProgressResponse;
 import cmc.rodi.domain.member.dto.MemberUpdateRequest;
 import cmc.rodi.domain.member.dto.MyPageResponse;
 import cmc.rodi.domain.member.dto.OnboardingRequest;
-import cmc.rodi.domain.member.dto.CourseTutorialCompletionResponse;
 import cmc.rodi.domain.member.entity.Level;
 import cmc.rodi.domain.member.entity.PracticeType;
 import cmc.rodi.domain.member.service.MemberBlockService;
@@ -303,8 +303,7 @@ class MemberControllerTest {
         mockMvc.perform(patch("/api/v1/members/me/course-tutorial"))
                 .andExpect(status().isOk())
                 .andExpect(
-                        jsonPath("$.data.courseTutorialCompletedAt")
-                                .value("2026-08-14T18:40:00"));
+                        jsonPath("$.data.courseTutorialCompletedAt").value("2026-08-14T18:40:00"));
 
         verify(memberCourseTutorialService).complete(7L);
     }

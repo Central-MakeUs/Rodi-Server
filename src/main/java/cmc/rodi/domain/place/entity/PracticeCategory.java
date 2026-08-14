@@ -10,7 +10,6 @@ import lombok.RequiredArgsConstructor;
  *
  * <p><b>DB에 저장하지 않는다</b> — 화면 탐색용 묶음일 뿐이고, 코스에 저장·매칭되는 값은 {@link PracticeType}뿐이다. 카테고리는 선택된 유형
  * 집합에서 역산할 수 있다.
- *
  */
 @Getter
 @RequiredArgsConstructor
@@ -19,10 +18,7 @@ public enum PracticeCategory {
             "기초 주행",
             1,
             List.of(PracticeType.STRAIGHT, PracticeType.LEFT_RIGHT_TURN, PracticeType.LANE_CHANGE)),
-    CITY_BASIC(
-            "도심 기본",
-            2,
-            List.of(PracticeType.INTERSECTION, PracticeType.U_TURN)),
+    CITY_BASIC("도심 기본", 2, List.of(PracticeType.INTERSECTION, PracticeType.U_TURN)),
     PARKING_SPACE("주차", 3, List.of(PracticeType.PARKING)),
     TRAFFIC_FLOW(
             "도로 흐름",

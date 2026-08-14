@@ -72,14 +72,7 @@ class CourseApprovalIntegrationTest {
     }
 
     private Course course(String name, ApprovalStatus status) {
-        Course course =
-                Course.register(
-                        name,
-                        "설명",
-                        "대전광역시 유성구",
-                        point(36.35, 127.35),
-                        3000,
-                        owner);
+        Course course = Course.register(name, "설명", "대전광역시 유성구", point(36.35, 127.35), 3000, owner);
         course.addTag(PracticeType.STRAIGHT);
         course.changeApprovalStatus(status, LocalDateTime.now());
         return courseRepository.save(course);
