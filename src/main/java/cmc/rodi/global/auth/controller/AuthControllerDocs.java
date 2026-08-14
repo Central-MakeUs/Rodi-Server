@@ -32,7 +32,9 @@ public interface AuthControllerDocs {
                             + "온보딩 화면 분기는 isOnboarded로 판단한다 — 가입 후 온보딩 중 이탈한 회원은 재로그인 시 "
                             + "isNewMember=false지만 isOnboarded=false다. "
                             + "status=WITHDRAWAL_PENDING이면 탈퇴 유예기간 내 재로그인이라 토큰 대신 복구 안내를 준다. "
-                            + "미지원 provider는 AUTH_400_1, 검증 실패는 AUTH_401_5, 재가입 대기(유예 경과)는 MEMBER_409_1.")
+                            + "status=WITHDRAWAL_LOCKED면 복구 기간이 지나 재가입을 기다리는 중이라 "
+                            + "토큰 대신 reRegisterableAt(재가입 가능 시각)이 온다 — 오류가 아니라 200이다. "
+                            + "미지원 provider는 AUTH_400_1, 검증 실패는 AUTH_401_5.")
     ApiResponse<SocialLoginResponse> login(
             @Parameter(
                             description = "소셜 공급자",
@@ -64,7 +66,8 @@ public interface AuthControllerDocs {
             description =
                     "탈퇴 유예기간(3일) 내에 동일 소셜 credential로 계정을 복구하고 토큰을 발급한다. "
                             + "로그인과 같은 응답이라 isOnboarded도 함께 온다 — 복구 직후에도 온보딩 분기가 필요하다. "
-                            + "유예 경과(LOCKED)는 MEMBER_409_1, 복구 대상이 없으면 MEMBER_404_1.")
+                            + "유예가 지났으면 로그인과 같은 200 WITHDRAWAL_LOCKED + reRegisterableAt이 온다. "
+                            + "복구 대상이 없으면 MEMBER_404_1.")
     ApiResponse<SocialLoginResponse> restore(
             @Parameter(
                             description = "소셜 공급자",

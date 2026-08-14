@@ -9,6 +9,7 @@ import static org.mockito.Mockito.when;
 
 import cmc.rodi.domain.member.entity.Member;
 import cmc.rodi.domain.member.exception.MemberErrorCode;
+import cmc.rodi.domain.member.policy.WithdrawalPolicy;
 import cmc.rodi.domain.member.repository.MemberOnboardingRepository;
 import cmc.rodi.domain.member.repository.MemberRepository;
 import cmc.rodi.domain.member.service.NicknameAssigner;
@@ -205,20 +206,23 @@ class AuthServiceTest {
     }
 
     @Test
-    @DisplayName("탈퇴 유예 경과 로그인: WITHDRAWAL_LOCKED")
+    @DisplayName("탈퇴 유예 경과 로그인: 오류가 아니라 200 + 재가입 가능 시각")
     void 탈퇴유예경과_로그인_잠금() {
         stubSocialVerification();
         Member withdrawn = Member.createBySocial(EMAIL);
-        withdrawn.withdraw(LocalDateTime.now().minusDays(5)); // 3일 경과 → LOCKED
+        LocalDateTime withdrawnAt = LocalDateTime.now().minusDays(5); // 3일 경과 → LOCKED
+        withdrawn.withdraw(withdrawnAt);
         when(socialAccountRepository.findByProviderAndProviderId(SocialProvider.KAKAO, PROVIDER_ID))
                 .thenReturn(Optional.of(accountOf(withdrawn)));
 
-        assertThatThrownBy(() -> authService.login(SocialProvider.KAKAO, CREDENTIAL))
-                .isInstanceOfSatisfying(
-                        BusinessException.class,
-                        e ->
-                                assertThat(e.getErrorCode())
-                                        .isEqualTo(MemberErrorCode.WITHDRAWAL_LOCKED));
+        SocialLoginResponse response = authService.login(SocialProvider.KAKAO, CREDENTIAL);
+
+        assertThat(response.status()).isEqualTo(SocialLoginResponse.Status.WITHDRAWAL_LOCKED);
+        assertThat(response.accessToken()).isNull();
+        // 앱이 "N일 남았습니다"를 그리려면 날짜가 값으로 와야 한다 — 에러 응답으로는 실을 수 없었다
+        assertThat(response.reRegisterableAt())
+                .isEqualTo(withdrawnAt.plus(WithdrawalPolicy.RE_REGISTERABLE_WINDOW));
+        assertThat(response.withdrawalRequestedAt()).isEqualTo(withdrawnAt);
         verify(tokenService, never()).issue(any());
     }
 
@@ -240,7 +244,7 @@ class AuthServiceTest {
     }
 
     @Test
-    @DisplayName("복구: 유예 경과면 WITHDRAWAL_LOCKED")
+    @DisplayName("복구: 유예 경과면 오류가 아니라 200 + 재가입 가능 시각")
     void 복구_잠금() {
         stubSocialVerification();
         Member withdrawn = Member.createBySocial(EMAIL);
@@ -248,12 +252,12 @@ class AuthServiceTest {
         when(socialAccountRepository.findByProviderAndProviderId(SocialProvider.KAKAO, PROVIDER_ID))
                 .thenReturn(Optional.of(accountOf(withdrawn)));
 
-        assertThatThrownBy(() -> authService.restore(SocialProvider.KAKAO, CREDENTIAL))
-                .isInstanceOfSatisfying(
-                        BusinessException.class,
-                        e ->
-                                assertThat(e.getErrorCode())
-                                        .isEqualTo(MemberErrorCode.WITHDRAWAL_LOCKED));
+        // 복구로 들어와도 같은 안내를 준다 — 한쪽만 고치면 다른 쪽에서 날짜를 못 받는다
+        SocialLoginResponse response = authService.restore(SocialProvider.KAKAO, CREDENTIAL);
+
+        assertThat(response.status()).isEqualTo(SocialLoginResponse.Status.WITHDRAWAL_LOCKED);
+        assertThat(response.reRegisterableAt()).isNotNull();
+        verify(tokenService, never()).issue(any());
     }
 
     @Test

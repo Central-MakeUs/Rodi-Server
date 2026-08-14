@@ -56,7 +56,7 @@ public class AuthService {
                 member.withdrawalState(LocalDateTime.now(), WithdrawalPolicy.RECOVERABLE_WINDOW);
 
         if (state == MemberStatus.WITHDRAWAL_LOCKED) {
-            throw new BusinessException(MemberErrorCode.WITHDRAWAL_LOCKED);
+            return withdrawalLocked(member);
         }
         if (state == MemberStatus.WITHDRAWAL_PENDING) {
             return SocialLoginResponse.withdrawalPending(
@@ -94,7 +94,7 @@ public class AuthService {
                 member.withdrawalState(LocalDateTime.now(), WithdrawalPolicy.RECOVERABLE_WINDOW);
 
         if (state == MemberStatus.WITHDRAWAL_LOCKED) {
-            throw new BusinessException(MemberErrorCode.WITHDRAWAL_LOCKED);
+            return withdrawalLocked(member);
         }
         if (state == MemberStatus.WITHDRAWAL_PENDING) {
             member.restore();
@@ -119,6 +119,13 @@ public class AuthService {
     @Transactional
     public void logout(String refreshToken) {
         tokenService.logout(refreshToken);
+    }
+
+    /** 재가입 가능 시각은 탈퇴 요청 시각 + 재가입 대기 기간이다. 로그인·복구 어느 쪽으로 들어와도 같은 안내를 준다. */
+    private SocialLoginResponse withdrawalLocked(Member member) {
+        return SocialLoginResponse.withdrawalLocked(
+                member.getDeletedAt(),
+                member.getDeletedAt().plus(WithdrawalPolicy.RE_REGISTERABLE_WINDOW));
     }
 
     /**
