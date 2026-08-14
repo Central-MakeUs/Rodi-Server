@@ -32,6 +32,7 @@ erDiagram
     member ||--o{ member_block : "차단"
     member ||--o{ member_practice : "연습 목록"
     place ||--o{ member_practice : ""
+    member |o--o{ course : "등록"
 
     member {
         bigint id PK
@@ -39,6 +40,9 @@ erDiagram
         varchar nickname "닉네임(가입 시 후보 풀에서 무작위 부여, unique)"
         varchar level "레벨(SEED/ROOKIE/OWNER/EXPLORER/NAVIGATOR), 온보딩 전 null"
         varchar driving_goal "운전 목표(최대 30자, 마이페이지 노출). null 가능"
+        bigint total_distance_meters "누적 인정 주행거리(m), 레벨 승급 기준"
+        jsonb filter_tags "홈 정렬 필터 연습유형 목록(null/빈 값=필터 없음)"
+        timestamptz course_tutorial_completed_at "코스 등록 튜토리얼 완료 시각(null=미완료)"
         timestamptz created_at
         timestamptz updated_at
         timestamptz deleted_at "탈퇴 일시(soft delete, null=활성)"
@@ -94,8 +98,12 @@ erDiagram
 
     course {
         bigint place_id PK "place 상속(공유 PK)"
+        bigint created_by_member_id FK "등록 회원(null=운영자 시딩/탈퇴로 등록자 없음)"
         text description "코스 설명(주차장엔 없음)"
         int distance_meters "주행거리(m)"
+        varchar approval_status "PENDING/APPROVED/REJECTED"
+        timestamptz approved_at "마지막 승인 시각(null=승인 이력 없음)"
+        timestamptz deleted_at "코스 삭제 시각(soft delete, null=활성)"
     }
 
     course_caution {

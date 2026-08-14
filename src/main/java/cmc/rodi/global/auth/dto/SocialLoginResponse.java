@@ -33,6 +33,12 @@ public record SocialLoginResponse(
                                         + " isNewMember로는 가입 후 온보딩 중 이탈한 회원의 재로그인을 가려낼 수 없다.")
                 @JsonProperty("isOnboarded")
                 boolean isOnboarded,
+        @Schema(
+                        description =
+                                "코스 등록 튜토리얼을 완료했는지 — 코스 등록 버튼을 눌렀을 때 튜토리얼 표시 분기 기준."
+                                        + " 신규 가입과 토큰 없는 상태(PENDING·LOCKED)는 false.")
+                @JsonProperty("isCourseTutorialCompleted")
+                boolean isCourseTutorialCompleted,
         @Schema(description = "가입 시 부여된 닉네임. 토큰 없는 상태(PENDING·LOCKED)면 null") String nickname,
         @Schema(description = "탈퇴 요청 시각(PENDING·LOCKED만)") LocalDateTime withdrawalRequestedAt,
         @Schema(description = "복구 가능 마감 시각(PENDING만)") LocalDateTime recoverableUntil,
@@ -46,13 +52,18 @@ public record SocialLoginResponse(
     }
 
     public static SocialLoginResponse success(
-            Tokens tokens, boolean isNewMember, boolean isOnboarded, String nickname) {
+            Tokens tokens,
+            boolean isNewMember,
+            boolean isOnboarded,
+            boolean isCourseTutorialCompleted,
+            String nickname) {
         return new SocialLoginResponse(
                 Status.SUCCESS,
                 tokens.accessToken(),
                 tokens.refreshToken(),
                 isNewMember,
                 isOnboarded,
+                isCourseTutorialCompleted,
                 nickname,
                 null,
                 null,
@@ -65,6 +76,7 @@ public record SocialLoginResponse(
                 Status.WITHDRAWAL_PENDING,
                 null,
                 null,
+                false,
                 false,
                 false,
                 null,
@@ -80,6 +92,7 @@ public record SocialLoginResponse(
                 Status.WITHDRAWAL_LOCKED,
                 null,
                 null,
+                false,
                 false,
                 false,
                 null,

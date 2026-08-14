@@ -81,6 +81,7 @@ class AuthServiceTest {
 
         assertThat(response.status()).isEqualTo(SocialLoginResponse.Status.SUCCESS);
         assertThat(response.isNewMember()).isTrue();
+        assertThat(response.isCourseTutorialCompleted()).isFalse();
         assertThat(response.accessToken()).isEqualTo("access-jwt");
         assertThat(response.refreshToken()).isEqualTo("refresh-raw");
         // 로그인 응답에 부여된 닉네임 포함
@@ -112,6 +113,7 @@ class AuthServiceTest {
     void 기존_회원_로그인() {
         stubSocialVerification();
         Member existing = Member.createBySocial(EMAIL);
+        existing.completeCourseTutorial(LocalDateTime.now());
         SocialAccount account =
                 SocialAccount.builder()
                         .member(existing)
@@ -127,6 +129,7 @@ class AuthServiceTest {
 
         assertThat(response.status()).isEqualTo(SocialLoginResponse.Status.SUCCESS);
         assertThat(response.isNewMember()).isFalse();
+        assertThat(response.isCourseTutorialCompleted()).isTrue();
         assertThat(response.accessToken()).isEqualTo("access-jwt");
         verify(memberRepository, never()).save(any());
         verify(socialAccountRepository, never()).save(any());
@@ -156,9 +159,13 @@ class AuthServiceTest {
         // isNewMember만 보면 온보딩을 마친 회원과 구분되지 않는다 — 이 필드를 넣은 이유다
         assertThat(response.isNewMember()).isFalse();
         assertThat(response.isOnboarded()).isFalse();
+        assertThat(response.isCourseTutorialCompleted()).isFalse();
 
         when(memberOnboardingRepository.existsById(7L)).thenReturn(true);
         assertThat(authService.login(SocialProvider.KAKAO, CREDENTIAL).isOnboarded()).isTrue();
+        existing.completeCourseTutorial(LocalDateTime.now());
+        assertThat(authService.login(SocialProvider.KAKAO, CREDENTIAL).isCourseTutorialCompleted())
+                .isTrue();
     }
 
     @Test
@@ -166,6 +173,7 @@ class AuthServiceTest {
     void 재발급() {
         Member member = Member.createBySocial(EMAIL);
         ReflectionTestUtils.setField(member, "id", 7L);
+        member.completeCourseTutorial(LocalDateTime.now());
         when(tokenService.reissue("refresh-raw"))
                 .thenReturn(
                         new TokenService.Reissued(new Tokens("new-access", "new-refresh"), member));
@@ -177,6 +185,7 @@ class AuthServiceTest {
         assertThat(response.refreshToken()).isEqualTo("new-refresh");
         // 토큰만 갱신하고 들어온 앱도 온보딩 화면 분기를 할 수 있어야 한다
         assertThat(response.isOnboarded()).isTrue();
+        assertThat(response.isCourseTutorialCompleted()).isTrue();
         verify(tokenService).reissue("refresh-raw");
     }
 
@@ -201,6 +210,7 @@ class AuthServiceTest {
 
         assertThat(response.status()).isEqualTo(SocialLoginResponse.Status.WITHDRAWAL_PENDING);
         assertThat(response.accessToken()).isNull();
+        assertThat(response.isCourseTutorialCompleted()).isFalse();
         assertThat(response.withdrawalRequestedAt()).isNotNull();
         verify(tokenService, never()).issue(any());
     }
@@ -219,6 +229,7 @@ class AuthServiceTest {
 
         assertThat(response.status()).isEqualTo(SocialLoginResponse.Status.WITHDRAWAL_LOCKED);
         assertThat(response.accessToken()).isNull();
+        assertThat(response.isCourseTutorialCompleted()).isFalse();
         // 앱이 "N일 남았습니다"를 그리려면 날짜가 값으로 와야 한다 — 에러 응답으로는 실을 수 없었다
         assertThat(response.reRegisterableAt())
                 .isEqualTo(withdrawnAt.plus(WithdrawalPolicy.RE_REGISTERABLE_WINDOW));
@@ -231,6 +242,7 @@ class AuthServiceTest {
     void 복구_성공() {
         stubSocialVerification();
         Member withdrawing = Member.createBySocial(EMAIL);
+        withdrawing.completeCourseTutorial(LocalDateTime.now());
         withdrawing.withdraw(LocalDateTime.now().minusDays(1)); // PENDING
         when(socialAccountRepository.findByProviderAndProviderId(SocialProvider.KAKAO, PROVIDER_ID))
                 .thenReturn(Optional.of(accountOf(withdrawing)));
@@ -241,6 +253,7 @@ class AuthServiceTest {
         assertThat(withdrawing.isWithdrawn()).isFalse();
         assertThat(response.status()).isEqualTo(SocialLoginResponse.Status.SUCCESS);
         assertThat(response.accessToken()).isEqualTo("access-jwt");
+        assertThat(response.isCourseTutorialCompleted()).isTrue();
     }
 
     @Test

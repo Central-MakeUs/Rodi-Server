@@ -9,6 +9,36 @@ import org.springframework.data.repository.query.Param;
 public interface PlaceRepository extends JpaRepository<Place, Long> {
 
     /**
+     * 전체 조회에 노출할 place 조건(스펙 014). 주차장은 항상 보이고, <b>코스는 승인됐고 삭제되지 않은 것만</b> 보인다.
+     *
+     * <p>목록·검색·연관검색어·마커가 각자 조건을 적으면 한 곳만 빠뜨려도 미승인 코스가 새어 나간다. 상수로 묶어 같은 술어를 공유한다. place 별칭은 {@code
+     * p}로 고정.
+     */
+    String VISIBLE =
+            """
+            (p.place_type <> 'COURSE'
+             OR EXISTS (SELECT 1 FROM course c
+                        WHERE c.place_id = p.id
+                          AND c.approval_status = 'APPROVED'
+                          AND c.deleted_at IS NULL))
+            """;
+
+    /**
+     * 마커용 전체 좌표. 승인·미삭제 코스와 주차장만 반환한다.
+     *
+     * <p>네이티브가 아닌 JPQL인 이유: JOINED 상속이라 엔티티를 그대로 돌려주려면 하위 테이블 컬럼까지 필요하다.
+     */
+    @Query(
+            """
+            SELECT p FROM Place p
+            WHERE TYPE(p) <> Course
+               OR p.id IN (SELECT c.id FROM Course c
+                            WHERE c.approvalStatus = cmc.rodi.domain.place.entity.ApprovalStatus.APPROVED
+                              AND c.deletedAt IS NULL)
+            """)
+    List<Place> findAllVisible();
+
+    /**
      * 뷰포트(bbox) 안의 place를 현위치 거리순으로 커서 페이징한다(ADR 0010). 정렬 (거리 ASC, id ASC), 커서 keyset은
      * (cursorDistance, cursorId) 초과분. 한 건 더 조회(limit=size+1)해 다음 페이지 존재를 판별한다.
      */
@@ -27,6 +57,9 @@ public interface PlaceRepository extends JpaRepository<Place, Long> {
                                    ST_SetSRID(ST_MakePoint(:lng, :lat), 4326)::geography) AS distance
                         FROM place p
                         WHERE p.location && ST_MakeEnvelope(:swLng, :swLat, :neLng, :neLat, 4326)
+                          AND """
+                            + VISIBLE
+                            + """
                     ) t
                     WHERE (:cursorDistance IS NULL
                            OR t.distance > :cursorDistance
@@ -64,8 +97,11 @@ public interface PlaceRepository extends JpaRepository<Place, Long> {
                                    p.location::geography,
                                    ST_SetSRID(ST_MakePoint(:lng, :lat), 4326)::geography) AS distance
                         FROM place p
-                        WHERE p.address ILIKE :pattern ESCAPE '\\'
-                           OR p.name ILIKE :pattern ESCAPE '\\'
+                        WHERE (p.address ILIKE :pattern ESCAPE '\\'
+                            OR p.name ILIKE :pattern ESCAPE '\\')
+                          AND """
+                            + VISIBLE
+                            + """
                     ) t
                     WHERE (:cursorDistance IS NULL
                            OR t.distance > :cursorDistance
@@ -87,9 +123,10 @@ public interface PlaceRepository extends JpaRepository<Place, Long> {
             value =
                     """
                     SELECT COUNT(*) FROM place p
-                    WHERE p.address ILIKE :pattern ESCAPE '\\'
-                       OR p.name ILIKE :pattern ESCAPE '\\'
-                    """,
+                    WHERE (p.address ILIKE :pattern ESCAPE '\\'
+                        OR p.name ILIKE :pattern ESCAPE '\\')
+                      AND """
+                            + VISIBLE,
             nativeQuery = true)
     long countByKeyword(@Param("pattern") String pattern);
 
@@ -121,6 +158,9 @@ public interface PlaceRepository extends JpaRepository<Place, Long> {
                                END AS matched
                         FROM place p
                         WHERE p.location && ST_MakeEnvelope(:swLng, :swLat, :neLng, :neLat, 4326)
+                          AND """
+                            + VISIBLE
+                            + """
                     ) t
                     WHERE (:cursorMatched IS NULL
                            OR t.matched < :cursorMatched
@@ -171,8 +211,11 @@ public interface PlaceRepository extends JpaRepository<Place, Long> {
                                    ELSE 0
                                END AS matched
                         FROM place p
-                        WHERE p.address ILIKE :pattern ESCAPE '\\'
-                           OR p.name ILIKE :pattern ESCAPE '\\'
+                        WHERE (p.address ILIKE :pattern ESCAPE '\\'
+                            OR p.name ILIKE :pattern ESCAPE '\\')
+                          AND """
+                            + VISIBLE
+                            + """
                     ) t
                     WHERE (:cursorMatched IS NULL
                            OR t.matched < :cursorMatched
@@ -200,7 +243,8 @@ public interface PlaceRepository extends JpaRepository<Place, Long> {
                     """
                     SELECT COUNT(*) FROM place p
                     WHERE p.location && ST_MakeEnvelope(:swLng, :swLat, :neLng, :neLat, 4326)
-                    """,
+                      AND """
+                            + VISIBLE,
             nativeQuery = true)
     long countInViewport(
             @Param("swLat") double swLat,
@@ -223,6 +267,9 @@ public interface PlaceRepository extends JpaRepository<Place, Long> {
                                POSITION(LOWER(:keyword) IN LOWER(p.name)) AS "matchPos"
                         FROM place p
                         WHERE p.name ILIKE :pattern ESCAPE '\\'
+                          AND """
+                            + VISIBLE
+                            + """
                     ) t
                     WHERE (:cursorMatchPos IS NULL
                            OR t."matchPos" > :cursorMatchPos
@@ -244,7 +291,8 @@ public interface PlaceRepository extends JpaRepository<Place, Long> {
                     """
                     SELECT COUNT(*) FROM place p
                     WHERE p.name ILIKE :pattern ESCAPE '\\'
-                    """,
+                      AND """
+                            + VISIBLE,
             nativeQuery = true)
     long countByNameRelevance(@Param("pattern") String pattern);
 }

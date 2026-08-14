@@ -58,6 +58,10 @@ public class Member extends BaseEntity {
     @Column(name = "filter_tags", columnDefinition = "jsonb")
     private List<PracticeType> filterTags;
 
+    /** 코스 등록 튜토리얼 완료 시각(스펙 017). NULL이면 아직 보지 않았다. */
+    @Column(name = "course_tutorial_completed_at")
+    private LocalDateTime courseTutorialCompletedAt;
+
     /** 탈퇴 요청 시각(soft delete). 유예기간 동안 복구 대상(ADR 0004). */
     @Column(name = "deleted_at")
     private LocalDateTime deletedAt;
@@ -140,6 +144,17 @@ public class Member extends BaseEntity {
     public void updateFilterTags(List<PracticeType> filterTags) {
         this.filterTags =
                 (filterTags == null || filterTags.isEmpty()) ? null : List.copyOf(filterTags);
+    }
+
+    /** 코스 등록 튜토리얼 완료. 여러 번 호출해도 최초 완료 시각을 유지한다. */
+    public void completeCourseTutorial(LocalDateTime now) {
+        if (courseTutorialCompletedAt == null) {
+            courseTutorialCompletedAt = now;
+        }
+    }
+
+    public boolean isCourseTutorialCompleted() {
+        return courseTutorialCompletedAt != null;
     }
 
     /** 익명화 — 유예기간 경과 후 개인정보 제거. */

@@ -12,6 +12,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import cmc.rodi.domain.member.dto.CourseTutorialCompletionResponse;
 import cmc.rodi.domain.member.dto.LevelProgressResponse;
 import cmc.rodi.domain.member.dto.MemberUpdateRequest;
 import cmc.rodi.domain.member.dto.MyPageResponse;
@@ -19,6 +20,7 @@ import cmc.rodi.domain.member.dto.OnboardingRequest;
 import cmc.rodi.domain.member.entity.Level;
 import cmc.rodi.domain.member.entity.PracticeType;
 import cmc.rodi.domain.member.service.MemberBlockService;
+import cmc.rodi.domain.member.service.MemberCourseTutorialService;
 import cmc.rodi.domain.member.service.MemberFilterService;
 import cmc.rodi.domain.member.service.MemberProfileService;
 import cmc.rodi.domain.member.service.MemberWithdrawalService;
@@ -29,6 +31,7 @@ import cmc.rodi.global.common.notification.DiscordNotifier;
 import cmc.rodi.global.config.SecurityConfig;
 import cmc.rodi.global.config.WebConfig;
 import cmc.rodi.global.exception.GlobalExceptionHandler;
+import java.time.LocalDateTime;
 import java.util.List;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.DisplayName;
@@ -68,6 +71,7 @@ class MemberControllerTest {
     @MockitoBean MemberProfileService memberProfileService;
     @MockitoBean MemberFilterService memberFilterService;
     @MockitoBean MemberBlockService memberBlockService;
+    @MockitoBean MemberCourseTutorialService memberCourseTutorialService;
 
     private static final String ONBOARDING_BODY =
             """
@@ -286,6 +290,22 @@ class MemberControllerTest {
                                 .content("{\"filterTags\":[null]}"))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.isSuccess").value(false));
+    }
+
+    @Test
+    @DisplayName("코스 등록 튜토리얼 완료: 200 + @CurrentMember의 회원 id로 서비스 위임")
+    void 코스등록_튜토리얼_완료() throws Exception {
+        authenticate(7L);
+        LocalDateTime completedAt = LocalDateTime.of(2026, 8, 14, 18, 40);
+        when(memberCourseTutorialService.complete(7L))
+                .thenReturn(new CourseTutorialCompletionResponse(completedAt));
+
+        mockMvc.perform(patch("/api/v1/members/me/course-tutorial"))
+                .andExpect(status().isOk())
+                .andExpect(
+                        jsonPath("$.data.courseTutorialCompletedAt").value("2026-08-14T18:40:00"));
+
+        verify(memberCourseTutorialService).complete(7L);
     }
 
     @Test

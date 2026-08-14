@@ -14,6 +14,7 @@ import cmc.rodi.domain.place.entity.Course;
 import cmc.rodi.domain.place.entity.Parking;
 import cmc.rodi.domain.place.entity.Place;
 import cmc.rodi.domain.place.entity.PlaceType;
+import cmc.rodi.domain.place.exception.CourseErrorCode;
 import cmc.rodi.domain.place.repository.BookmarkRepository;
 import cmc.rodi.domain.place.repository.CourseRepository;
 import cmc.rodi.domain.place.repository.ParkingRepository;
@@ -44,10 +45,12 @@ public class PlaceQueryService {
     private final MemberFilterService memberFilterService;
     private final RegionSearchIndex regionSearchIndex;
 
-    /** 전체 place의 간단 좌표(마커용). 필터 없이 모두 반환한다. */
+    /** 전체 place의 간단 좌표(마커용). 미승인·삭제된 코스는 제외한다(스펙 014). */
     @Transactional(readOnly = true)
     public List<PlaceCoordinateResponse> getAllCoordinates() {
-        return placeRepository.findAll().stream().map(PlaceCoordinateResponse::from).toList();
+        return placeRepository.findAllVisible().stream()
+                .map(PlaceCoordinateResponse::from)
+                .toList();
     }
 
     /**
@@ -310,12 +313,29 @@ public class PlaceQueryService {
         boolean bookmarked = bookmarkRepository.existsByMemberIdAndPlaceId(memberId, placeId);
 
         if (place instanceof Course course) {
+            checkCourseVisible(course, memberId);
             return PlaceDetailResponse.ofCourse(course, bookmarkCount, bookmarked);
         }
         if (place instanceof Parking parking) {
             return PlaceDetailResponse.ofParking(parking, bookmarkCount, bookmarked);
         }
         throw new IllegalStateException("알 수 없는 place 타입: " + place.getClass());
+    }
+
+    /**
+     * 상세를 열어줄 코스인지 판정한다(스펙 014).
+     *
+     * <p><b>삭제와 미승인의 응답이 다른 이유</b> — 삭제는 이미 북마크·연습 목록에 담아둔 사용자가 탭했을 때 "삭제된 코스입니다"를 보여줘야 해서 전용 코드로
+     * 구분한다. 반면 미승인은 존재 자체를 숨겨야 하므로 <b>없는 장소와 똑같은 404</b>로 응답한다 — 코드가 갈리면 id를 훑어 심사 중인 코스가 있는지 알아낼 수
+     * 있다.
+     */
+    private static void checkCourseVisible(Course course, Long memberId) {
+        if (course.isDeleted()) {
+            throw new BusinessException(CourseErrorCode.COURSE_DELETED);
+        }
+        if (!course.isApproved() && !course.isOwnedBy(memberId)) {
+            throw new BusinessException(ErrorCode.ENTITY_NOT_FOUND);
+        }
     }
 
     /** 페이지의 코스들만 로드(태그·주행거리·설명 채우기용). */
