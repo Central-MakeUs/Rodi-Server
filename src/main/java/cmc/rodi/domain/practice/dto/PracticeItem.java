@@ -27,7 +27,10 @@ public record PracticeItem(
         @Schema(description = "마지막 활동 시각 — 다녀왔으면 마지막 방문 시각, 아니면 담은 시각")
                 LocalDateTime lastActivityAt,
         @Schema(description = "이 장소에 내가 후기를 썼는지(후기 쓰기 버튼 노출 판단)") @JsonProperty("hasReview")
-                boolean hasReview) {
+                boolean hasReview,
+        @Schema(description = "등록자가 삭제한 코스인지(스펙 015). true면 상세로 들어갈 수 없다")
+                @JsonProperty("isDeleted")
+                boolean isDeleted) {
 
     public static PracticeItem of(MemberPractice practice, boolean hasReview) {
         Place place = practice.getPlace();
@@ -39,7 +42,8 @@ public record PracticeItem(
                 practice.getStatus(),
                 practice.getVisitCount(),
                 practice.recentActivityAt(),
-                hasReview);
+                hasReview,
+                place.isDeleted());
     }
 
     /** 코스는 등록된 태그, 주차장은 항상 주차(장소 목록·상세와 동일 표기). */

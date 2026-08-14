@@ -3,8 +3,12 @@ package cmc.rodi.domain.place.controller;
 import cmc.rodi.domain.place.dto.CourseRegisterRequest;
 import cmc.rodi.domain.place.dto.CourseRegisterResponse;
 import cmc.rodi.domain.place.dto.CourseRegistrationFormResponse;
+import cmc.rodi.domain.place.dto.MyCourseItem;
+import cmc.rodi.domain.place.entity.ApprovalStatus;
+import cmc.rodi.global.common.pagination.CursorPage;
 import cmc.rodi.global.common.response.ApiResponse;
 import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.ExampleObject;
 import io.swagger.v3.oas.annotations.media.Schema;
@@ -52,7 +56,8 @@ public interface CourseControllerDocs {
                                                     @ExampleObject(
                                                             value = REGISTER_REQUEST_EXAMPLE))))
     ApiResponse<CourseRegisterResponse> register(
-            @Schema(hidden = true) CourseRegisterRequest request, Long memberId);
+            @Schema(hidden = true) CourseRegisterRequest request,
+            @Parameter(hidden = true) Long memberId);
 
     @Operation(
             summary = "코스 등록 폼 조회",
@@ -67,4 +72,40 @@ public interface CourseControllerDocs {
                       `maxSelectExceededMessage`를 띄운다.
                     """)
     ApiResponse<CourseRegistrationFormResponse> getRegistrationForm();
+
+    @Operation(
+            summary = "내가 등록한 코스 목록",
+            description =
+                    """
+                    내가 등록한 코스를 **최신 등록순**으로 커서 페이징한다. 승인 전 코스는 전체 목록·검색에
+                    나오지 않으므로, 심사 상태를 확인하는 창구다.
+
+                    - `status`로 `PENDING`·`APPROVED`·`REJECTED` 하나만 걸러 볼 수 있다(생략하면 전체).
+                    - `totalCount`는 **첫 페이지에서만** 채워지고 **상태 필터가 적용된 개수**다.
+                    - 내가 삭제한 코스와 운영자가 등록한 코스는 포함되지 않는다.
+                    """)
+    ApiResponse<CursorPage<MyCourseItem>> getMyCourses(
+            @Parameter(description = "승인 상태 필터(생략 시 전체)") ApprovalStatus status,
+            @Parameter(description = "페이지 크기(1~100)") int size,
+            @Parameter(description = "다음 페이지 커서") String cursor,
+            @Parameter(hidden = true) Long memberId);
+
+    @Operation(
+            summary = "내 코스 삭제",
+            description =
+                    """
+                    내가 등록한 코스를 삭제한다. 승인 상태와 무관하게 지울 수 있다.
+
+                    **soft delete**라 행이 남는다 — 물리 삭제하면 다른 사용자의 북마크·후기·연습기록까지
+                    함께 사라져, 담아둔 사람은 항목이 없어진 이유를 알 수 없다. 삭제 후에는
+                    전체 목록·검색·내 코스 목록에서 빠지고, 이미 담아둔 사용자의 저장·연습 목록에는
+                    `isDeleted=true`로 남으며 상세 진입 시 `COURSE_404_2`가 내려간다.
+
+                    - 없는 코스·이미 삭제된 코스는 **멱등하게 200**.
+                    - 남의 코스와 운영자가 등록한 코스는 403.
+                    - 주차장 id를 보내면 404(코스가 아니다).
+                    """)
+    ApiResponse<Void> delete(
+            @Parameter(description = "코스 id") Long courseId,
+            @Parameter(hidden = true) Long memberId);
 }

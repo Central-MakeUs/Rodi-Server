@@ -4,6 +4,7 @@ import cmc.rodi.domain.member.entity.PracticeType;
 import cmc.rodi.domain.place.entity.Course;
 import cmc.rodi.domain.place.entity.Parking;
 import cmc.rodi.domain.place.entity.PlaceType;
+import com.fasterxml.jackson.annotation.JsonProperty;
 import io.swagger.v3.oas.annotations.media.Schema;
 import java.util.List;
 
@@ -23,7 +24,13 @@ public record PlaceListItem(
         @Schema(description = "설명(코스만)") String description,
         @Schema(description = "코스 주행거리(m)(코스만)") Integer distanceMeters,
         @Schema(description = "총 주차면수(주차장만)") Integer capacity,
-        @Schema(description = "영업시작 시각(주차장만)", example = "00:00") String openTime) {
+        @Schema(description = "영업시작 시각(주차장만)", example = "00:00") String openTime,
+        @Schema(
+                        description =
+                                "등록자가 삭제한 코스인지(스펙 015). 저장 목록에서만 true가 될 수 있다 —"
+                                        + " 목록·검색은 삭제된 코스를 아예 내려주지 않는다. 주차장은 항상 false")
+                @JsonProperty("isDeleted")
+                boolean isDeleted) {
 
     /** 코스 엔티티 → 아이템. {@code distanceFromMe}는 현위치 거리(없으면 null). */
     public static PlaceListItem ofCourse(Course course, Long distanceFromMe) {
@@ -40,7 +47,8 @@ public record PlaceListItem(
                 course.getDescription(),
                 course.getDistanceMeters(),
                 null,
-                null);
+                null,
+                course.isDeleted());
     }
 
     /** 주차장 엔티티 → 아이템. 주차장은 연습유형이 항상 [PARKING]. */
@@ -57,7 +65,8 @@ public record PlaceListItem(
                 null,
                 null,
                 parking.getCapacity(),
-                openTime(parking.getWeekdayHours()));
+                openTime(parking.getWeekdayHours()),
+                false);
     }
 
     /** 영업시간("00:00-23:59")에서 시작 시각만 추출. 없으면 null. */

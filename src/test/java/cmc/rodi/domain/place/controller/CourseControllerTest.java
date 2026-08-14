@@ -13,6 +13,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import cmc.rodi.domain.place.dto.CourseRegisterRequest;
 import cmc.rodi.domain.place.dto.CourseRegisterResponse;
 import cmc.rodi.domain.place.entity.ApprovalStatus;
+import cmc.rodi.domain.place.service.CourseQueryService;
 import cmc.rodi.domain.place.service.CourseService;
 import cmc.rodi.global.auth.jwt.JwtAuthenticationFilter;
 import cmc.rodi.global.auth.resolver.CurrentMemberArgumentResolver;
@@ -55,6 +56,7 @@ class CourseControllerTest {
     @Autowired MockMvc mockMvc;
 
     @MockitoBean CourseService courseService;
+    @MockitoBean CourseQueryService courseQueryService;
 
     @AfterEach
     void clearContext() {
@@ -247,7 +249,7 @@ class CourseControllerTest {
     void 등록_폼() throws Exception {
         authenticate(7L);
         when(courseService.getRegistrationForm())
-                .thenReturn(new CourseService(null, null).getRegistrationForm());
+                .thenReturn(new CourseService(null, null, null).getRegistrationForm());
 
         mockMvc.perform(get("/api/v1/courses/registration-form"))
                 .andExpect(status().isOk())

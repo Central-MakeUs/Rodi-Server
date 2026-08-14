@@ -62,4 +62,14 @@ public abstract class Place extends BaseEntity {
     public Integer drivingDistanceMeters() {
         return null;
     }
+
+    /**
+     * 등록자가 삭제한 장소인지 — 삭제될 수 있는 것은 코스뿐이라 기본은 {@code false}다(스펙 015).
+     *
+     * <p>{@code drivingDistanceMeters()}와 같은 이유로 <b>메서드로 둔다</b>. 북마크·연습 목록은 {@code place}를 지연 로딩으로
+     * 들고 있어 {@code instanceof Course}가 프록시에서 거짓이 되고, 그러면 삭제된 코스가 멀쩡한 것처럼 표시된다.
+     */
+    public boolean isDeleted() {
+        return false;
+    }
 }

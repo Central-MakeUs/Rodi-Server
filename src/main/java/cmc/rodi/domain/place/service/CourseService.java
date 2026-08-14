@@ -7,9 +7,12 @@ import cmc.rodi.domain.place.dto.CourseRegisterResponse;
 import cmc.rodi.domain.place.dto.CourseRegistrationFormResponse;
 import cmc.rodi.domain.place.dto.CourseRegistrationFormResponse.InputSpec;
 import cmc.rodi.domain.place.entity.Course;
+import cmc.rodi.domain.place.exception.CourseErrorCode;
 import cmc.rodi.domain.place.repository.CourseRepository;
+import cmc.rodi.domain.place.repository.PlaceRepository;
 import cmc.rodi.global.exception.BusinessException;
 import cmc.rodi.global.exception.ErrorCode;
+import java.time.LocalDateTime;
 import lombok.RequiredArgsConstructor;
 import org.locationtech.jts.geom.Coordinate;
 import org.locationtech.jts.geom.GeometryFactory;
@@ -31,6 +34,7 @@ public class CourseService {
     private static final String DESCRIPTION_PLACEHOLDER = "예) 차선이 넓고, 직선 구간이 길어요.";
 
     private final CourseRepository courseRepository;
+    private final PlaceRepository placeRepository;
     private final MemberRepository memberRepository;
 
     /**
@@ -70,6 +74,30 @@ public class CourseService {
         }
 
         return CourseRegisterResponse.from(courseRepository.save(course));
+    }
+
+    /**
+     * 내 코스 삭제(스펙 015). <b>soft delete</b> — 행을 지우지 않고 {@code deletedAt}만 찍는다.
+     *
+     * <p>물리 삭제하면 다른 사용자의 북마크·후기·연습기록까지 조용히 사라져, 담아둔 사람은 항목이 없어진 이유를 알 수 없다. 표시만 남겨두면 목록에서 {@code
+     * isDeleted}로 구분하고 상세에서 "삭제된 코스입니다"를 띄울 수 있다.
+     *
+     * <p>승인 상태와 무관하게 지울 수 있고, <b>이미 삭제됐거나 없는 코스는 멱등하게 200</b>이다.
+     */
+    @Transactional
+    public void delete(Long courseId, Long memberId) {
+        Course course = courseRepository.findById(courseId).orElse(null);
+        if (course == null) {
+            // 코스가 아닌 place(주차장)를 지우려 한 것과, 아예 없는 id를 구분한다
+            if (placeRepository.existsById(courseId)) {
+                throw new BusinessException(CourseErrorCode.COURSE_NOT_FOUND);
+            }
+            return; // 없는 코스 — 멱등
+        }
+        if (!course.isOwnedBy(memberId)) {
+            throw new BusinessException(CourseErrorCode.NOT_COURSE_OWNER);
+        }
+        course.delete(LocalDateTime.now()); // 이미 삭제됐으면 최초 시각 유지
     }
 
     /** 등록 폼. 카테고리 트리·입력 제약을 서버가 정의해 내려준다(앱 배포 없이 문구 변경). */

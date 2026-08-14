@@ -185,6 +185,7 @@ public class Course extends Place {
         }
     }
 
+    @Override
     public boolean isDeleted() {
         return deletedAt != null;
     }

@@ -14,6 +14,7 @@ import org.springframework.http.HttpStatus;
 @Getter
 @RequiredArgsConstructor
 public enum CourseErrorCode implements ResponseCode {
+    NOT_COURSE_OWNER(HttpStatus.FORBIDDEN, "COURSE_403_1", "본인이 등록한 코스만 삭제할 수 있습니다."),
     COURSE_NOT_FOUND(HttpStatus.NOT_FOUND, "COURSE_404_1", "코스를 찾을 수 없습니다."),
     COURSE_DELETED(HttpStatus.NOT_FOUND, "COURSE_404_2", "삭제된 코스입니다.");
 
