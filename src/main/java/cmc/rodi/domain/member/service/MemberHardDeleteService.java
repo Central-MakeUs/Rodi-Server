@@ -6,7 +6,6 @@ import cmc.rodi.global.exception.ErrorCode;
 import jakarta.persistence.EntityManager;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
-import org.springframework.context.annotation.Profile;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -14,11 +13,9 @@ import org.springframework.transaction.annotation.Transactional;
  * 즉시 탈퇴(내부 테스트용). 유예기간·익명화를 거치지 않고 회원을 <b>물리 삭제</b>해, 같은 소셜 계정으로 곧바로 재가입·온보딩을 다시 시험할 수 있게 한다. 운영의
  * 단계적 탈퇴는 {@link MemberWithdrawalService}가 담당한다.
  *
- * <p><b>운영에는 존재하지 않는다</b> — {@code @Profile("!prod")}라 운영 컨테이너에서는 빈이 만들어지지 않고, 이 서비스를 쓰는 컨트롤러도 함께
- * 사라진다.
+ * <p>배포 환경이 하나뿐이라(운영 서버가 곧 테스트 서버다) 프로파일·설정으로 가리면 정작 앱이 붙는 서버에서 쓸 수 없어, 게이트 없이 배포한다.
  */
 @Service
-@Profile("!prod")
 @RequiredArgsConstructor
 public class MemberHardDeleteService {
 
