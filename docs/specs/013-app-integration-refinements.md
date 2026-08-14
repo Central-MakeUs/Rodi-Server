@@ -265,7 +265,7 @@ SEED 때 쓴 후기의 배지는 세 시점 모두 `true`로 남는다.
 
 ### 9. 즉시 탈퇴 (내부 테스트용)
 
-```
+```text
 DELETE /api/v1/members/me/hard   (JWT)
 → 200 { isSuccess: true, code: "COMMON_200", data: null }
 ```

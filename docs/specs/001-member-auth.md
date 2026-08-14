@@ -59,6 +59,8 @@ AuthController
 
 `{provider}` = `kakao` | `apple`(예약). 응답은 공통 `ApiResponse<T>`.
 
+**온보딩 분기는 `isOnboarded`로 한다.** `isNewMember`는 "이번 요청으로 새로 가입했는지"라, 가입 후 온보딩 중 이탈한 회원이 재로그인하면 `false`가 되어 온보딩으로 보낼 근거가 못 된다. 탈퇴 관련 상태(`WITHDRAWAL_PENDING`·`WITHDRAWAL_LOCKED`)는 [스펙 003](003-member-withdrawal.md) 참고.
+
 > **이번 범위**: 로그인/가입·refresh·logout (카카오). **후순위**: `/link`(애플 이후), `DELETE /members/me`(탈퇴 정책 기획 확정 후).
 
 ```json
@@ -67,11 +69,13 @@ AuthController
 
 // Response (200)
 { "isSuccess": true, "code": "AUTH_200", "message": "로그인 성공",
-  "data": { "accessToken": "eyJ...", "refreshToken": "eyJ...", "isNewUser": true } }
+  "data": { "status": "SUCCESS", "accessToken": "eyJ...", "refreshToken": "eyJ...",
+            "isNewMember": true, "isOnboarded": false, "nickname": "차근차근 토끼" } }
 
 // POST /api/v1/auth/token/refresh  (Request)
 { "refreshToken": "eyJ..." }
-// Response: 새 accessToken + 회전된 refreshToken
+// Response: 새 accessToken + 회전된 refreshToken + isOnboarded
+// (재발급은 가입이 아니므로 isNewMember는 없다)
 
 // 실패 예: 유효하지 않은 code/토큰
 { "isSuccess": false, "code": "AUTH_401", "message": "인증에 실패했습니다.", "data": null, "traceId": "..." }

@@ -19,17 +19,21 @@ import java.time.LocalDateTime;
  */
 public record SocialLoginResponse(
         @Schema(description = "SUCCESS | WITHDRAWAL_PENDING | WITHDRAWAL_LOCKED") Status status,
-        @Schema(description = "API 인증용 access token(JWT). PENDING이면 null") String accessToken,
-        @Schema(description = "재발급용 refresh token. PENDING이면 null") String refreshToken,
-        @Schema(description = "이번 요청으로 새로 가입했는지. PENDING이면 false") @JsonProperty("isNewMember")
+        @Schema(description = "API 인증용 access token(JWT). 토큰 없는 상태(PENDING·LOCKED)면 null")
+                String accessToken,
+        @Schema(description = "재발급용 refresh token. 토큰 없는 상태(PENDING·LOCKED)면 null")
+                String refreshToken,
+        @Schema(description = "이번 요청으로 새로 가입했는지. 토큰 없는 상태(PENDING·LOCKED)면 false")
+                @JsonProperty("isNewMember")
                 boolean isNewMember,
         @Schema(
                         description =
-                                "온보딩을 마쳤는지 — 온보딩 화면 분기 기준. 신규 가입과 토큰 없는 응답(PENDING)은 false."
+                                "온보딩을 마쳤는지 — 온보딩 화면 분기 기준."
+                                        + " 신규 가입과 토큰 없는 상태(PENDING·LOCKED)는 false."
                                         + " isNewMember로는 가입 후 온보딩 중 이탈한 회원의 재로그인을 가려낼 수 없다.")
                 @JsonProperty("isOnboarded")
                 boolean isOnboarded,
-        @Schema(description = "가입 시 부여된 닉네임. PENDING이면 null") String nickname,
+        @Schema(description = "가입 시 부여된 닉네임. 토큰 없는 상태(PENDING·LOCKED)면 null") String nickname,
         @Schema(description = "탈퇴 요청 시각(PENDING·LOCKED만)") LocalDateTime withdrawalRequestedAt,
         @Schema(description = "복구 가능 마감 시각(PENDING만)") LocalDateTime recoverableUntil,
         @Schema(description = "같은 계정으로 다시 가입할 수 있는 시각(LOCKED만)") LocalDateTime reRegisterableAt) {

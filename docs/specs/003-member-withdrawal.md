@@ -66,17 +66,25 @@ DELETE /api/v1/members/me   (Authorization: Bearer)
 { "isSuccess": true, "code": "COMMON_200",
   "data": { "status": "WITHDRAWAL_PENDING", "accessToken": null, "refreshToken": null, "isNewMember": false,
             "withdrawalRequestedAt": "2026-07-07T10:00:00", "recoverableUntil": "2026-07-10T10:00:00" } }
+
+// 재가입 대기(Day 3~10) — 토큰 미발급. 오류가 아니라 200이다
+{ "isSuccess": true, "code": "COMMON_200",
+  "data": { "status": "WITHDRAWAL_LOCKED", "accessToken": null, "refreshToken": null,
+            "isNewMember": false, "isOnboarded": false,
+            "withdrawalRequestedAt": "2026-07-07T10:00:00", "reRegisterableAt": "2026-07-17T10:00:00" } }
 ```
 - 클라이언트: `status == "WITHDRAWAL_PENDING"` 이면 "탈퇴 처리 중입니다. 복구하시겠습니까?" 다이얼로그 → 예 → 복구 API.
-- **Day 3~10 잠금** 회원 로그인 시도는 에러 `MEMBER_WITHDRAWAL_LOCKED`(409, "N일 후 재가입 가능").
+- **Day 3~10 잠금** 회원의 로그인은 **200 `WITHDRAWAL_LOCKED` + `reRegisterableAt`**(= 탈퇴 시각 + 10일)이다. 에러로 주면 날짜를 값으로 실을 수 없어 상태 분기로 옮겼다 → [ADR 0013](../adr/0013-withdrawal-locked-as-status.md).
+- `reRegisterableAt`은 소셜 식별자 해제 배치(매일 04:00 KST)보다 이를 수 있어 **이미 지난 시각일 수 있다**. 그때 "지금 가능"으로 표시하는 것은 클라이언트 몫이다(ADR 0013).
 
 ### 계정 복구
 ```
 POST /api/v1/auth/oauth/{provider}/restore   { "credential": "..." }
 → 소셜 credential 재검증 → 해당 회원이 WITHDRAWAL_PENDING이면 deletedAt 해제 → 토큰 발급
-→ 200 { data: { status:"SUCCESS", accessToken, refreshToken, isNewMember:false, ... } }
+→ 200 { data: { status:"SUCCESS", accessToken, refreshToken, isNewMember:false, isOnboarded:true, ... } }
 ```
-- 대상이 복구 불가 상태면 `MEMBER_WITHDRAWAL_LOCKED`.
+- 유예가 지났으면 로그인과 **같은 200 `WITHDRAWAL_LOCKED` + `reRegisterableAt`**을 준다. 한쪽만 바꾸면 다른 쪽에서 날짜를 못 받는다.
+- 복구 대상 계정이 아예 없으면 `MEMBER_404_1`.
 
 ## 도메인 모델
 
@@ -107,7 +115,7 @@ POST /api/v1/auth/oauth/{provider}/restore   { "credential": "..." }
 - [ ] 복구 API → deletedAt 해제 후 정상 토큰 발급, 이후 로그인 정상
 - [ ] 스케줄러: 3일 경과분 익명화(개인정보 null + 공급자 revoke/unlink + anonymizedAt)
 - [ ] 스케줄러: 10일 경과분 social_account 삭제 → 동일 소셜 재로그인 시 신규 가입(isNewMember=true)
-- [ ] Day 3~10 로그인 시도 → `MEMBER_WITHDRAWAL_LOCKED`
+- [ ] Day 3~10 로그인·복구 시도 → 200 `status:WITHDRAWAL_LOCKED` + `reRegisterableAt`(탈퇴 시각 + 10일)
 - [ ] 관련 테스트 통과(`./gradlew test`) — 공급자 호출은 MockRestServiceServer, 스케줄러는 단위 테스트
 
 ## 결정 사항 (2026-07-07)
