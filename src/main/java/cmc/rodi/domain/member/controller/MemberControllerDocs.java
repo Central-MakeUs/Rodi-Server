@@ -1,6 +1,7 @@
 package cmc.rodi.domain.member.controller;
 
 import cmc.rodi.domain.member.dto.BlockedMemberItem;
+import cmc.rodi.domain.member.dto.CourseTutorialCompletionResponse;
 import cmc.rodi.domain.member.dto.FilterTagsRequest;
 import cmc.rodi.domain.member.dto.MemberUpdateRequest;
 import cmc.rodi.domain.member.dto.MyPageResponse;
@@ -50,6 +51,14 @@ public interface MemberControllerDocs {
                             + "빈 배열이면 필터 해제(전체 노출). 저장된 값은 인증된 목록·검색 정렬에 적용된다. JWT 필요.")
     ApiResponse<Void> updateFilterTags(
             @Parameter(hidden = true) Long memberId, FilterTagsRequest request);
+
+    @Operation(
+            summary = "코스 등록 튜토리얼 완료 저장",
+            description =
+                    "코스 등록 튜토리얼을 완료한 최초 시각을 저장한다. 요청 본문은 없고, 여러 번 호출해도 최초 완료 시각을 유지한다. "
+                            + "완료 여부 조회 전용 API는 만들지 않으며 로그인·토큰 재발급 응답의 isCourseTutorialCompleted로 판단한다.")
+    ApiResponse<CourseTutorialCompletionResponse> completeCourseTutorial(
+            @Parameter(hidden = true) Long memberId);
 
     @Operation(
             summary = "회원 차단",

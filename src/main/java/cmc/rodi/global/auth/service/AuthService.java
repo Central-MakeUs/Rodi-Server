@@ -48,7 +48,7 @@ public class AuthService {
         if (account == null) {
             Member member = register(userInfo);
             return SocialLoginResponse.success(
-                    tokenService.issue(member), true, false, member.getNickname());
+                    tokenService.issue(member), true, false, false, member.getNickname());
         }
 
         Member member = account.getMember();
@@ -70,7 +70,11 @@ public class AuthService {
                 userInfo.providerNickname(),
                 userInfo.providerProfileImageUrl());
         return SocialLoginResponse.success(
-                tokenService.issue(member), false, isOnboarded(member), member.getNickname());
+                tokenService.issue(member),
+                false,
+                isOnboarded(member),
+                member.isCourseTutorialCompleted(),
+                member.getNickname());
     }
 
     /**
@@ -105,14 +109,21 @@ public class AuthService {
         }
         // ACTIVE(이미 정상) 또는 방금 복구 → 로그인 토큰 발급
         return SocialLoginResponse.success(
-                tokenService.issue(member), false, isOnboarded(member), member.getNickname());
+                tokenService.issue(member),
+                false,
+                isOnboarded(member),
+                member.isCourseTutorialCompleted(),
+                member.getNickname());
     }
 
     /** refresh token으로 재발급(회전 + 재사용 탐지). 토큰만 갱신하고 들어온 앱도 온보딩 분기를 할 수 있게 완료 여부를 함께 준다. */
     @Transactional
     public TokenResponse reissue(String refreshToken) {
         TokenService.Reissued reissued = tokenService.reissue(refreshToken);
-        return TokenResponse.of(reissued.tokens(), isOnboarded(reissued.member()));
+        return TokenResponse.of(
+                reissued.tokens(),
+                isOnboarded(reissued.member()),
+                reissued.member().isCourseTutorialCompleted());
     }
 
     /** 로그아웃(해당 refresh token 세션만 폐기). */

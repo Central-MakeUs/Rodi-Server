@@ -1,11 +1,13 @@
 package cmc.rodi.domain.member.controller;
 
 import cmc.rodi.domain.member.dto.BlockedMemberItem;
+import cmc.rodi.domain.member.dto.CourseTutorialCompletionResponse;
 import cmc.rodi.domain.member.dto.FilterTagsRequest;
 import cmc.rodi.domain.member.dto.MemberUpdateRequest;
 import cmc.rodi.domain.member.dto.MyPageResponse;
 import cmc.rodi.domain.member.dto.OnboardingRequest;
 import cmc.rodi.domain.member.service.MemberBlockService;
+import cmc.rodi.domain.member.service.MemberCourseTutorialService;
 import cmc.rodi.domain.member.service.MemberFilterService;
 import cmc.rodi.domain.member.service.MemberProfileService;
 import cmc.rodi.domain.member.service.MemberWithdrawalService;
@@ -41,6 +43,7 @@ public class MemberController implements MemberControllerDocs {
     private final MemberProfileService memberProfileService;
     private final MemberFilterService memberFilterService;
     private final MemberBlockService memberBlockService;
+    private final MemberCourseTutorialService memberCourseTutorialService;
 
     @Override
     @GetMapping("/me")
@@ -77,6 +80,13 @@ public class MemberController implements MemberControllerDocs {
             @CurrentMember Long memberId, @Valid @RequestBody FilterTagsRequest request) {
         memberFilterService.updateFilterTags(memberId, request.filterTags());
         return ApiResponse.success(null);
+    }
+
+    @Override
+    @PatchMapping("/me/course-tutorial")
+    public ApiResponse<CourseTutorialCompletionResponse> completeCourseTutorial(
+            @CurrentMember Long memberId) {
+        return ApiResponse.success(memberCourseTutorialService.complete(memberId));
     }
 
     @Override

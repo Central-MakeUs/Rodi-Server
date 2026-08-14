@@ -8,6 +8,7 @@
 | 2026-08-14 | Draft | develop 병합 — 번호 014→**015**, 마이그레이션 V22→**V24** |
 | 2026-08-14 | Draft | **삭제를 hard delete + cascade → soft delete로 변경**. 남의 북마크·후기·연습기록을 지우지 않고, 삭제된 코스 상세에 "삭제된 코스입니다"를 띄운다. FK cascade 재정의 철회 |
 | 2026-08-14 | Draft | 리뷰 반영 — **저장 목록·연습 목록 응답에 `isDeleted` 추가를 이번 범위에 포함**. 상세 진입 전에는 알 수 없어 반쪽이었다 |
+| 2026-08-14 | Implemented | 구현 완료 — 내 코스 상태별 목록·soft delete·저장/연습 목록 `isDeleted` |
 
 > 도메인 모델(`course.approval_status`·`created_by_member_id`, 마이그레이션 V24)은 [014 코스 등록](014-course-registration.md)에 정의돼 있다.
 
