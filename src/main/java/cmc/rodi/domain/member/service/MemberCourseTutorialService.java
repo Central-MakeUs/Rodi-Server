@@ -6,6 +6,7 @@ import cmc.rodi.domain.member.repository.MemberRepository;
 import cmc.rodi.global.exception.BusinessException;
 import cmc.rodi.global.exception.ErrorCode;
 import java.time.LocalDateTime;
+import java.time.temporal.ChronoUnit;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -29,7 +30,7 @@ public class MemberCourseTutorialService {
                 memberRepository
                         .findById(memberId)
                         .orElseThrow(() -> new BusinessException(ErrorCode.ENTITY_NOT_FOUND));
-        member.completeCourseTutorial(LocalDateTime.now());
+        member.completeCourseTutorial(LocalDateTime.now().truncatedTo(ChronoUnit.MICROS));
         return new CourseTutorialCompletionResponse(member.getCourseTutorialCompletedAt());
     }
 }
