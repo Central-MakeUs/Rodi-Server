@@ -26,6 +26,9 @@ import org.hibernate.type.SqlTypes;
 @Table(name = "member")
 public class Member extends BaseEntity {
 
+    /** 운전 목표 최대 길이(사용자가 보는 글자 수 = grapheme cluster). */
+    public static final int DRIVING_GOAL_MAX_LENGTH = 30;
+
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
@@ -42,8 +45,13 @@ public class Member extends BaseEntity {
     @Column(length = 20)
     private Level level;
 
-    /** 운전 목표(마이페이지 노출). 온보딩 추가 정보라 선택(NULL 가능). */
-    @Column(name = "driving_goal", length = 30)
+    /**
+     * 운전 목표(마이페이지 노출). 온보딩 추가 정보라 선택(NULL 가능).
+     *
+     * <p>길이 제한은 <b>grapheme cluster 기준</b>이라 컬럼 폭으로 강제할 수 없다(스펙 018) — 30자여도 코드포인트로는 210자를 넘길 수 있어
+     * {@code text}로 두고 {@code @GraphemeSize}가 책임진다.
+     */
+    @Column(name = "driving_goal", columnDefinition = "text")
     private String drivingGoal;
 
     /** 누적 인정 주행거리(m). 레벨 승급 기준이며 <b>차감되지 않는다</b> — 연습기록을 지워도 그대로다(스펙 012). */
