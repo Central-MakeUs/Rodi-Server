@@ -33,6 +33,7 @@ import lombok.NoArgsConstructor;
 @Table(name = "review")
 public class Review extends BaseEntity {
 
+    /** 후기 내용 최대 길이(사용자가 보는 글자 수 = grapheme cluster, 스펙 018). */
     public static final int MAX_CONTENT_LENGTH = 150;
 
     @Id
@@ -63,8 +64,13 @@ public class Review extends BaseEntity {
     @Column(name = "practice_method", nullable = false, length = 20)
     private PracticeMethod practiceMethod;
 
-    /** 후기 내용(선택). 글 없이 평가만 남길 수 있다 — 빈 문자열은 저장하지 않고 null로 정규화한다. */
-    @Column(length = MAX_CONTENT_LENGTH)
+    /**
+     * 후기 내용(선택). 글 없이 평가만 남길 수 있다 — 빈 문자열은 저장하지 않고 null로 정규화한다.
+     *
+     * <p>길이 제한은 <b>grapheme cluster 기준</b>이라 컬럼 폭으로 강제할 수 없다(스펙 018) — 150자여도 코드포인트로는 그보다 길어질 수 있어
+     * {@code text}로 두고 {@code @GraphemeSize}가 책임진다.
+     */
+    @Column(columnDefinition = "text")
     private String content;
 
     /** 주의사항(선택, 길이 제한 없음). */

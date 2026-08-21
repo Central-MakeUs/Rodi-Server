@@ -3,11 +3,13 @@ package cmc.rodi.domain.member.dto;
 import cmc.rodi.domain.member.entity.CarType;
 import cmc.rodi.domain.member.entity.DrivingPeriod;
 import cmc.rodi.domain.member.entity.Level;
+import cmc.rodi.domain.member.entity.Member;
 import cmc.rodi.domain.member.entity.PracticeType;
 import cmc.rodi.domain.member.entity.RecentFrequency;
 import cmc.rodi.domain.member.entity.RoadExperience;
 import cmc.rodi.domain.member.entity.SoloDrivingRange;
 import cmc.rodi.domain.member.entity.SoloParkingLevel;
+import cmc.rodi.global.common.validation.GraphemeSize;
 import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
@@ -29,4 +31,6 @@ public record OnboardingRequest(
         @Schema(description = "선호 연습유형(1~3순위, 순서=우선순위). 선택") @Size(max = 3)
                 List<PracticeType> practiceTypes,
         @Schema(description = "차종. 선택") CarType carType,
-        @Schema(description = "운전 목표(최대 30자). 선택") @Size(max = 30) String drivingGoal) {}
+        @Schema(description = "운전 목표(선택). 최대 30자 — 이모지·자모 포함 사용자가 보는 글자 수 기준")
+                @GraphemeSize(max = Member.DRIVING_GOAL_MAX_LENGTH)
+                String drivingGoal) {}

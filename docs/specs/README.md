@@ -38,3 +38,4 @@
 | [내 코스 관리](015-my-course-management.md) | 내가 등록한 코스 상태별 목록·삭제(수정은 범위 밖) | Implemented |
 | [코스 승인](016-course-approval.md) | 승인 상태 변경(임시로 로그인 사용자 전체, 추후 관리자 전용) | Implemented |
 | [코스 등록 튜토리얼](017-course-tutorial.md) | 코스 등록 튜토리얼 완료 저장·로그인 응답으로 완료 여부 전달 | Implemented |
+| [텍스트 길이 기준 변경](018-text-length-grapheme.md) | 운전 목표·후기 내용 길이를 grapheme cluster로 계산(이모지 글자 수 불일치 해소) | Implemented |
