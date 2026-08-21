@@ -3,6 +3,7 @@ package cmc.rodi.domain.place.controller;
 import cmc.rodi.domain.place.dto.PlaceCoordinateResponse;
 import cmc.rodi.domain.place.dto.PlaceDetailResponse;
 import cmc.rodi.domain.place.dto.PlaceListItem;
+import cmc.rodi.domain.place.dto.RelatedSearchResponse;
 import cmc.rodi.global.common.pagination.CursorPage;
 import cmc.rodi.global.common.response.ApiResponse;
 import io.swagger.v3.oas.annotations.Operation;
@@ -22,8 +23,9 @@ public interface PlaceControllerDocs {
     @Operation(
             summary = "현위치 장소 목록",
             description =
-                    "지도 뷰포트(남서/북동) 안의 place(코스+주차장)를 현위치 거리순으로 커서 페이징한다. "
-                            + "코스는 태그·주행거리 포함, 주차장은 공통 필드만. totalCount는 뷰포트 총계. 공개.")
+                    "지도 뷰포트(남서/북동) 안의 place(코스+주차장)를 커서 페이징한다. 코스는 태그·주행거리 포함, 주차장은 공통 필드만. "
+                            + "totalCount는 뷰포트 총계. 옵셔널 JWT — 로그인 회원이 홈 정렬 필터를 설정했으면 필터 매칭 place가 "
+                            + "먼저(비매칭도 후순위로 전부 노출), 아니면 거리순만.")
     ApiResponse<CursorPage<PlaceListItem>> getPlaces(
             @Parameter(description = "남서 위도") double swLat,
             @Parameter(description = "남서 경도") double swLng,
@@ -31,6 +33,43 @@ public interface PlaceControllerDocs {
             @Parameter(description = "북동 경도") double neLng,
             @Parameter(description = "현위치 위도") double lat,
             @Parameter(description = "현위치 경도") double lng,
+            @Parameter(description = "페이지 크기(기본 20)") int size,
+            @Parameter(description = "다음 페이지 커서(없으면 첫 페이지)") String cursor,
+            @Parameter(hidden = true) Long memberId);
+
+    @Operation(
+            summary = "장소 검색(주소·장소명)",
+            description =
+                    "키워드로 place의 주소(시군구) 또는 장소명을 부분 일치 검색한다(전국 대상, 코스+주차장). "
+                            + "아이템은 현위치 목록과 동일, 키워드는 트림 후 1~50자, totalCount는 첫 페이지에서만. "
+                            + "JWT 필요(비로그인 검색 불가). 회원 필터가 있으면 매칭 우선, 아니면 거리순만.")
+    ApiResponse<CursorPage<PlaceListItem>> searchPlaces(
+            @Parameter(description = "검색 키워드(주소 또는 장소명 일부, 예: 강남, 한강)") String keyword,
+            @Parameter(description = "현위치 위도") double lat,
+            @Parameter(description = "현위치 경도") double lng,
+            @Parameter(description = "페이지 크기(기본 20)") int size,
+            @Parameter(description = "다음 페이지 커서(없으면 첫 페이지)") String cursor,
+            @Parameter(hidden = true) Long memberId);
+
+    @Operation(
+            summary = "연관 검색어(지역·장소명 자동완성)",
+            description =
+                    "키워드로 지역명과 장소명을 구분해 자동완성 후보를 반환한다. regions는 관련도순 최대 4개(첫 페이지에서만, "
+                            + "페이지네이션 없음), places는 코스+주차장 이름 관련도순 커서 페이지(기본 20개). "
+                            + "지역 표기는 장소 검색(주소)과 연결되도록 정규화돼 있다. JWT 필요.")
+    ApiResponse<RelatedSearchResponse> relatedSearch(
+            @Parameter(description = "검색 키워드") String keyword,
+            @Parameter(description = "장소 목록 페이지 크기(기본 20)") int size,
+            @Parameter(description = "장소 목록 다음 페이지 커서(없으면 첫 페이지)") String cursor,
+            @Parameter(hidden = true) Long memberId);
+
+    @Operation(
+            summary = "저장한 장소 목록",
+            description =
+                    "현재 회원이 북마크한 장소(코스+주차장)를 최신 저장순으로 커서 페이징한다. 아이템은 현위치 목록과 동일하되 "
+                            + "현위치가 없어 distanceFromMe는 null. totalCount는 첫 페이지에서만. JWT 필요.")
+    ApiResponse<CursorPage<PlaceListItem>> getSavedPlaces(
+            @Parameter(hidden = true) Long memberId,
             @Parameter(description = "페이지 크기(기본 20)") int size,
             @Parameter(description = "다음 페이지 커서(없으면 첫 페이지)") String cursor);
 

@@ -16,4 +16,7 @@ public interface PlaceListRow {
 
     /** 현위치까지 거리(m). */
     Double getDistance();
+
+    /** 필터 매칭 여부(1=매칭, 0=비매칭). 필터 적용 쿼리에서만 채워지고, 비필터 쿼리에선 null. */
+    Integer getMatched();
 }

@@ -52,4 +52,24 @@ public abstract class Place extends BaseEntity {
 
     /** 이 장소의 구분자. 서브클래스가 반환한다. */
     public abstract PlaceType getPlaceType();
+
+    /**
+     * 주행거리(m) — 없는 장소(주차장 등)는 null.
+     *
+     * <p>{@code instanceof Course}로 판정하면 안 된다. 지연 로딩으로 온 {@code place}는 프록시라 하위 타입 검사가 거짓이 되어, 실제로는
+     * 코스인데 주행거리가 없는 것처럼 보인다(방문 인증·레벨 누적이 조용히 0이 된다). 메서드 호출은 프록시가 실제 엔티티로 위임하므로 안전하다.
+     */
+    public Integer drivingDistanceMeters() {
+        return null;
+    }
+
+    /**
+     * 등록자가 삭제한 장소인지 — 삭제될 수 있는 것은 코스뿐이라 기본은 {@code false}다(스펙 015).
+     *
+     * <p>{@code drivingDistanceMeters()}와 같은 이유로 <b>메서드로 둔다</b>. 북마크·연습 목록은 {@code place}를 지연 로딩으로
+     * 들고 있어 {@code instanceof Course}가 프록시에서 거짓이 되고, 그러면 삭제된 코스가 멀쩡한 것처럼 표시된다.
+     */
+    public boolean isDeleted() {
+        return false;
+    }
 }

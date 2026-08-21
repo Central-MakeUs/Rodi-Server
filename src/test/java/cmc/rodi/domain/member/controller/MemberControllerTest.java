@@ -3,12 +3,26 @@ package cmc.rodi.domain.member.controller;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import cmc.rodi.domain.member.dto.CourseTutorialCompletionResponse;
+import cmc.rodi.domain.member.dto.LevelProgressResponse;
+import cmc.rodi.domain.member.dto.MemberUpdateRequest;
+import cmc.rodi.domain.member.dto.MyPageResponse;
 import cmc.rodi.domain.member.dto.OnboardingRequest;
+import cmc.rodi.domain.member.entity.Level;
+import cmc.rodi.domain.member.entity.PracticeType;
+import cmc.rodi.domain.member.service.MemberBlockService;
+import cmc.rodi.domain.member.service.MemberCourseTutorialService;
+import cmc.rodi.domain.member.service.MemberFilterService;
+import cmc.rodi.domain.member.service.MemberProfileService;
 import cmc.rodi.domain.member.service.MemberWithdrawalService;
 import cmc.rodi.domain.member.service.OnboardingService;
 import cmc.rodi.global.auth.jwt.JwtAuthenticationFilter;
@@ -17,6 +31,7 @@ import cmc.rodi.global.common.notification.DiscordNotifier;
 import cmc.rodi.global.config.SecurityConfig;
 import cmc.rodi.global.config.WebConfig;
 import cmc.rodi.global.exception.GlobalExceptionHandler;
+import java.time.LocalDateTime;
 import java.util.List;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.DisplayName;
@@ -53,11 +68,15 @@ class MemberControllerTest {
 
     @MockitoBean MemberWithdrawalService memberWithdrawalService;
     @MockitoBean OnboardingService onboardingService;
+    @MockitoBean MemberProfileService memberProfileService;
+    @MockitoBean MemberFilterService memberFilterService;
+    @MockitoBean MemberBlockService memberBlockService;
+    @MockitoBean MemberCourseTutorialService memberCourseTutorialService;
 
     private static final String ONBOARDING_BODY =
             """
             {
-              "drivingPeriod": "YEARS_2_10",
+              "drivingPeriod": "YEARS_3_9",
               "recentFrequency": "MONTHLY_1_2",
               "roadExperiences": ["SOLO"],
               "soloDrivingRange": "HIGHWAY_LONG",
@@ -93,6 +112,84 @@ class MemberControllerTest {
     }
 
     @Test
+    @DisplayName("마이페이지 조회: 200 + 프로필 요약 반환")
+    void 마이페이지_조회() throws Exception {
+        authenticate(7L);
+        when(memberProfileService.getMyPage(7L))
+                .thenReturn(
+                        new MyPageResponse(
+                                "성난 초보",
+                                Level.ROOKIE,
+                                List.of("U_TURN", "INTERSECTION", "PARKING"),
+                                "골목길에 익숙해지기",
+                                3,
+                                new LevelProgressResponse(100.0, 50.0, 150.0, 50)));
+
+        mockMvc.perform(get("/api/v1/members/me"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.nickname").value("성난 초보"))
+                .andExpect(jsonPath("$.data.level").value("ROOKIE"))
+                .andExpect(jsonPath("$.data.recommendationTags[0]").value("U_TURN"))
+                .andExpect(jsonPath("$.data.drivingGoal").value("골목길에 익숙해지기"))
+                .andExpect(jsonPath("$.data.savedPlaceCount").value(3))
+                .andExpect(jsonPath("$.data.levelProgress.totalDistanceKm").value(100.0))
+                .andExpect(jsonPath("$.data.levelProgress.currentLevelStartKm").value(50.0))
+                .andExpect(jsonPath("$.data.levelProgress.nextLevelKm").value(150.0))
+                .andExpect(jsonPath("$.data.levelProgress.progressPercent").value(50));
+    }
+
+    @Test
+    @DisplayName("마이페이지 조회: Navigator는 nextLevelKm 키가 빠지고 진행률 100")
+    void 마이페이지_최상위_레벨() throws Exception {
+        authenticate(7L);
+        when(memberProfileService.getMyPage(7L))
+                .thenReturn(
+                        new MyPageResponse(
+                                "노련한 여우",
+                                Level.NAVIGATOR,
+                                List.of("U_TURN"),
+                                null,
+                                0,
+                                new LevelProgressResponse(812.4, 600.0, null, 100)));
+
+        mockMvc.perform(get("/api/v1/members/me"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.levelProgress.totalDistanceKm").value(812.4))
+                .andExpect(jsonPath("$.data.levelProgress.currentLevelStartKm").value(600.0))
+                .andExpect(jsonPath("$.data.levelProgress.nextLevelKm").doesNotExist()) // 목표 없음
+                .andExpect(jsonPath("$.data.levelProgress.progressPercent").value(100));
+    }
+
+    @Test
+    @DisplayName("회원 수정: 200 + @CurrentMember의 회원 id로 서비스 위임")
+    void 회원_수정() throws Exception {
+        authenticate(7L);
+
+        mockMvc.perform(
+                        patch("/api/v1/members/me")
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content("{\"drivingGoal\":\"골목길에 익숙해지기\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.isSuccess").value(true));
+
+        verify(memberProfileService).update(eq(7L), any(MemberUpdateRequest.class));
+    }
+
+    @Test
+    @DisplayName("회원 수정: 운전목표 30자 초과 시 400")
+    void 회원_수정_길이초과_400() throws Exception {
+        authenticate(7L);
+        String tooLong = "가".repeat(31);
+
+        mockMvc.perform(
+                        patch("/api/v1/members/me")
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content("{\"drivingGoal\":\"" + tooLong + "\"}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.isSuccess").value(false));
+    }
+
+    @Test
     @DisplayName("온보딩 제출: 200 + @CurrentMember의 회원 id로 서비스 위임")
     void 온보딩_제출() throws Exception {
         authenticate(7L);
@@ -118,5 +215,110 @@ class MemberControllerTest {
                                 .content("{}"))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.isSuccess").value(false));
+    }
+
+    @Test
+    @DisplayName("필터 저장: 200 + @CurrentMember의 회원 id로 연습유형 리스트 위임")
+    void 필터_저장() throws Exception {
+        authenticate(7L);
+
+        mockMvc.perform(
+                        put("/api/v1/members/me/filter-tags")
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content(
+                                        "{\"filterTags\":[\"U_TURN\",\"INTERSECTION\",\"PARKING\"]}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.isSuccess").value(true));
+
+        verify(memberFilterService)
+                .updateFilterTags(
+                        7L,
+                        List.of(
+                                PracticeType.U_TURN,
+                                PracticeType.INTERSECTION,
+                                PracticeType.PARKING));
+    }
+
+    @Test
+    @DisplayName("필터 저장: 빈 배열도 200(필터 해제)")
+    void 필터_저장_빈배열() throws Exception {
+        authenticate(7L);
+
+        mockMvc.perform(
+                        put("/api/v1/members/me/filter-tags")
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content("{\"filterTags\":[]}"))
+                .andExpect(status().isOk());
+
+        verify(memberFilterService).updateFilterTags(7L, List.of());
+    }
+
+    @Test
+    @DisplayName("필터 저장: 무효 enum 값은 400")
+    void 필터_저장_무효값_400() throws Exception {
+        authenticate(7L);
+
+        mockMvc.perform(
+                        put("/api/v1/members/me/filter-tags")
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content("{\"filterTags\":[\"NOT_A_TYPE\"]}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.isSuccess").value(false));
+    }
+
+    @Test
+    @DisplayName("필터 저장: filterTags 누락(null)은 400")
+    void 필터_저장_누락_400() throws Exception {
+        authenticate(7L);
+
+        mockMvc.perform(
+                        put("/api/v1/members/me/filter-tags")
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content("{}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.isSuccess").value(false));
+    }
+
+    @Test
+    @DisplayName("필터 저장: 리스트에 null 요소가 있으면 400(500 아님)")
+    void 필터_저장_null요소_400() throws Exception {
+        authenticate(7L);
+
+        mockMvc.perform(
+                        put("/api/v1/members/me/filter-tags")
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content("{\"filterTags\":[null]}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.isSuccess").value(false));
+    }
+
+    @Test
+    @DisplayName("코스 등록 튜토리얼 완료: 200 + @CurrentMember의 회원 id로 서비스 위임")
+    void 코스등록_튜토리얼_완료() throws Exception {
+        authenticate(7L);
+        LocalDateTime completedAt = LocalDateTime.of(2026, 8, 14, 18, 40);
+        when(memberCourseTutorialService.complete(7L))
+                .thenReturn(new CourseTutorialCompletionResponse(completedAt));
+
+        mockMvc.perform(patch("/api/v1/members/me/course-tutorial"))
+                .andExpect(status().isOk())
+                .andExpect(
+                        jsonPath("$.data.courseTutorialCompletedAt").value("2026-08-14T18:40:00"));
+
+        verify(memberCourseTutorialService).complete(7L);
+    }
+
+    @Test
+    @DisplayName("차단·해제: 200 + (현재 회원 → 경로의 회원) 순서로 서비스에 위임")
+    void 차단_해제() throws Exception {
+        authenticate(7L);
+
+        mockMvc.perform(post("/api/v1/members/9/block"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data").doesNotExist());
+        verify(memberBlockService).block(7L, 9L);
+
+        mockMvc.perform(delete("/api/v1/members/9/block")).andExpect(status().isOk());
+        verify(memberBlockService).unblock(7L, 9L);
     }
 }

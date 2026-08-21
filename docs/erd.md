@@ -9,6 +9,7 @@
 - **지역 그룹핑(`region`)·운전기록(`driving_record`)은 추후**(ADR 0003 설계만, V7 미구현) — 아래 "추후" 참고.
 - **회원 탈퇴는 soft delete**(`member.deleted_at`) + PII 익명화 → [ADR 0004](adr/0004-member-soft-delete.md).
 - **소셜 로그인은 `social_account`(신원)·`refresh_token`(세션) 분리** → [ADR 0008](adr/0008-social-login.md)·[ADR 0009](adr/0009-authentication-authorization.md).
+- **연습 목록은 `member_practice`**(회원 ↔ place). 같은 장소는 한 행만 두고 재연습은 `visit_count`로 누적한다. 방문 인증은 boolean이 아니라 **인증받은 레벨**(`verified_level`)로 남겨, 후기 배지를 작성 당시 레벨 기준으로 판정한다 → [스펙 013](specs/013-app-integration-refinements.md).
 
 ## ER 다이어그램
 
@@ -24,6 +25,14 @@ erDiagram
     course ||--o{ waypoint : ""
     member ||--o{ bookmark : ""
     place ||--o{ bookmark : ""
+    place ||--o{ review : ""
+    member ||--o{ review : "작성"
+    review ||--o{ review_report : ""
+    member ||--o{ review_report : "신고"
+    member ||--o{ member_block : "차단"
+    member ||--o{ member_practice : "연습 목록"
+    place ||--o{ member_practice : ""
+    member |o--o{ course : "등록"
 
     member {
         bigint id PK
@@ -31,6 +40,9 @@ erDiagram
         varchar nickname "닉네임(가입 시 후보 풀에서 무작위 부여, unique)"
         varchar level "레벨(SEED/ROOKIE/OWNER/EXPLORER/NAVIGATOR), 온보딩 전 null"
         varchar driving_goal "운전 목표(최대 30자, 마이페이지 노출). null 가능"
+        bigint total_distance_meters "누적 인정 주행거리(m), 레벨 승급 기준"
+        jsonb filter_tags "홈 정렬 필터 연습유형 목록(null/빈 값=필터 없음)"
+        timestamptz course_tutorial_completed_at "코스 등록 튜토리얼 완료 시각(null=미완료)"
         timestamptz created_at
         timestamptz updated_at
         timestamptz deleted_at "탈퇴 일시(soft delete, null=활성)"
@@ -86,8 +98,12 @@ erDiagram
 
     course {
         bigint place_id PK "place 상속(공유 PK)"
+        bigint created_by_member_id FK "등록 회원(null=운영자 시딩/탈퇴로 등록자 없음)"
         text description "코스 설명(주차장엔 없음)"
         int distance_meters "주행거리(m)"
+        varchar approval_status "PENDING/APPROVED/REJECTED"
+        timestamptz approved_at "마지막 승인 시각(null=승인 이력 없음)"
+        timestamptz deleted_at "코스 삭제 시각(soft delete, null=활성)"
     }
 
     course_caution {
@@ -142,6 +158,56 @@ erDiagram
         timestamptz created_at
         timestamptz updated_at
     }
+
+    review {
+        bigint id PK
+        bigint place_id FK "장소(코스·주차장 공통)"
+        bigint member_id FK "작성자"
+        boolean is_recommended "추천/비추천"
+        varchar difficulty "체감 난이도(VERY_EASY…VERY_HARD)"
+        varchar congestion "혼잡도(QUIET/NORMAL/CROWDED)"
+        varchar practice_method "SOLO|ACCOMPANIED"
+        varchar content "후기 내용(선택, 최대 150자). null=평가만 남긴 후기"
+        text caution "주의사항(선택)"
+        varchar member_level "작성 당시 작성자 레벨(스냅샷)"
+        boolean is_verified_visit "작성 당시 레벨에서 GPS 방문 인증을 받았는지(스냅샷)"
+        timestamptz hidden_at "신고 5명 누적 비공개 시각(null=공개)"
+        timestamptz created_at
+        timestamptz updated_at
+    }
+
+    review_report {
+        bigint id PK
+        bigint review_id FK "신고 대상 후기"
+        bigint reporter_id FK "신고자"
+        varchar reason "신고 사유"
+        text detail "상세 설명(선택)"
+        timestamptz created_at
+        timestamptz updated_at
+    }
+
+    member_block {
+        bigint id PK
+        bigint blocker_id FK "차단한 회원"
+        bigint blocked_id FK "차단당한 회원"
+        timestamptz created_at
+        timestamptz updated_at
+    }
+
+    member_practice {
+        bigint id PK
+        bigint member_id FK "회원"
+        bigint place_id FK "장소(코스·주차장 공통)"
+        varchar status "PLANNED/VISITED/NOT_VISITED"
+        int visit_count "다녀온 횟수(재연습마다 +1)"
+        timestamptz visited_at "마지막 방문 시각(미방문이면 null)"
+        bigint certified_distance_meters "누적 인정 주행거리(m). 주차장은 쌓지 않음"
+        varchar verified_level "마지막 인증 성공 시점의 회원 레벨(null=인증 이력 없음)"
+        varchar skip_reason "미방문 사유(null 가능)"
+        varchar skip_detail "미방문 사유 직접 입력(OTHER 전용)"
+        timestamptz created_at
+        timestamptz updated_at
+    }
 ```
 
 ## Enum
@@ -150,17 +216,25 @@ erDiagram
 |------|-----|
 | `member.level` | SEED / ROOKIE / OWNER / EXPLORER / NAVIGATOR |
 | `member_onboarding.car_type` | LIGHT(경차) / COMPACT(소형차) / MIDSIZE(중형차) / SEMI_LARGE(준대형) / LARGE(대형차) / SUV |
-| `member_onboarding.driving_period` (Q1) | UNDER_1_MONTH / MONTHS_1_3 / MONTHS_3_6 / MONTHS_6_12 / YEARS_1_2 / YEARS_2_10 / OVER_10_YEARS |
+| `member_onboarding.driving_period` (Q1) | UNDER_1_MONTH / MONTHS_1_2 / MONTHS_3_5 / MONTHS_6_11 / YEARS_1_2 / YEARS_3_9 / OVER_10_YEARS |
 | `member_onboarding.recent_frequency` (Q2) | RARELY / MONTHLY_1_2 / WEEKLY_1 / WEEKLY_2_3 / WEEKLY_4_PLUS |
 | `member_onboarding.road_experiences` (Q3, jsonb 복수) | NONE / ACCOMPANIED / PROFESSIONAL_TRAINING / SOLO |
 | `member_onboarding.solo_driving_range` (Q4) | NEAR_HOME / FAMILIAR_ROAD / UNFAMILIAR_ROAD / HIGHWAY_LONG |
 | `member_onboarding.solo_parking_level` (Q5) | NONE / WIDE_ONLY / FAMILIAR_PLACE / MOSTLY_POSSIBLE |
 | `member_onboarding.practice_types` (jsonb, 순위) | U_TURN / LEFT_RIGHT_TURN / PARKING / LANE_CHANGE / INTERSECTION / ROUNDABOUT / UNPROTECTED_LEFT_TURN / HIGHWAY_ENTRY / CORNERING / NARROW_ROAD / MULTILANE / MERGING / STRAIGHT |
+| `member_practice.status` | PLANNED(예정) / VISITED(다녀옴) / NOT_VISITED(안 감) |
+| `member_practice.verified_level` | `member.level`과 같은 값 |
+| `member_practice.skip_reason` | CHECK_REALTIME_TRAFFIC / TOO_FAR / ROUTE_SEEMED_DIFFICULT / SCHEDULE_DID_NOT_MATCH / OTHER |
 | `place.place_type` | PARKING / COURSE |
 | `waypoint.waypoint_type` | START(출발지) / VIA(경유지) / DESTINATION(목적지) |
 | `course_practice_type.practice_type` | `PracticeType` 재사용(U_TURN … STRAIGHT, 13종) |
+| `review.difficulty` | VERY_EASY(매우 쉬움) / EASY / NORMAL / HARD / VERY_HARD(매우 어려움) |
+| `review.congestion` | QUIET(한산) / NORMAL(보통) / CROWDED(복잡) |
+| `review.practice_method` | SOLO(혼자 연습) / ACCOMPANIED(동승자 연습) |
+| `review.member_level` | `member.level` 재사용(작성 당시 스냅샷) |
+| `review_report.reason` | SPAM(스팸·광고) / ABUSE(욕설·음란성·혐오) / IRRELEVANT(코스와 무관) / FALSE_INFO(허위정보) / OTHER(기타, 직접 입력 필수) |
 
-> `member.level`: **클라이언트가** 운전 경험 점수(0~14)를 5단계로 변환해 전송(Q1 `2~10년`/`10년 이상`→NAVIGATOR 강제 포함). 서버는 enum 검증 후 `member.level`에 저장(점수는 미저장). 상세: [스펙 004-onboarding](specs/004-onboarding.md).
+> `member.level`: **클라이언트가** 운전 경험 점수(0~14)를 5단계로 변환해 전송(Q1 `3~9년`/`10년 이상`→NAVIGATOR 강제 포함). 서버는 enum 검증 후 `member.level`에 저장(점수는 미저장). 상세: [스펙 004-onboarding](specs/004-onboarding.md).
 
 ## 엔티티 요약
 
@@ -177,6 +251,9 @@ erDiagram
 | `course_caution` | 코스 주의사항(1:N). 칩 형태 문구를 `seq` 순서로 저장. |
 | `waypoint` | 코스 경유지(1:N). 출발/경유/목적지 + 순서 + 좌표. |
 | `bookmark` | 북마크. 회원 ↔ place(코스·주차장 공통). `(member_id, place_id)` 유니크. |
+| `review` | 장소 후기(place 1:N, 코스·주차장 공통). 추천여부·난이도·혼잡도·연습방법·내용·주의사항 + **작성 당시 레벨 스냅샷**(`member_level`). 유니크 제약 없음(같은 장소 여러 번 작성 가능). 신고 5명 누적 시 `hidden_at`으로 비공개(작성자 본인에게만 보임). |
+| `review_report` | 후기 신고. `(review_id, reporter_id)` 유니크(중복 신고 멱등). **5명 누적 시 `review.hidden_at` 설정**(자동 비공개). |
+| `member_block` | 회원 차단(단방향). `(blocker_id, blocked_id)` 유니크. 차단자의 후기 목록에서만 상대 후기 제외(요약 집계엔 영향 없음). |
 
 ## 주요 제약·인덱스
 
@@ -187,10 +264,15 @@ erDiagram
 - `place.location` **GiST 공간 인덱스** (bbox·거리 검색)
 - `waypoint` unique `(course_id, sequence)`
 - `bookmark` unique `(member_id, place_id)` · index `place_id`
+- `review` index `(place_id, created_at DESC, id DESC)`(목록 커서) · `(place_id, member_level)`(레벨 필터·요약) · `(member_id)`
+- `review_report` unique `(review_id, reporter_id)`
+- `member_block` unique `(blocker_id, blocked_id)` · `CHECK (blocker_id <> blocked_id)`
 
 ## 추후 (미확정)
 
 - **지역 그룹핑 `region`** — 계층 지역(중심좌표+반경)으로 지도 그룹 표시([ADR 0003](adr/0003-region-hierarchy-and-postgis.md) 설계만, place에 `region_id` 미도입).
-- **운전기록 `driving_record`** — 이용 경로 히스토리(마이페이지 시각화 + 리뷰 신뢰도 근거).
-- **리뷰** — 장소·코스 후기·평점. `driving_record`로 이용 여부를 검증해 신뢰도 표시 가능.
-- **신고 / 차단** — 리뷰 기능 착수 시 `review_report`, `member_block`(회원↔회원) 등을 함께 설계. 기존 테이블 변경 없이 얹는 구조.
+- **운전기록 `driving_record`** — 이용 경로 히스토리(마이페이지 시각화 + "인증된 후기" 판정 근거). 방문 판정 기준이 정해지면 착수.
+- **후기 좋아요 `review_like`** — 회원 ↔ 후기 `(review_id, member_id)` 유니크. 스펙 010에서 범위 제외, 추후 구현.
+- **후기 사진 첨부**, 후기 정렬 옵션(좋아요순), 신고 처리 상태(`review_report.status`)·비공개 복구 관리자 UI. *(신고 누적 자동 비공개는 V15 `review.hidden_at`으로 구현 완료)*
+
+> **리뷰·신고·차단은 구현 완료**(V13 `review`, V14 `review_report`·`member_block`, V15 `review.hidden_at` — [스펙 010](specs/010-place-review.md)). 위 엔티티 요약 참고.

@@ -37,7 +37,7 @@ class OnboardingIntegrationTest {
 
     private OnboardingRequest request() {
         return new OnboardingRequest(
-                DrivingPeriod.YEARS_2_10,
+                DrivingPeriod.YEARS_3_9,
                 RecentFrequency.MONTHLY_1_2,
                 List.of(RoadExperience.SOLO, RoadExperience.PROFESSIONAL_TRAINING),
                 SoloDrivingRange.HIGHWAY_LONG,
@@ -62,11 +62,13 @@ class OnboardingIntegrationTest {
         Member reloadedMember = memberRepository.findById(member.getId()).orElseThrow();
         assertThat(reloadedMember.getLevel()).isEqualTo(Level.NAVIGATOR);
         assertThat(reloadedMember.getDrivingGoal()).isEqualTo("강남 운전 자신있게");
+        // 배정 레벨의 최소 기준값에서 시작 — 게이지가 Seed 구간부터 그려지지 않도록(스펙 012)
+        assertThat(reloadedMember.getTotalDistanceMeters()).isEqualTo(600_000);
 
         // 원자료는 member_onboarding(1:1)에 저장, jsonb 리스트는 순서 보존
         MemberOnboarding onboarding =
                 memberOnboardingRepository.findById(member.getId()).orElseThrow();
-        assertThat(onboarding.getDrivingPeriod()).isEqualTo(DrivingPeriod.YEARS_2_10);
+        assertThat(onboarding.getDrivingPeriod()).isEqualTo(DrivingPeriod.YEARS_3_9);
         assertThat(onboarding.getRoadExperiences())
                 .containsExactly(RoadExperience.SOLO, RoadExperience.PROFESSIONAL_TRAINING);
         assertThat(onboarding.getPracticeTypes())

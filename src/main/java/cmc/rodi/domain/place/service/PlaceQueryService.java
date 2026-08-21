@@ -1,18 +1,25 @@
 package cmc.rodi.domain.place.service;
 
 import cmc.rodi.domain.member.entity.PracticeType;
+import cmc.rodi.domain.member.service.MemberFilterService;
 import cmc.rodi.domain.place.dto.PlaceCoordinateResponse;
 import cmc.rodi.domain.place.dto.PlaceDetailResponse;
 import cmc.rodi.domain.place.dto.PlaceListItem;
 import cmc.rodi.domain.place.dto.PlaceListRequest;
+import cmc.rodi.domain.place.dto.PlaceSearchRequest;
+import cmc.rodi.domain.place.dto.PlaceSuggestion;
+import cmc.rodi.domain.place.dto.RelatedSearchRequest;
+import cmc.rodi.domain.place.dto.RelatedSearchResponse;
 import cmc.rodi.domain.place.entity.Course;
 import cmc.rodi.domain.place.entity.Parking;
 import cmc.rodi.domain.place.entity.Place;
 import cmc.rodi.domain.place.entity.PlaceType;
+import cmc.rodi.domain.place.exception.CourseErrorCode;
 import cmc.rodi.domain.place.repository.BookmarkRepository;
 import cmc.rodi.domain.place.repository.CourseRepository;
 import cmc.rodi.domain.place.repository.ParkingRepository;
 import cmc.rodi.domain.place.repository.PlaceListRow;
+import cmc.rodi.domain.place.repository.PlaceNameMatchRow;
 import cmc.rodi.domain.place.repository.PlaceRepository;
 import cmc.rodi.global.common.pagination.CursorCodec;
 import cmc.rodi.global.common.pagination.CursorPage;
@@ -35,55 +42,249 @@ public class PlaceQueryService {
     private final CourseRepository courseRepository;
     private final ParkingRepository parkingRepository;
     private final BookmarkRepository bookmarkRepository;
+    private final MemberFilterService memberFilterService;
+    private final RegionSearchIndex regionSearchIndex;
 
-    /** 전체 place의 간단 좌표(마커용). 필터 없이 모두 반환한다. */
+    /** 전체 place의 간단 좌표(마커용). 미승인·삭제된 코스는 제외한다(스펙 014). */
     @Transactional(readOnly = true)
     public List<PlaceCoordinateResponse> getAllCoordinates() {
-        return placeRepository.findAll().stream().map(PlaceCoordinateResponse::from).toList();
+        return placeRepository.findAllVisible().stream()
+                .map(PlaceCoordinateResponse::from)
+                .toList();
     }
 
-    /** 뷰포트 안 place(코스+주차장)를 현위치 거리순으로 커서 페이징(ADR 0010). */
+    /**
+     * 뷰포트 안 place(코스+주차장)를 커서 페이징(ADR 0010). 인증된 회원(memberId≠null)이 필터를 갖고 있으면 필터 매칭 우선→거리순, 아니면
+     * 거리순만(비로그인 포함). memberId는 옵셔널 JWT라 null 가능.
+     */
     @Transactional(readOnly = true)
-    public CursorPage<PlaceListItem> getPlaces(PlaceListRequest req) {
-        CursorCodec.Cursor cursor = req.cursor() == null ? null : CursorCodec.decode(req.cursor());
-        Double cursorDistance = cursor == null ? null : parseCursorDistance(cursor.sortValue());
-        Long cursorId = cursor == null ? null : cursor.id();
+    public CursorPage<PlaceListItem> getPlaces(PlaceListRequest req, Long memberId) {
+        List<PracticeType> filter = resolveFilter(memberId);
+        boolean firstPage = req.cursor() == null;
 
-        // size+1 조회로 다음 페이지 존재 판별
+        if (filter.isEmpty()) {
+            CursorCodec.Cursor cursor = firstPage ? null : CursorCodec.decode(req.cursor());
+            List<PlaceListRow> rows =
+                    placeRepository.findInViewport(
+                            req.swLat(),
+                            req.swLng(),
+                            req.neLat(),
+                            req.neLng(),
+                            req.lat(),
+                            req.lng(),
+                            cursor == null ? null : parseCursorDistance(cursor.sortValue()),
+                            cursor == null ? null : cursor.id(),
+                            req.size() + 1);
+            return assemble(
+                    rows,
+                    req.size(),
+                    firstPage,
+                    false,
+                    () ->
+                            placeRepository.countInViewport(
+                                    req.swLat(), req.swLng(), req.neLat(), req.neLng()));
+        }
+
+        FilterCursor cursor = firstPage ? null : parseFilterCursor(req.cursor());
         List<PlaceListRow> rows =
-                placeRepository.findInViewport(
+                placeRepository.findInViewportFiltered(
                         req.swLat(),
                         req.swLng(),
                         req.neLat(),
                         req.neLng(),
                         req.lat(),
                         req.lng(),
-                        cursorDistance,
-                        cursorId,
+                        typeNames(filter),
+                        parkingFlag(filter),
+                        cursor == null ? null : cursor.matched(),
+                        cursor == null ? null : cursor.distance(),
+                        cursor == null ? null : cursor.id(),
                         req.size() + 1);
+        return assemble(
+                rows,
+                req.size(),
+                firstPage,
+                true,
+                () ->
+                        placeRepository.countInViewport(
+                                req.swLat(), req.swLng(), req.neLat(), req.neLng()));
+    }
 
+    /**
+     * 키워드 검색(스펙 007). 주소(시군구) 또는 장소명 부분 일치, 전국 대상. 인증된 회원이 필터를 가지면 필터 매칭 우선→거리순, 아니면 거리순만. 커서·아이템
+     * 규칙은 목록(#2)과 동일.
+     */
+    @Transactional(readOnly = true)
+    public CursorPage<PlaceListItem> searchPlaces(PlaceSearchRequest req, Long memberId) {
+        List<PracticeType> filter = resolveFilter(memberId);
+        boolean firstPage = req.cursor() == null;
+        String pattern = req.likePattern();
+
+        if (filter.isEmpty()) {
+            CursorCodec.Cursor cursor = firstPage ? null : CursorCodec.decode(req.cursor());
+            List<PlaceListRow> rows =
+                    placeRepository.searchByKeyword(
+                            pattern,
+                            req.lat(),
+                            req.lng(),
+                            cursor == null ? null : parseCursorDistance(cursor.sortValue()),
+                            cursor == null ? null : cursor.id(),
+                            req.size() + 1);
+            return assemble(
+                    rows,
+                    req.size(),
+                    firstPage,
+                    false,
+                    () -> placeRepository.countByKeyword(pattern));
+        }
+
+        FilterCursor cursor = firstPage ? null : parseFilterCursor(req.cursor());
+        List<PlaceListRow> rows =
+                placeRepository.searchByKeywordFiltered(
+                        pattern,
+                        req.lat(),
+                        req.lng(),
+                        typeNames(filter),
+                        parkingFlag(filter),
+                        cursor == null ? null : cursor.matched(),
+                        cursor == null ? null : cursor.distance(),
+                        cursor == null ? null : cursor.id(),
+                        req.size() + 1);
+        return assemble(
+                rows, req.size(), firstPage, true, () -> placeRepository.countByKeyword(pattern));
+    }
+
+    /**
+     * 연관 검색어(스펙 009). 지역은 관련도순 최대 4개(첫 페이지에서만, 페이지네이션 없음), 장소명은 이름 관련도순(POSITION) 커서 페이지. 코스+주차장 전부
+     * 대상.
+     */
+    @Transactional(readOnly = true)
+    public RelatedSearchResponse relatedSearch(RelatedSearchRequest req) {
+        boolean firstPage = req.cursor() == null;
+        List<String> regions = firstPage ? regionSearchIndex.search(req.keyword()) : List.of();
+
+        String pattern = req.likePattern();
+        CursorCodec.Cursor cursor = firstPage ? null : CursorCodec.decode(req.cursor());
+        Integer cursorMatchPos = cursor == null ? null : parseCursorMatchPos(cursor.sortValue());
+        Long cursorId = cursor == null ? null : cursor.id();
+
+        List<PlaceNameMatchRow> rows =
+                placeRepository.searchByNameRelevance(
+                        pattern, req.keyword(), cursorMatchPos, cursorId, req.size() + 1);
         boolean hasNext = rows.size() > req.size();
-        List<PlaceListRow> page = hasNext ? rows.subList(0, req.size()) : rows;
+        List<PlaceNameMatchRow> page = hasNext ? rows.subList(0, req.size()) : rows;
+        List<PlaceSuggestion> items =
+                page.stream()
+                        .map(r -> new PlaceSuggestion(r.getId(), r.getName(), r.getAddress()))
+                        .toList();
 
-        Map<Long, Course> coursesById = loadCourses(page);
-        Map<Long, Parking> parkingsById = loadParkings(page);
-        List<PlaceListItem> items =
-                page.stream().map(row -> toItem(row, coursesById, parkingsById)).toList();
+        String nextCursor = null;
+        if (hasNext) {
+            PlaceNameMatchRow last = page.get(page.size() - 1);
+            nextCursor = CursorCodec.encode(String.valueOf(last.getMatchPos()), last.getId());
+        }
+
+        CursorPage<PlaceSuggestion> places =
+                firstPage
+                        ? CursorPage.first(
+                                items,
+                                hasNext,
+                                nextCursor,
+                                placeRepository.countByNameRelevance(pattern))
+                        : CursorPage.next(items, hasNext, nextCursor);
+        return new RelatedSearchResponse(regions, places);
+    }
+
+    /**
+     * 연관 검색어 커서의 matchPos 파싱·검증. PostgreSQL POSITION()은 1-based라 유효한 매칭 위치는 항상 1 이상이다(0은 "매칭 안 됨"을
+     * 뜻해 실제 결과에 나올 수 없는 값). 변조로 숫자가 아니거나 1 미만이면 잘못된 커서로 본다.
+     */
+    private static Integer parseCursorMatchPos(String sortValue) {
+        int matchPos;
+        try {
+            matchPos = Integer.parseInt(sortValue);
+        } catch (NumberFormatException e) {
+            throw new BusinessException(ErrorCode.INVALID_INPUT_VALUE, e);
+        }
+        if (matchPos < 1) {
+            throw new BusinessException(ErrorCode.INVALID_INPUT_VALUE);
+        }
+        return matchPos;
+    }
+
+    /** 인증된 회원의 저장 필터. 비로그인(memberId=null)이면 빈 목록 — 필터 없이 거리순(스펙 007: 필터는 로그인 전용). */
+    private List<PracticeType> resolveFilter(Long memberId) {
+        return memberId == null ? List.of() : memberFilterService.getFilterTags(memberId);
+    }
+
+    private static List<String> typeNames(List<PracticeType> filter) {
+        return filter.stream().map(PracticeType::name).toList();
+    }
+
+    /** 주차장 매칭 플래그 — 필터에 PARKING이 있으면 1(주차장은 항상 PARKING이라 이 값으로 매칭). */
+    private static int parkingFlag(List<PracticeType> filter) {
+        return filter.contains(PracticeType.PARKING) ? 1 : 0;
+    }
+
+    /**
+     * 조회 결과(size+1)를 페이지로 자르고 아이템·다음 커서·totalCount를 조립한다. {@code filtered}면 커서에 matched를 포함
+     * (matched|distance), 아니면 distance만. totalCount는 첫 페이지에서만.
+     */
+    private CursorPage<PlaceListItem> assemble(
+            List<PlaceListRow> rows,
+            int size,
+            boolean firstPage,
+            boolean filtered,
+            java.util.function.LongSupplier totalCountSupplier) {
+        boolean hasNext = rows.size() > size;
+        List<PlaceListRow> page = hasNext ? rows.subList(0, size) : rows;
+        List<PlaceListItem> items = toItems(page);
 
         String nextCursor = null;
         if (hasNext) {
             PlaceListRow last = page.get(page.size() - 1);
-            nextCursor = CursorCodec.encode(String.valueOf(last.getDistance()), last.getId());
+            String sortValue =
+                    filtered
+                            ? last.getMatched() + "|" + last.getDistance()
+                            : String.valueOf(last.getDistance());
+            nextCursor = CursorCodec.encode(sortValue, last.getId());
         }
 
-        // totalCount는 첫 페이지(커서 없음)에서만 계산 — 매 페이지 count 쿼리 방지
-        if (cursor == null) {
-            long totalCount =
-                    placeRepository.countInViewport(
-                            req.swLat(), req.swLng(), req.neLat(), req.neLng());
-            return CursorPage.first(items, hasNext, nextCursor, totalCount);
+        if (firstPage) {
+            return CursorPage.first(items, hasNext, nextCursor, totalCountSupplier.getAsLong());
         }
         return CursorPage.next(items, hasNext, nextCursor);
+    }
+
+    private List<PlaceListItem> toItems(List<PlaceListRow> page) {
+        Map<Long, Course> coursesById = loadCourses(page);
+        Map<Long, Parking> parkingsById = loadParkings(page);
+        return page.stream().map(row -> toItem(row, coursesById, parkingsById)).toList();
+    }
+
+    /** 필터 커서 (matched, distance, id). */
+    private record FilterCursor(int matched, double distance, long id) {}
+
+    /** 필터 커서 파싱·검증. sortValue는 "matched|distance". 변조로 형식·값이 비정상이면 잘못된 커서(400). */
+    private static FilterCursor parseFilterCursor(String rawCursor) {
+        CursorCodec.Cursor cursor = CursorCodec.decode(rawCursor);
+        String sortValue = cursor.sortValue();
+        int sep = sortValue.indexOf('|');
+        if (sep < 0) {
+            throw new BusinessException(ErrorCode.INVALID_INPUT_VALUE);
+        }
+        int matched;
+        double distance;
+        try {
+            matched = Integer.parseInt(sortValue.substring(0, sep));
+            distance = Double.parseDouble(sortValue.substring(sep + 1));
+        } catch (NumberFormatException e) {
+            throw new BusinessException(ErrorCode.INVALID_INPUT_VALUE, e);
+        }
+        if ((matched != 0 && matched != 1) || !Double.isFinite(distance) || distance < 0) {
+            throw new BusinessException(ErrorCode.INVALID_INPUT_VALUE);
+        }
+        return new FilterCursor(matched, distance, cursor.id());
     }
 
     /** 커서의 거리값 파싱·검증. 변조로 숫자가 아니거나 비정상(NaN·무한·음수)이면 잘못된 커서로 본다. */
@@ -112,12 +313,29 @@ public class PlaceQueryService {
         boolean bookmarked = bookmarkRepository.existsByMemberIdAndPlaceId(memberId, placeId);
 
         if (place instanceof Course course) {
+            checkCourseVisible(course, memberId);
             return PlaceDetailResponse.ofCourse(course, bookmarkCount, bookmarked);
         }
         if (place instanceof Parking parking) {
             return PlaceDetailResponse.ofParking(parking, bookmarkCount, bookmarked);
         }
         throw new IllegalStateException("알 수 없는 place 타입: " + place.getClass());
+    }
+
+    /**
+     * 상세를 열어줄 코스인지 판정한다(스펙 014).
+     *
+     * <p><b>삭제와 미승인의 응답이 다른 이유</b> — 삭제는 이미 북마크·연습 목록에 담아둔 사용자가 탭했을 때 "삭제된 코스입니다"를 보여줘야 해서 전용 코드로
+     * 구분한다. 반면 미승인은 존재 자체를 숨겨야 하므로 <b>없는 장소와 똑같은 404</b>로 응답한다 — 코드가 갈리면 id를 훑어 심사 중인 코스가 있는지 알아낼 수
+     * 있다.
+     */
+    private static void checkCourseVisible(Course course, Long memberId) {
+        if (course.isDeleted()) {
+            throw new BusinessException(CourseErrorCode.COURSE_DELETED);
+        }
+        if (!course.isApproved() && !course.isOwnedBy(memberId)) {
+            throw new BusinessException(ErrorCode.ENTITY_NOT_FOUND);
+        }
     }
 
     /** 페이지의 코스들만 로드(태그·주행거리·설명 채우기용). */
@@ -141,46 +359,10 @@ public class PlaceQueryService {
 
     private PlaceListItem toItem(
             PlaceListRow row, Map<Long, Course> coursesById, Map<Long, Parking> parkingsById) {
-        PlaceType type = PlaceType.valueOf(row.getPlaceType());
         long distanceFromMe = Math.round(row.getDistance());
-        if (type == PlaceType.COURSE) {
-            Course course = coursesById.get(row.getId());
-            return new PlaceListItem(
-                    row.getId(),
-                    type,
-                    row.getName(),
-                    row.getAddress(),
-                    row.getLat(),
-                    row.getLng(),
-                    distanceFromMe,
-                    List.copyOf(course.getTags()), // 코스 연습 태그
-                    course.getDescription(),
-                    course.getDistanceMeters(),
-                    null,
-                    null);
+        if (PlaceType.COURSE.name().equals(row.getPlaceType())) {
+            return PlaceListItem.ofCourse(coursesById.get(row.getId()), distanceFromMe);
         }
-        Parking parking = parkingsById.get(row.getId());
-        return new PlaceListItem(
-                row.getId(),
-                type,
-                row.getName(),
-                row.getAddress(),
-                row.getLat(),
-                row.getLng(),
-                distanceFromMe,
-                List.of(PracticeType.PARKING), // 주차장은 항상 주차
-                null,
-                null,
-                parking.getCapacity(),
-                openTime(parking.getWeekdayHours()));
-    }
-
-    /** 영업시간("00:00-23:59")에서 시작 시각만 추출. 없으면 null. */
-    private String openTime(String weekdayHours) {
-        if (weekdayHours == null || weekdayHours.isBlank()) {
-            return null;
-        }
-        int dash = weekdayHours.indexOf('-');
-        return dash < 0 ? weekdayHours : weekdayHours.substring(0, dash);
+        return PlaceListItem.ofParking(parkingsById.get(row.getId()), distanceFromMe);
     }
 }
