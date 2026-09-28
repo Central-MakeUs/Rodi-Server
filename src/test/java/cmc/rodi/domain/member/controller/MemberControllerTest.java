@@ -2,6 +2,8 @@ package cmc.rodi.domain.member.controller;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
@@ -215,6 +217,73 @@ class MemberControllerTest {
                                 .content("{}"))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.isSuccess").value(false));
+    }
+
+    private static String onboardingBodyWithRoadExperiences(String roadExperiences) {
+        return """
+                {"drivingPeriod": "MONTHS_1_2", "level": "SEED", "roadExperiences": %s}
+                """
+                .formatted(roadExperiences);
+    }
+
+    @Test
+    @DisplayName("온보딩 '없음' 배타: NONE과 다른 경험을 함께 보내면 400, 저장 위임 없음")
+    void 온보딩_없음_복수선택_400() throws Exception {
+        authenticate(7L);
+
+        mockMvc.perform(
+                        post("/api/v1/members/me/onboarding")
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content(onboardingBodyWithRoadExperiences("[\"NONE\", \"SOLO\"]")))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.isSuccess").value(false));
+
+        verify(onboardingService, never()).submit(any(), any());
+    }
+
+    @Test
+    @DisplayName("온보딩 도로 경험 중복: 같은 값을 두 번 보내면 400")
+    void 온보딩_도로경험_중복_400() throws Exception {
+        authenticate(7L);
+
+        mockMvc.perform(
+                        post("/api/v1/members/me/onboarding")
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content(onboardingBodyWithRoadExperiences("[\"SOLO\", \"SOLO\"]")))
+                .andExpect(status().isBadRequest());
+
+        verify(onboardingService, never()).submit(any(), any());
+    }
+
+    @Test
+    @DisplayName("온보딩 도로 경험 null 원소: 400")
+    void 온보딩_도로경험_null원소_400() throws Exception {
+        authenticate(7L);
+
+        mockMvc.perform(
+                        post("/api/v1/members/me/onboarding")
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content(onboardingBodyWithRoadExperiences("[null]")))
+                .andExpect(status().isBadRequest());
+
+        verify(onboardingService, never()).submit(any(), any());
+    }
+
+    @Test
+    @DisplayName("온보딩 도로 경험: NONE 단독·복수 경험·빈 배열은 200")
+    void 온보딩_도로경험_정상_200() throws Exception {
+        authenticate(7L);
+
+        for (String roadExperiences :
+                List.of("[\"NONE\"]", "[\"ACCOMPANIED\", \"SOLO\"]", "[]", "null")) {
+            mockMvc.perform(
+                            post("/api/v1/members/me/onboarding")
+                                    .contentType(MediaType.APPLICATION_JSON)
+                                    .content(onboardingBodyWithRoadExperiences(roadExperiences)))
+                    .andExpect(status().isOk());
+        }
+
+        verify(onboardingService, times(4)).submit(eq(7L), any(OnboardingRequest.class));
     }
 
     @Test
