@@ -38,7 +38,7 @@ description: Rodi의 commit/PR/issue/브랜치 작성 규칙. 커밋 메시지�
 - subject는 50자 이내
 - body는 필요할 때만 — 이유나 변경 맥락을 설명
 - Claude가 작성하는 커밋은 마지막에 트레일러를 붙인다:
-  `Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>`
+  `Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>`
 
 ### 예시
 
