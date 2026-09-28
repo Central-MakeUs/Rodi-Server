@@ -35,8 +35,9 @@ public class PlaceController implements PlaceControllerDocs {
 
     @Override
     @GetMapping("/coordinates")
-    public ApiResponse<List<PlaceCoordinateResponse>> getCoordinates() {
-        return ApiResponse.success(placeQueryService.getAllCoordinates());
+    public ApiResponse<List<PlaceCoordinateResponse>> getCoordinates(
+            @CurrentMember(required = false) Long memberId) {
+        return ApiResponse.success(placeQueryService.getAllCoordinates(memberId));
     }
 
     @Override
