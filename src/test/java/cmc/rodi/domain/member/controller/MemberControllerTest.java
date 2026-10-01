@@ -18,6 +18,7 @@ import cmc.rodi.domain.member.dto.CourseTutorialCompletionResponse;
 import cmc.rodi.domain.member.dto.LevelProgressResponse;
 import cmc.rodi.domain.member.dto.MemberUpdateRequest;
 import cmc.rodi.domain.member.dto.MyPageResponse;
+import cmc.rodi.domain.member.dto.OnboardingFormResponse;
 import cmc.rodi.domain.member.dto.OnboardingRequest;
 import cmc.rodi.domain.member.entity.Level;
 import cmc.rodi.domain.member.entity.PracticeType;
@@ -189,6 +190,39 @@ class MemberControllerTest {
                                 .content("{\"drivingGoal\":\"" + tooLong + "\"}"))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.isSuccess").value(false));
+    }
+
+    @Test
+    @DisplayName("온보딩 폼: 200 + 2단계(2단계만 건너뛰기), 흐름 표시는 true일 때만 내려간다")
+    void 온보딩_폼() throws Exception {
+        authenticate(7L);
+        when(onboardingService.getForm()).thenReturn(OnboardingFormResponse.of());
+
+        mockMvc.perform(get("/api/v1/members/me/onboarding-form"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.steps.length()").value(2))
+                .andExpect(jsonPath("$.data.steps[0].skippable").value(false))
+                .andExpect(jsonPath("$.data.steps[1].skippable").value(true))
+                .andExpect(jsonPath("$.data.steps[0].questions[0].code").value("drivingPeriod"))
+                .andExpect(jsonPath("$.data.steps[0].questions[0].type").value("SINGLE_SELECT"))
+                .andExpect(jsonPath("$.data.steps[0].questions[0].required").value(true))
+                .andExpect(jsonPath("$.data.steps[0].questions[0].options[5].label").value("3~9년"))
+                .andExpect(
+                        jsonPath("$.data.steps[0].questions[0].options[5].skipsFollowUps")
+                                .value(true))
+                .andExpect(
+                        jsonPath("$.data.steps[0].questions[0].options[0].skipsFollowUps")
+                                .doesNotExist())
+                .andExpect(
+                        jsonPath("$.data.steps[0].questions[2].options[0].exclusive").value(true))
+                .andExpect(
+                        jsonPath("$.data.steps[0].questions[2].options[3].exclusive")
+                                .doesNotExist())
+                .andExpect(jsonPath("$.data.steps[0].questions[3].showWhen.anyOf[0]").value("SOLO"))
+                .andExpect(jsonPath("$.data.steps[1].questions[0].maxSelect").value(3))
+                .andExpect(jsonPath("$.data.steps[1].questions[2].type").value("TEXT"))
+                .andExpect(jsonPath("$.data.steps[1].questions[2].maxLength").value(30))
+                .andExpect(jsonPath("$.data.steps[1].questions[2].options").doesNotExist());
     }
 
     @Test

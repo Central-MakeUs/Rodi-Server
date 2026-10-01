@@ -284,14 +284,14 @@ class CourseControllerTest {
                 .andExpect(jsonPath("$.data.practiceType.categories[3].code").value("TRAFFIC_FLOW"))
                 .andExpect(
                         jsonPath("$.data.practiceType.categories[3].practiceTypes[0].label")
-                                .value("다차로주행"))
+                                .value("다차로 주행"))
                 .andExpect(jsonPath("$.data.practiceType.categories[4].code").value("COMPLEX"))
                 .andExpect(
                         jsonPath("$.data.practiceType.categories[4].selectAllEnabled")
                                 .doesNotExist())
                 .andExpect(
                         jsonPath("$.data.practiceType.categories[4].practiceTypes[0].label")
-                                .value("회전교차로"))
+                                .value("회전 교차로"))
                 .andExpect(jsonPath("$.data.inputs.description.minLength").value(10))
                 .andExpect(jsonPath("$.data.inputs.description.maxLength").value(30))
                 .andExpect(jsonPath("$.data.inputs.caution.maxLength").value(100))

@@ -5,6 +5,7 @@ import cmc.rodi.domain.member.dto.CourseTutorialCompletionResponse;
 import cmc.rodi.domain.member.dto.FilterTagsRequest;
 import cmc.rodi.domain.member.dto.MemberUpdateRequest;
 import cmc.rodi.domain.member.dto.MyPageResponse;
+import cmc.rodi.domain.member.dto.OnboardingFormResponse;
 import cmc.rodi.domain.member.dto.OnboardingRequest;
 import cmc.rodi.global.common.pagination.CursorPage;
 import cmc.rodi.global.common.response.ApiResponse;
@@ -35,6 +36,15 @@ public interface MemberControllerDocs {
             description = "회원 정보를 부분 수정한다. 현재 수정 가능 필드는 운전 목표(최대 30자, 빈값이면 삭제). JWT 필요.")
     ApiResponse<Void> updateMe(
             @Parameter(hidden = true) Long memberId, MemberUpdateRequest request);
+
+    @Operation(
+            summary = "온보딩 폼 조회",
+            description =
+                    "온보딩 화면 정의를 반환한다. 단계(steps) → 문항(questions) → 선택지(options) 구조이고, 문항 code는 "
+                            + "온보딩 제출 요청의 필드명, 선택지 code는 제출 값이다. 2단계는 건너뛸 수 있다(skippable). "
+                            + "흐름 규칙: skipsFollowUps 선택지를 고르면 후속 문항 생략, showWhen 문항은 조건 선택지를 골랐을 때만 노출, "
+                            + "exclusive 선택지는 단독으로만. JWT 필요.")
+    ApiResponse<OnboardingFormResponse> getOnboardingForm();
 
     @Operation(
             summary = "온보딩 제출",

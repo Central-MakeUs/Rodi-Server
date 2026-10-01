@@ -35,7 +35,8 @@ public record OnboardingRequest(
         @Schema(description = "Q4-1 혼자 운전 범위(Q3=혼자 연습일 때). 선택") SoloDrivingRange soloDrivingRange,
         @Schema(description = "Q4-2 혼자 주차 수준(Q3=혼자 연습일 때). 선택") SoloParkingLevel soloParkingLevel,
         @Schema(description = "클라이언트가 변환한 레벨(필수)") @NotNull Level level,
-        @Schema(description = "선호 연습유형(1~3순위, 순서=우선순위). 선택") @Size(max = 3)
+        @Schema(description = "선호 연습유형(1~3순위, 순서=우선순위). 선택")
+                @Size(max = OnboardingFormResponse.PRACTICE_TYPES_MAX_SELECT)
                 List<PracticeType> practiceTypes,
         @Schema(description = "차종. 선택") CarType carType,
         @Schema(description = "운전 목표(선택). 최대 30자 — 이모지·자모 포함 사용자가 보는 글자 수 기준")

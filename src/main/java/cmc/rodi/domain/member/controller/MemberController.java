@@ -5,6 +5,7 @@ import cmc.rodi.domain.member.dto.CourseTutorialCompletionResponse;
 import cmc.rodi.domain.member.dto.FilterTagsRequest;
 import cmc.rodi.domain.member.dto.MemberUpdateRequest;
 import cmc.rodi.domain.member.dto.MyPageResponse;
+import cmc.rodi.domain.member.dto.OnboardingFormResponse;
 import cmc.rodi.domain.member.dto.OnboardingRequest;
 import cmc.rodi.domain.member.service.MemberBlockService;
 import cmc.rodi.domain.member.service.MemberCourseTutorialService;
@@ -64,6 +65,12 @@ public class MemberController implements MemberControllerDocs {
             @CurrentMember Long memberId, @Valid @RequestBody MemberUpdateRequest request) {
         memberProfileService.update(memberId, request);
         return ApiResponse.success(null);
+    }
+
+    @Override
+    @GetMapping("/me/onboarding-form")
+    public ApiResponse<OnboardingFormResponse> getOnboardingForm() {
+        return ApiResponse.success(onboardingService.getForm());
     }
 
     @Override

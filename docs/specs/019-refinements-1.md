@@ -8,6 +8,7 @@
 | 2026-09-28 | Draft | 1차 리뷰 반영 — 방문 검사 순서(쿨다운 → 레벨)·담기 쿼리의 레벨 조건, `hasReview` 레벨 기준 확정, 중복 값 400 확정, 온보딩 문항은 구현 시 제공 |
 | 2026-09-28 | Draft | 2차 리뷰 반영 — 지난 레벨 기록으로 방문 시 현재 레벨 기록에 기록(200)·방문 응답 `practiceId`, `level` CHECK 제약, 레벨 점수·Q4 조건 검증 제외 확정 |
 | 2026-09-28 | Approved | 미방문 사유는 레벨 검사 없이 요청한 기록에 저장(현재 동작 유지, `PRACTICE_409_3` 제거 — 잠정, 미해결 질문 2). 스펙 승인 |
+| 2026-09-29 | Approved | 온보딩 폼 문구·구조 확정 — 2단계(steps)·2단계 건너뛰기, Q1 `YEARS_3_9` = "3~9년", 연습유형 라벨을 온보딩 화면 표기로 통일(코스 등록 폼 공용), 연습유형은 평면 목록. 유형 필터 적용 범위 조정 여지(미해결 질문 3) |
 
 ## 배경 / 목적
 
@@ -35,7 +36,7 @@
    - 연습 항목은 **(회원, 장소, 레벨)마다 한 행**이다. 레벨이 오르면 같은 코스를 다시 [연습하기]해도 **새 기록**(연습 횟수 0, `PLANNED`)으로 시작하고, 지난 레벨의 기록은 그대로 남는다.
    - 내 연습 목록은 **레벨을 골라 조회**한다(`level` 파라미터). 생략하면 **현재 레벨**이다.
    - **지난 레벨 기록으로 방문이 오면 현재 레벨 기록에 남긴다.** 레벨이 오른 뒤 예전 기록(`practiceId`)으로 같은 장소를 다녀와도 200이다. 서버가 그 장소의 현재 레벨 기록을 찾거나 새로 만들어 방문을 기록하고, 지난 레벨 기록은 바뀌지 않는다.
-   - **미방문 사유는 레벨과 관계없이 요청한 기록에 저장한다**(현재 동작 유지). 사유는 레벨·거리·인증에 영향이 없고, "그때 왜 못 갔나"라는 그 기록의 계획에 대한 답이라 그 레벨 기록에 남는 것이 맞다. 지난 레벨 기록은 다시 방문·[연습하기]되지 않으므로 거기 남긴 사유는 지워지지 않는다. **잠정 결정** — 409로 막는 안은 미해결 질문 2로 남긴다.
+   - **미방문 사유는 레벨과 관계없이 요청한 기록에 저장한다**(현재 동작 유지). 사유는 레벨·거리·인증에 영향이 없고, "그때 왜 못 갔나"라는 그 기록의 계획에 대한 답이라 그 레벨 기록에 남는 것이 맞다. 지난 레벨 기록은 다시 방문·[연습하기]되지 않으므로 거기 남긴 사유는 지워지지 않는다. **잠정 결정** — 409로 막을지는 화면 도출 후 정한다(미해결 질문 2, 보류).
    - 담기는 온보딩(레벨 배정)을 마친 회원만 할 수 있다.
 2. **유형 필터**
    - 인증된 회원이 저장한 `filter_tags`가 있으면 **매칭되는 장소만** 반환한다. 비매칭 장소는 더 이상 후순위로도 나오지 않는다.
@@ -124,11 +125,28 @@ CREATE INDEX idx_member_practice_recent
 
 공용 `FormResponse`는 단일 선택 문항 하나만 담아 쓰지 않는다. 코스 등록 폼처럼 **전용 응답**(`OnboardingFormResponse`)을 둔다.
 
-- 문항 `code`는 **제출 요청의 필드명**과 1:1이다(`drivingPeriod` → 요청의 `drivingPeriod`).
-- 선택지 `code`는 **enum 값 그대로**다. 문구는 서버가 들고 있다(enum `label` 또는 폼 정의 클래스 — 구현 시 결정).
-- 문항 유형: `SINGLE_SELECT` · `MULTI_SELECT` · `RANKED_SELECT`(순서=우선순위) · `TEXT`.
+- 화면이 **2단계**라 응답도 **단계(steps) → 문항(questions)** 구조다. 단계마다 제목·설명과 건너뛰기 가능 여부(`skippable`)를 내린다.
+  - 1단계 "운전 경험": Q1~Q4-2, 건너뛰기 불가.
+  - 2단계 "추가 정보": 선호 연습유형·차종·운전 목표, **건너뛰기 가능**.
+- 문항 `code`는 **제출 요청의 필드명**과 1:1이다(`drivingPeriod` → 요청의 `drivingPeriod`). 문항 `order`는 단계를 넘어 1~8로 이어진다.
+- 선택지 `code`는 **enum 값 그대로**, 순서는 enum 선언 순서다.
+- **문구 위치**
+  - 선택지 라벨: 각 enum의 `label` 필드(`DrivingPeriod`·`RecentFrequency`·`RoadExperience`·`SoloDrivingRange`·`SoloParkingLevel`·`CarType`에 추가). 기존 `PracticeType`·`SkipReason`과 같은 방식.
+  - 단계·문항 제목·설명·placeholder: `OnboardingFormResponse.of()` 한 곳(코스 등록 폼과 같은 방식).
+- **연습유형 라벨을 온보딩 화면 표기로 바꾼다.** `PracticeType` 라벨은 코스 등록 폼·코스 태그 표시와 공용이라 그쪽 표기도 함께 바뀐다(앱 전체 표기 통일).
+
+  | enum | 기존 | 변경 |
+  |------|------|------|
+  | `LEFT_RIGHT_TURN` | 좌우회전 | 좌우 회전 |
+  | `ROUNDABOUT` | 회전교차로 | 회전 교차로 |
+  | `UNPROTECTED_LEFT_TURN` | 비보호좌회전 | 비보호 좌회전 |
+  | `NARROW_ROAD` | 좁은 도로 | 좁은 도로 주행 |
+  | `MULTILANE` | 다차로주행 | 다차로 주행 |
+
+- 선호 연습유형은 화면이 카테고리 없이 13개를 나열하므로 **평면 목록**으로 내린다(`PracticeCategory` 트리 아님).
+- 문항 유형: `SINGLE_SELECT` · `MULTI_SELECT` · `RANKED_SELECT`(선택 순서=우선순위) · `TEXT`.
 - **흐름 규칙**도 함께 내린다. 지금 클라이언트에 하드코딩된 두 규칙이다.
-  - Q1이 `YEARS_3_9`·`OVER_10_YEARS`면 후속 문항을 건너뛴다 → 해당 선택지에 `skipsFollowUps: true`
+  - Q1이 `YEARS_3_9`·`OVER_10_YEARS`면 후속 문항을 건너뛴다 → 해당 선택지에 `skipsFollowUps: true`(`DrivingPeriod.skipsFollowUps()`)
   - Q4-1·Q4-2는 Q3에서 `SOLO`를 골랐을 때만 → 문항에 `showWhen: { question: "roadExperiences", anyOf: ["SOLO"] }`
 
 ### 4. '없음' 배타 선택 — 검증
@@ -193,49 +211,88 @@ GET /api/v1/places?swLat=..&neLng=..&lat=..&lng=..   (JWT, filter_tags = [U_TURN
 
 ### 3. 온보딩 폼 (신규)
 
-> 문구(`title`·`description`·`label`·`placeholder`)는 **사용자 제공 대기**다. 아래 `"…"`는 자리 표시다.
-
 ```json
 // GET /api/v1/members/me/onboarding-form   (JWT)
 {
-  "questions": [
+  "steps": [
     {
-      "code": "drivingPeriod", "order": 1, "type": "SINGLE_SELECT", "required": true,
-      "title": "…", "description": "…",
-      "options": [
-        { "code": "UNDER_1_MONTH", "label": "…", "order": 1 },
-        { "code": "YEARS_3_9", "label": "…", "order": 6, "skipsFollowUps": true },
-        { "code": "OVER_10_YEARS", "label": "…", "order": 7, "skipsFollowUps": true }
+      "order": 1, "skippable": false,
+      "title": "운전 경험에 대해 알려주세요.",
+      "description": "자세히 입력할수록 더 잘 맞는 연습 장소를 추천해요.",
+      "questions": [
+        {
+          "code": "drivingPeriod", "order": 1, "type": "SINGLE_SELECT", "required": true,
+          "title": "면허 취득 후 실제 운전한 기간을 알려주세요",
+          "options": [
+            { "code": "UNDER_1_MONTH", "label": "1개월 미만", "order": 1 },
+            { "code": "MONTHS_1_2", "label": "1~2개월", "order": 2 },
+            { "code": "MONTHS_3_5", "label": "3~5개월", "order": 3 },
+            { "code": "MONTHS_6_11", "label": "6~11개월", "order": 4 },
+            { "code": "YEARS_1_2", "label": "1~2년", "order": 5 },
+            { "code": "YEARS_3_9", "label": "3~9년", "order": 6, "skipsFollowUps": true },
+            { "code": "OVER_10_YEARS", "label": "10년 이상", "order": 7, "skipsFollowUps": true }
+          ]
+        },
+        {
+          "code": "recentFrequency", "order": 2, "type": "SINGLE_SELECT", "required": false,
+          "title": "가장 최근, 운전을 언제 하셨나요?",
+          "options": [ "RARELY 거의 없음", "MONTHLY_1_2 월 1~2회", "WEEKLY_1 주 1회", "WEEKLY_2_3 주 2~3회", "WEEKLY_4_PLUS 주 4회 이상" ]
+        },
+        {
+          "code": "roadExperiences", "order": 3, "type": "MULTI_SELECT", "required": false,
+          "title": "면허 취득후 도로주행을 해본 적이 있나요?",
+          "options": [
+            { "code": "NONE", "label": "없음", "order": 1, "exclusive": true },
+            { "code": "ACCOMPANIED", "label": "동승 연습", "order": 2 },
+            { "code": "PROFESSIONAL_TRAINING", "label": "전문 도로 연수", "order": 3 },
+            { "code": "SOLO", "label": "혼자 연습", "order": 4 }
+          ]
+        },
+        {
+          "code": "soloDrivingRange", "order": 4, "type": "SINGLE_SELECT", "required": false,
+          "title": "혼자 운전, 어디까지 해봤나요?",
+          "showWhen": { "question": "roadExperiences", "anyOf": ["SOLO"] },
+          "options": [ "NEAR_HOME 집 근처", "FAMILIAR_ROAD 익숙한 길", "UNFAMILIAR_ROAD 낯선 도로", "HIGHWAY_LONG 고속 장거리" ]
+        },
+        {
+          "code": "soloParkingLevel", "order": 5, "type": "SINGLE_SELECT", "required": false,
+          "title": "혼자 주차는 어느 정도 해봤나요?",
+          "showWhen": { "question": "roadExperiences", "anyOf": ["SOLO"] },
+          "options": [ "NONE 없음", "WIDE_ONLY 넓은 곳만", "FAMILIAR_PLACE 익숙한 곳", "MOSTLY_POSSIBLE 대부분 가능" ]
+        }
       ]
     },
     {
-      "code": "roadExperiences", "order": 3, "type": "MULTI_SELECT", "required": false,
-      "title": "…",
-      "options": [
-        { "code": "NONE", "label": "…", "order": 1, "exclusive": true },
-        { "code": "SOLO", "label": "…", "order": 4 }
+      "order": 2, "skippable": true,
+      "title": "추가 정보를 입력하면 더 정확해요.",
+      "description": "딱 맞는 코스 추천을 위한 선택항목이에요.",
+      "questions": [
+        {
+          "code": "practiceTypes", "order": 6, "type": "RANKED_SELECT", "required": false, "maxSelect": 3,
+          "title": "더 연습해보고 싶은 상황이 있나요?",
+          "description": "1순위부터 순서대로 선택해주세요.",
+          "options": [ "PracticeType 13종, enum 선언 순서, label은 PracticeType.label" ]
+        },
+        {
+          "code": "carType", "order": 7, "type": "SINGLE_SELECT", "required": false,
+          "title": "주로 타는 차종은 무엇인가요?",
+          "options": [ "LIGHT 경차", "COMPACT 소형차", "MIDSIZE 중형차", "SEMI_LARGE 준대형", "LARGE 대형차", "SUV SUV" ]
+        },
+        {
+          "code": "drivingGoal", "order": 8, "type": "TEXT", "required": false, "maxLength": 30,
+          "title": "이루고 싶은 운전 목표를 입력해주세요.",
+          "placeholder": "ex)강남 운전 자신있게 하기!"
+        }
       ]
-    },
-    {
-      "code": "soloDrivingRange", "order": 4, "type": "SINGLE_SELECT", "required": false,
-      "title": "…",
-      "showWhen": { "question": "roadExperiences", "anyOf": ["SOLO"] },
-      "options": [ … ]
-    },
-    {
-      "code": "practiceTypes", "order": 6, "type": "RANKED_SELECT", "required": false,
-      "maxSelect": 3, "title": "…", "options": [ … ]
-    },
-    {
-      "code": "drivingGoal", "order": 8, "type": "TEXT", "required": false,
-      "maxLength": 30, "placeholder": "…", "title": "…"
     }
   ]
 }
 ```
 
-- 문항: `drivingPeriod`(Q1) · `recentFrequency`(Q2) · `roadExperiences`(Q3) · `soloDrivingRange`(Q4-1) · `soloParkingLevel`(Q4-2) · `practiceTypes` · `carType` · `drivingGoal`.
-- `level`은 문항이 아니다(클라이언트가 계산해 제출).
+> 지면상 일부 `options`는 `"코드 라벨"` 문자열로 줄여 적었다. 실제 응답은 모두 `{ code, label, order }` 객체다.
+
+- `required`는 제출 요청의 검증과 같다 — 필수는 Q1뿐이다(`level`은 문항이 아니라 클라이언트가 계산해 제출).
+- `maxSelect`(3)는 제출 검증의 `@Size(max = 3)`, `maxLength`(30)는 `Member.DRIVING_GOAL_MAX_LENGTH`와 같은 값을 쓴다.
 - 값이 없는 선택 속성(`description`·`showWhen`·`maxSelect`·`maxLength`·`placeholder`·`exclusive`·`skipsFollowUps`)은 생략한다(NON_NULL). `exclusive`·`skipsFollowUps`는 `true`일 때만 내린다.
 - 저장이 없는 조회라 트랜잭션을 열지 않는다.
 
@@ -271,7 +328,10 @@ GET /api/v1/places?swLat=..&neLng=..&lat=..&lng=..   (JWT, filter_tags = [U_TURN
 - [ ] 비로그인·빈 필터는 기존과 같은 결과(전부, 거리순)다. 마커는 토큰 없이도 200이다.
 
 **3·4. 온보딩**
-- [ ] 온보딩 폼이 문항을 `order` 순으로 반환한다. 문항 구성·개수·선택지는 구현 시 사용자가 제공하는 정의를 따른다(미해결 질문 1).
+- [ ] 온보딩 폼이 2단계를 반환한다 — 1단계(Q1~Q4-2, `skippable: false`)·2단계(연습유형·차종·운전 목표, `skippable: true`). 문항은 `order` 1~8 순서다.
+- [ ] 선택지는 enum 전체와 같은 개수·선언 순서이고, 라벨이 화면 문구와 같다(Q1 `YEARS_3_9` = "3~9년").
+- [ ] `PracticeType` 라벨이 온보딩 화면 표기로 바뀌고, 코스 등록 폼에도 같은 라벨이 나온다.
+- [ ] Q4-1·Q4-2에만 `showWhen`이 있다.
 - [ ] `roadExperiences`의 `NONE` 선택지에만 `exclusive: true`, Q1의 `YEARS_3_9`·`OVER_10_YEARS`에만 `skipsFollowUps: true`가 있다.
 - [ ] `roadExperiences`에 `NONE`과 다른 값이 함께 오면 400이고 아무것도 저장되지 않는다. `["NONE"]` 단독은 200.
 - [ ] `roadExperiences`에 같은 값이 중복되면 400.
@@ -279,5 +339,6 @@ GET /api/v1/places?swLat=..&neLng=..&lat=..&lng=..   (JWT, filter_tags = [U_TURN
 
 ## 미해결 질문
 
-1. **온보딩 폼 문항·문구** — 문항 구성, 제목·설명·선택지 라벨·placeholder, 선호 연습유형 화면이 카테고리 트리인지(그렇다면 `PracticeCategory` 트리로 내림)를 구현 시 사용자가 제공한다. 3번 구현 전에 필요하다.
-2. **지난 레벨 기록의 미방문 사유를 409로 막을지** — 지금은 잠정으로 허용한다(레벨 검사 없이 그 기록에 저장). 지난 기록을 완전히 고정하려면 409 `PRACTICE_409_3`으로 막고 앱이 지난 레벨 목록에서 "안 했어요"를 숨긴다. 레벨별 연습 기록(1번) 구현 전까지 정한다.
+1. ~~온보딩 폼 문항·문구~~ — 2026-09-29 화면 디자인으로 확정(도메인 모델 3절·API 3절).
+2. **지난 레벨 기록의 미방문 사유를 409로 막을지** — **보류(화면 도출 후 결정, 2026-10-01 사용자)**. 그때까지는 허용한다(레벨 검사 없이 그 기록에 저장). 지난 기록을 완전히 고정하려면 409 `PRACTICE_409_3`으로 막고 앱이 지난 레벨 목록에서 "안 했어요"를 숨긴다. 1번 구현은 허용 기준으로 진행하고, 결정되면 검사만 추가한다.
+3. **유형 필터 적용 범위** — 지금은 목록·검색·마커다. 연관 검색어(`/places/related-search`)는 필터 없이 전부 제안해, 자동완성에 뜬 장소가 필터 때문에 검색 결과에 없을 수 있다. 적용 범위는 앱 화면 흐름을 보고 조정할 수 있다(2026-09-28 사용자).
