@@ -19,15 +19,18 @@ import cmc.rodi.domain.member.dto.CourseTutorialCompletionResponse;
 import cmc.rodi.domain.member.dto.LevelProgressResponse;
 import cmc.rodi.domain.member.dto.MemberUpdateRequest;
 import cmc.rodi.domain.member.dto.MyPageResponse;
+import cmc.rodi.domain.member.dto.NicknameAvailabilityResponse;
 import cmc.rodi.domain.member.dto.OnboardingFormResponse;
 import cmc.rodi.domain.member.dto.OnboardingRequest;
 import cmc.rodi.domain.member.entity.Level;
 import cmc.rodi.domain.member.entity.PracticeType;
+import cmc.rodi.domain.member.exception.MemberErrorCode;
 import cmc.rodi.domain.member.service.MemberBlockService;
 import cmc.rodi.domain.member.service.MemberCourseTutorialService;
 import cmc.rodi.domain.member.service.MemberProfileService;
 import cmc.rodi.domain.member.service.MemberSortService;
 import cmc.rodi.domain.member.service.MemberWithdrawalService;
+import cmc.rodi.domain.member.service.NicknameService;
 import cmc.rodi.domain.member.service.OnboardingService;
 import cmc.rodi.global.auth.jwt.JwtAuthenticationFilter;
 import cmc.rodi.global.auth.resolver.CurrentMemberArgumentResolver;
@@ -79,6 +82,7 @@ class MemberControllerTest {
     @MockitoBean MemberSortService memberSortService;
     @MockitoBean MemberBlockService memberBlockService;
     @MockitoBean MemberCourseTutorialService memberCourseTutorialService;
+    @MockitoBean NicknameService nicknameService;
 
     private static final String ONBOARDING_BODY =
             """
@@ -116,6 +120,48 @@ class MemberControllerTest {
                 .andExpect(jsonPath("$.isSuccess").value(true));
 
         verify(memberWithdrawalService).withdraw(7L);
+    }
+
+    @Test
+    @DisplayName("닉네임 확인: 사용 가능하면 200 + available=true, 사유는 null")
+    void 닉네임_확인_가능() throws Exception {
+        authenticate(7L);
+        when(nicknameService.checkAvailability(7L, "초보_탈출"))
+                .thenReturn(NicknameAvailabilityResponse.available("초보_탈출"));
+
+        mockMvc.perform(get("/api/v1/members/nickname/availability").param("nickname", "초보_탈출"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.nickname").value("초보_탈출"))
+                .andExpect(jsonPath("$.data.available").value(true))
+                .andExpect(jsonPath("$.data.reason").doesNotExist())
+                .andExpect(jsonPath("$.data.message").doesNotExist());
+    }
+
+    @Test
+    @DisplayName("닉네임 확인: 사용 불가도 200이고 사유 코드·문구를 준다")
+    void 닉네임_확인_불가() throws Exception {
+        authenticate(7L);
+        when(nicknameService.checkAvailability(7L, "차근차근_토끼"))
+                .thenReturn(
+                        NicknameAvailabilityResponse.unavailable(
+                                "차근차근_토끼", MemberErrorCode.NICKNAME_DUPLICATED));
+
+        mockMvc.perform(get("/api/v1/members/nickname/availability").param("nickname", "차근차근_토끼"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.isSuccess").value(true))
+                .andExpect(jsonPath("$.data.available").value(false))
+                .andExpect(jsonPath("$.data.reason").value("MEMBER_409_3"))
+                .andExpect(jsonPath("$.data.message").value("이미 사용 중인 닉네임이에요."));
+    }
+
+    @Test
+    @DisplayName("닉네임 확인: nickname 파라미터가 없으면 400 COMMON_400")
+    void 닉네임_확인_파라미터_누락() throws Exception {
+        authenticate(7L);
+
+        mockMvc.perform(get("/api/v1/members/nickname/availability"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("COMMON_400"));
     }
 
     @Test

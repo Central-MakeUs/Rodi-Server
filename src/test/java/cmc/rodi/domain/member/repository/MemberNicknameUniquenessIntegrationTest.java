@@ -24,12 +24,12 @@ class MemberNicknameUniquenessIntegrationTest {
     @Test
     @DisplayName("유니크 인덱스: 대소문자만 다른 닉네임은 저장할 수 없다")
     void 대소문자만_다른_닉네임_저장_불가() {
-        memberRepository.saveAndFlush(memberWithNickname("upper@kakao.com", "Rodi_Kim"));
+        memberRepository.saveAndFlush(memberWithNickname("upper@kakao.com", "Drive_Kim"));
 
         assertThatThrownBy(
                         () ->
                                 memberRepository.saveAndFlush(
-                                        memberWithNickname("lower@kakao.com", "rodi_kim")))
+                                        memberWithNickname("lower@kakao.com", "drive_kim")))
                 .isInstanceOf(DataIntegrityViolationException.class);
     }
 
@@ -46,14 +46,14 @@ class MemberNicknameUniquenessIntegrationTest {
     @Test
     @DisplayName("중복 조회: 다른 회원의 닉네임은 대소문자가 달라도 중복이다")
     void 다른_회원_닉네임_대소문자_무시_중복() {
-        memberRepository.saveAndFlush(memberWithNickname("owner@kakao.com", "Rodi_Kim"));
+        memberRepository.saveAndFlush(memberWithNickname("owner@kakao.com", "Drive_Kim"));
         Member me = memberRepository.saveAndFlush(Member.createBySocial("me@kakao.com"));
 
-        assertThat(memberRepository.existsByNicknameIgnoreCaseExcluding("rodi_kim", me.getId()))
+        assertThat(memberRepository.existsByNicknameIgnoreCaseExcluding("drive_kim", me.getId()))
                 .isTrue();
-        assertThat(memberRepository.existsByNicknameIgnoreCaseExcluding("Rodi_Kim", me.getId()))
+        assertThat(memberRepository.existsByNicknameIgnoreCaseExcluding("Drive_Kim", me.getId()))
                 .isTrue();
-        assertThat(memberRepository.existsByNicknameIgnoreCaseExcluding("Rodi_Lee", me.getId()))
+        assertThat(memberRepository.existsByNicknameIgnoreCaseExcluding("Drive_Lee", me.getId()))
                 .isFalse();
     }
 
