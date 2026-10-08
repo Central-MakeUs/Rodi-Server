@@ -12,7 +12,15 @@ import org.springframework.data.repository.query.Param;
 
 public interface MemberRepository extends JpaRepository<Member, Long> {
 
-    boolean existsByNickname(String nickname);
+    /**
+     * 다른 회원이 이 닉네임을 쓰고 있는지(영문 대소문자 무시). 본인({@code excludeMemberId})은 제외해, 자기 닉네임을 다시 내거나 대소문자만 바꾸는
+     * 경우를 중복으로 보지 않는다. {@code lower()} 비교라 V27의 {@code lower(nickname)} 유니크 인덱스를 탄다.
+     */
+    @Query(
+            "select count(m) > 0 from Member m"
+                    + " where lower(m.nickname) = lower(:nickname) and m.id <> :excludeMemberId")
+    boolean existsByNicknameIgnoreCaseExcluding(
+            @Param("nickname") String nickname, @Param("excludeMemberId") Long excludeMemberId);
 
     /**
      * 누적 거리 갱신용 회원 조회(행 잠금). 누적은 읽고-더하고-쓰기라, 같은 회원의 방문 기록이 겹치면 한쪽 증가분이 사라진다(lost update). 레벨은 내려가지

@@ -125,7 +125,7 @@ class MemberControllerTest {
         when(memberProfileService.getMyPage(7L))
                 .thenReturn(
                         new MyPageResponse(
-                                "성난 초보",
+                                "성난_초보",
                                 Level.ROOKIE,
                                 List.of("U_TURN", "INTERSECTION", "PARKING"),
                                 "골목길에 익숙해지기",
@@ -134,7 +134,7 @@ class MemberControllerTest {
 
         mockMvc.perform(get("/api/v1/members/me"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.nickname").value("성난 초보"))
+                .andExpect(jsonPath("$.data.nickname").value("성난_초보"))
                 .andExpect(jsonPath("$.data.level").value("ROOKIE"))
                 .andExpect(jsonPath("$.data.recommendationTags[0]").value("U_TURN"))
                 .andExpect(jsonPath("$.data.drivingGoal").value("골목길에 익숙해지기"))
