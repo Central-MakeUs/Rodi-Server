@@ -9,7 +9,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 
 /**
- * 닉네임 형식·금칙어 정책(스펙 019, ADR 0014). DB를 모르므로 중복 검사는 하지 않는다 — 서비스가 이 판정 뒤에 한다.
+ * 닉네임 형식·금칙어 정책(스펙 020, ADR 0014). DB를 모르므로 중복 검사는 하지 않는다 — 서비스가 이 판정 뒤에 한다.
  *
  * <p>입력은 {@link #normalize}로 정규화한 값을 받는다. 판정은 길이 → 문자 → 금칙어 순이며 처음 걸린 사유 하나만 돌려준다.
  */

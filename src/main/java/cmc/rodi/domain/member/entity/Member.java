@@ -107,6 +107,11 @@ public class Member extends BaseEntity {
         this.nickname = nickname;
     }
 
+    /** 사용자가 고른 닉네임으로 바꾼다. 형식·금칙어·중복 판정은 {@code NicknameService}가 끝낸 값이어야 한다. */
+    public void changeNickname(String nickname) {
+        this.nickname = nickname;
+    }
+
     /**
      * 온보딩 완료 — 클라이언트가 계산한 레벨과 운전 목표를 반영한다.
      *

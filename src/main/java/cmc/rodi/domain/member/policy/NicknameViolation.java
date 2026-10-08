@@ -1,6 +1,6 @@
 package cmc.rodi.domain.member.policy;
 
-/** 닉네임 정책 위반 사유(스펙 019). 판정 순서는 길이 → 문자 → 금칙어이고, 처음 걸린 하나만 돌려준다. */
+/** 닉네임 정책 위반 사유(스펙 020). 판정 순서는 길이 → 문자 → 금칙어이고, 처음 걸린 하나만 돌려준다. */
 public enum NicknameViolation {
     /** 2~10자(grapheme 기준)가 아니다. */
     INVALID_LENGTH,

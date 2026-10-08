@@ -41,5 +41,5 @@
 | [코스 등록 튜토리얼](017-course-tutorial.md) | 코스 등록 튜토리얼 완료 저장·로그인 응답으로 완료 여부 전달 | Implemented |
 | [텍스트 길이 기준 변경](018-text-length-grapheme.md) | 운전 목표·후기 내용 길이를 grapheme cluster로 계산(이모지 글자 수 불일치 해소) | Implemented |
 | [1차 보완](019-refinements-1.md) | 유형 필터·정렬 분리(sort_tags 정렬·practiceTypes 파라미터 필터)·온보딩 폼·온보딩 '없음' 배타 선택 | Approved |
-| [닉네임 변경·검증](019-nickname-change.md) | 닉네임 변경(PATCH)·사용 가능 여부 확인·형식(2~10자, `_`)·금칙어(LDNOOBW+직접 작성)·중복 검증, 공백→`_` 이관 | Approved |
+| [닉네임 변경·검증](020-nickname-change.md) | 닉네임 변경(PATCH)·사용 가능 여부 확인·형식(2~10자, `_`)·금칙어(LDNOOBW+직접 작성)·중복 검증, 공백→`_` 이관 | Implemented |
 | [레벨별 연습 기록](022-level-practice-record.md) | 연습 기록을 (회원, 장소, 레벨)마다 저장·레벨별 목록 조회(019에서 분리, 추후 구현) | Deferred |

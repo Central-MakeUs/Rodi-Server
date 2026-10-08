@@ -20,7 +20,7 @@ import org.springframework.context.annotation.Import;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.transaction.annotation.Transactional;
 
-/** 닉네임 사용 가능 여부(스펙 019) — 정책 판정과 대소문자 무시·본인 제외 중복을 실제 DB로 검증한다. */
+/** 닉네임 사용 가능 여부(스펙 020) — 정책 판정과 대소문자 무시·본인 제외 중복을 실제 DB로 검증한다. */
 @SpringBootTest
 @AutoConfigureMockMvc
 @Transactional

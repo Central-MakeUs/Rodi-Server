@@ -7,6 +7,8 @@
 | 2026-10-08 | Draft | 최초 작성 — 이슈 [#75](https://github.com/Central-MakeUs/Rodi-Server/issues/75), 설계 결정 [ADR 0014](../adr/0014-nickname-validation-and-profanity-filter.md) |
 | 2026-10-08 | Draft | 미해결 질문 1·2 확정 — PATCH는 **보낸 필드만 수정**(생략=변경 없음, `drivingGoal` null/빈값=삭제), 중복은 **대소문자 무시**(`lower(nickname)` 유니크 인덱스) |
 | 2026-10-08 | **Approved** | 승인 — 금칙어 단어 목록은 스펙에서 빼고 분류 기준·출처 표기만 유지. LDNOOBW는 커밋 `5faf2ba` 기준으로 **한 번 가공해 커밋**(A안) |
+| 2026-10-08 | Implemented | 구현 완료 — V27·후보 풀 이관, `ProhibitedWords`·`NicknamePolicy`, `NicknameService`·확인 API, PATCH 닉네임. 허용 목록은 **위치 기반**(덮인 일치만 무시)으로 정정, 부분 수정은 **setter 호출 여부로 생략/null 구분**(구현 노트) |
+| 2026-10-08 | Implemented | 스펙 번호 019 → **020** — #74의 `019-refinements-1.md`가 먼저 머지되어 번호 충돌을 피함 |
 
 ## 배경 / 목적
 
@@ -139,7 +141,7 @@
 | `NicknamePolicy` | `policy` | 정규화·형식·금칙어 판정. 결과로 위반 사유(또는 통과)를 돌려준다. DB를 모른다. |
 | `ProhibitedWords` | `policy` | 금칙어 세 파일을 기동 시 로드하고 `contains(normalized)`를 제공한다. |
 | `NicknameService` | `service` | `NicknamePolicy` + 대소문자 무시 중복 조회(본인 제외) + 본인 예외를 묶어 두 API에 제공한다. |
-| `MemberUpdateRequest` | `dto` | 필드 생략과 `null`을 구분할 수 있게 바꾼다(구현 방식은 구현 단계에서 정한다). |
+| `MemberUpdateRequest` | `dto` | 필드 생략과 `null`을 구분할 수 있게 바꾼다([구현 노트](#구현-노트)). |
 | `NicknameAvailabilityResponse` | `dto` | `nickname`·`available`·`reason`·`message` |
 | `MemberErrorCode` | `exception` | 위 사유 코드 4개 추가 |
 
@@ -257,43 +259,52 @@ CREATE UNIQUE INDEX uq_member_nickname_lower ON member (lower(nickname));
 
 **닉네임 변경 (PATCH)**
 
-- [ ] `{"nickname": "초보_탈출"}`을 보내면 200이고, 마이페이지 조회 닉네임이 `초보_탈출`이다.
-- [ ] 앞뒤 공백이 있는 `"  초보_탈출 "`은 `초보_탈출`로 저장된다.
-- [ ] NFD(자모 분해)로 보낸 한글 닉네임이 NFC로 저장된다.
-- [ ] 길이: 1자·11자는 400 `MEMBER_400_2`, 2자·10자는 200이다. `null`·빈 문자열도 `MEMBER_400_2`다.
-- [ ] 형식: `초보 탈출`(공백)·`_초보`·`초보_`·`초보__탈출`·`ㅋㅋ초보`·`초보😀`·`초보!`는 400 `MEMBER_400_3`이다.
-- [ ] 금칙어: `씨발`·`씨_발`·`시1발`·`개새끼운전`·`운영자`·`ROdi`는 400 `MEMBER_400_4`다.
-- [ ] 정확 일치: `미친`은 거부되고 `미친듯이`는 통과한다. `ass`는 거부되고 `class`는 통과한다.
-- [ ] 허용 목록: `시발점`·`멜로디`·`새끼손가락`·`초보지만`은 통과한다.
-- [ ] 다른 회원이 쓰는 닉네임은 409 `MEMBER_409_3`이고, 본인 현재 닉네임은 200(변경 없음)이다.
-- [ ] 다른 회원이 `Drive_Kim`을 쓰고 있으면 `drive_kim`은 409다. 본인의 `kim`을 `Kim`으로 바꾸는 것은 200이다.
-- [ ] UNIQUE 제약 위반(동시 변경 상황)이 발생하면 500이 아니라 409 `MEMBER_409_3`이다.
-- [ ] `nickname`을 생략하고 `drivingGoal`만 보내면 닉네임은 그대로다.
-- [ ] `drivingGoal`을 생략하고 `nickname`만 보내면 운전 목표는 그대로다.
-- [ ] `drivingGoal: null`·`""`은 기존처럼 운전 목표를 지운다.
-- [ ] `{}`는 200이고 아무것도 바뀌지 않는다.
-- [ ] `nickname`과 `drivingGoal`을 같이 보내고 하나가 검증에 실패하면 둘 다 저장되지 않는다.
+- [x] `{"nickname": "초보_탈출"}`을 보내면 200이고, 마이페이지 조회 닉네임이 `초보_탈출`이다.
+- [x] 앞뒤 공백이 있는 `"  초보_탈출 "`은 `초보_탈출`로 저장된다.
+- [x] NFD(자모 분해)로 보낸 한글 닉네임이 NFC로 저장된다.
+- [x] 길이: 1자·11자는 400 `MEMBER_400_2`, 2자·10자는 200이다. `null`·빈 문자열도 `MEMBER_400_2`다.
+- [x] 형식: `초보 탈출`(공백)·`_초보`·`초보_`·`초보__탈출`·`ㅋㅋ초보`·`초보😀`·`초보!`는 400 `MEMBER_400_3`이다.
+- [x] 금칙어: `씨발`·`씨_발`·`시1발`·`개새끼운전`·`운영자`·`ROdi`는 400 `MEMBER_400_4`다.
+- [x] 정확 일치: `미친`은 거부되고 `미친듯이`는 통과한다. `ass`는 거부되고 `class`는 통과한다.
+- [x] 허용 목록: `시발점`·`멜로디`·`새끼손가락`·`초보지만`은 통과한다.
+- [x] 다른 회원이 쓰는 닉네임은 409 `MEMBER_409_3`이고, 본인 현재 닉네임은 200(변경 없음)이다.
+- [x] 다른 회원이 `Drive_Kim`을 쓰고 있으면 `drive_kim`은 409다. 본인의 `kim`을 `Kim`으로 바꾸는 것은 200이다.
+- [x] UNIQUE 제약 위반(동시 변경 상황)이 발생하면 500이 아니라 409 `MEMBER_409_3`이다.
+- [x] `nickname`을 생략하고 `drivingGoal`만 보내면 닉네임은 그대로다.
+- [x] `drivingGoal`을 생략하고 `nickname`만 보내면 운전 목표는 그대로다.
+- [x] `drivingGoal: null`·`""`은 기존처럼 운전 목표를 지운다.
+- [x] `{}`는 200이고 아무것도 바뀌지 않는다.
+- [x] `nickname`과 `drivingGoal`을 같이 보내고 하나가 검증에 실패하면 둘 다 저장되지 않는다.
 
 **사용 가능 여부 확인 (GET)**
 
-- [ ] 사용 가능한 닉네임은 `available: true`, `reason`·`message`가 null이다.
-- [ ] 위 PATCH의 각 위반 사례가 200 + `available: false` + 같은 사유 코드(`reason`)로 응답된다.
-- [ ] 본인 현재 닉네임은 `available: true`다.
-- [ ] `data.nickname`에 정규화된 값(앞뒤 공백 제거)이 담긴다.
-- [ ] `nickname` 파라미터가 없으면 400 `COMMON_400`, JWT가 없으면 401이다.
+- [x] 사용 가능한 닉네임은 `available: true`, `reason`·`message`가 null이다.
+- [x] 위 PATCH의 각 위반 사례가 200 + `available: false` + 같은 사유 코드(`reason`)로 응답된다.
+- [x] 본인 현재 닉네임은 `available: true`다.
+- [x] `data.nickname`에 정규화된 값(앞뒤 공백 제거)이 담긴다.
+- [x] `nickname` 파라미터가 없으면 400 `COMMON_400`, JWT가 없으면 401이다.
 
 **이관·후보 풀**
 
-- [ ] Flyway V27 적용 후 `차근차근 토끼`였던 회원 닉네임이 `차근차근_토끼`로 조회된다.
-- [ ] V27 적용 후 DB에 대소문자만 다른 닉네임을 직접 넣으면 유니크 인덱스 위반이 난다.
-- [ ] 후보 풀 990개 전부가 `_` 형식이고, 전부 `NicknamePolicy`를 통과한다(형식·금칙어).
-- [ ] 신규 가입 시 `_` 형식 닉네임이 부여된다.
+- [x] Flyway V27 적용 후 `차근차근 토끼`였던 회원 닉네임이 `차근차근_토끼`로 조회된다.
+- [x] V27 적용 후 DB에 대소문자만 다른 닉네임을 직접 넣으면 유니크 인덱스 위반이 난다.
+- [x] 후보 풀 990개 전부가 `_` 형식이고, 전부 `NicknamePolicy`를 통과한다(형식·금칙어).
+- [x] 신규 가입 시 `_` 형식 닉네임이 부여된다.
 
 **금칙어 로드**
 
-- [ ] 주석(`#`)·빈 줄은 무시되고, 정규화 결과가 빈 항목은 로드되지 않는다.
-- [ ] LDNOOBW 항목이 든 파일 상단에 출처·라이선스가 적혀 있다.
-- [ ] `./gradlew test` 통과.
+- [x] 주석(`#`)·빈 줄은 무시되고, 정규화 결과가 빈 항목은 로드되지 않는다.
+- [x] LDNOOBW 항목이 든 파일 상단에 출처·라이선스가 적혀 있다.
+- [x] `./gradlew test` 통과.
+
+## 구현 노트
+
+- **생략과 `null` 구분**: 처음엔 record + `Optional` 필드로 시도했으나, Jackson이 record의 **생략한 필드도 `Optional.empty()`로 채워** 둘을 구분할 수 없었다(닉네임만 보내면 운전 목표가 지워짐). `MemberUpdateRequest`를 setter 기반 클래스로 바꿔 **setter 호출 여부 = 필드를 보냈는지**로 판정한다. Jackson은 명시한 `null`에도 setter를 부르고, 생략한 필드에는 부르지 않는다. `@GraphemeSize`는 필드에 그대로 붙어 기존 400 응답(`data.drivingGoal`)이 유지된다.
+- **원자성**: 닉네임 판정을 어떤 필드도 바꾸기 전에 끝낸다. 운전 목표 길이는 요청 검증(Bean Validation)에서 서비스 진입 전에 걸린다.
+- **경합 409**: 닉네임을 바꾼 직후 flush해 유니크 인덱스(`uq_member_nickname_lower`) 위반을 서비스 안에서 잡고 `MEMBER_409_3`으로 바꾼다. 제약 이름으로 확인해 다른 무결성 오류는 그대로 올린다. 테스트는 중복 조회를 "없음"으로 바꿔(spy) 재현했다.
+- **허용 목록 판정**: 허용 단어를 지우고 검사하면 "초보지랄"의 "지랄"을 놓쳐, 포함 일치가 허용 단어 하나에 통째로 덮일 때만 무시하도록 바꿨다.
+- **금칙어 가공 중 조정**: 영어 사전 대조로 `twat`(sweetwater)을 정확 일치로, 허용 목록에 `prodig`·`aphrodi`(rodi)·`badminton`(admin)·`최후장`(후장)·`자지러`(자지)를 더했다. `뒤져`(뒤지다=찾다)는 정확 일치로 뒀다.
+- **예시 닉네임**: 중복 예시였던 `Rodi_Kim`은 사칭 금칙어 `rodi`에 먼저 걸려 `Drive_Kim`으로 바꿨다.
 
 ## 미해결 질문
 

@@ -14,7 +14,7 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.core.io.ClassPathResource;
 
-/** 닉네임 정책(스펙 019) — 정규화·길이·문자·금칙어 판정과 후보 풀 호환을 검증한다. */
+/** 닉네임 정책(스펙 020) — 정규화·길이·문자·금칙어 판정과 후보 풀 호환을 검증한다. */
 class NicknamePolicyTest {
 
     private final NicknamePolicy policy =

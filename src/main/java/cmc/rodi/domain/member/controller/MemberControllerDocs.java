@@ -35,7 +35,11 @@ public interface MemberControllerDocs {
 
     @Operation(
             summary = "회원 정보 수정(마이페이지)",
-            description = "회원 정보를 부분 수정한다. 현재 수정 가능 필드는 운전 목표(최대 30자, 빈값이면 삭제). JWT 필요.")
+            description =
+                    "회원 정보를 부분 수정한다. 보낸 필드만 바꾸고 생략한 필드는 그대로 둔다. "
+                            + "운전 목표: 최대 30자, null·빈값이면 삭제. "
+                            + "닉네임: 사용 가능 여부 확인 API와 같은 판정 — 위반 시 400 MEMBER_400_2(길이)·MEMBER_400_3(문자)·"
+                            + "MEMBER_400_4(금칙어), 중복이면 409 MEMBER_409_3. 하나라도 실패하면 아무것도 저장하지 않는다. JWT 필요.")
     ApiResponse<Void> updateMe(
             @Parameter(hidden = true) Long memberId, MemberUpdateRequest request);
 
