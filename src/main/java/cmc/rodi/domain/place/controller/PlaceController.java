@@ -1,6 +1,8 @@
 package cmc.rodi.domain.place.controller;
 
 import cmc.rodi.domain.member.entity.PracticeType;
+import cmc.rodi.domain.place.dto.MarkerClusterRequest;
+import cmc.rodi.domain.place.dto.MarkerClusterResponse;
 import cmc.rodi.domain.place.dto.PlaceCoordinateResponse;
 import cmc.rodi.domain.place.dto.PlaceDetailResponse;
 import cmc.rodi.domain.place.dto.PlaceListItem;
@@ -41,6 +43,19 @@ public class PlaceController implements PlaceControllerDocs {
             @RequestParam(required = false) List<PracticeType> practiceTypes) {
         return ApiResponse.success(
                 placeQueryService.getAllCoordinates(PracticeTypeParams.normalize(practiceTypes)));
+    }
+
+    @Override
+    @GetMapping("/clusters")
+    public ApiResponse<MarkerClusterResponse> getClusters(
+            @RequestParam double swLat,
+            @RequestParam double swLng,
+            @RequestParam double neLat,
+            @RequestParam double neLng,
+            @CurrentMember(required = false) Long memberId) {
+        return ApiResponse.success(
+                placeQueryService.getClusters(
+                        new MarkerClusterRequest(swLat, swLng, neLat, neLng), memberId));
     }
 
     @Override

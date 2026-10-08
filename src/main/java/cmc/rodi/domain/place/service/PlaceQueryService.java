@@ -2,6 +2,8 @@ package cmc.rodi.domain.place.service;
 
 import cmc.rodi.domain.member.entity.PracticeType;
 import cmc.rodi.domain.member.service.MemberSortService;
+import cmc.rodi.domain.place.dto.MarkerClusterRequest;
+import cmc.rodi.domain.place.dto.MarkerClusterResponse;
 import cmc.rodi.domain.place.dto.PlaceCoordinateResponse;
 import cmc.rodi.domain.place.dto.PlaceDetailResponse;
 import cmc.rodi.domain.place.dto.PlaceListItem;
@@ -19,6 +21,7 @@ import cmc.rodi.domain.place.repository.BookmarkRepository;
 import cmc.rodi.domain.place.repository.CourseRepository;
 import cmc.rodi.domain.place.repository.ParkingRepository;
 import cmc.rodi.domain.place.repository.PlaceListRow;
+import cmc.rodi.domain.place.repository.PlaceMarkerRow;
 import cmc.rodi.domain.place.repository.PlaceNameMatchRow;
 import cmc.rodi.domain.place.repository.PlaceRepository;
 import cmc.rodi.global.common.pagination.CursorCodec;
@@ -44,6 +47,7 @@ public class PlaceQueryService {
     private final BookmarkRepository bookmarkRepository;
     private final MemberSortService memberSortService;
     private final RegionSearchIndex regionSearchIndex;
+    private final MarkerClusterer markerClusterer;
 
     /**
      * 전체 place의 간단 좌표(마커용). 미승인·삭제된 코스는 제외한다(스펙 014). {@code practiceTypes}가 있으면 그에 맞는 place만(스펙
@@ -57,6 +61,40 @@ public class PlaceQueryService {
                         : placeRepository.findAllVisibleFiltered(
                                 practiceTypes, practiceTypes.contains(PracticeType.PARKING));
         return places.stream().map(PlaceCoordinateResponse::from).toList();
+    }
+
+    /**
+     * 마커 클러스터 검색(스펙 021). 검색 범위의 장소와 확대 단계별 묶음을 한 번에 준다. 인증된 회원이 필터를 가지면 필터에 맞는 장소만 묶는다(비로그인·빈 필터는
+     * 전부). memberId는 옵셔널 JWT라 null 가능.
+     */
+    @Transactional(readOnly = true)
+    public MarkerClusterResponse getClusters(MarkerClusterRequest req, Long memberId) {
+        return getClusters(req, memberId, markerClusterer);
+    }
+
+    /** 클러스터러를 바꿔 끼우는 판 — 로컬 튜닝 페이지가 슬라이더로 바꾼 설정값으로 계산할 때 쓴다. */
+    @Transactional(readOnly = true)
+    public MarkerClusterResponse getClusters(
+            MarkerClusterRequest req, Long memberId, MarkerClusterer clusterer) {
+        List<PracticeType> filter = resolveSortTags(memberId);
+        List<PlaceMarkerRow> rows =
+                filter.isEmpty()
+                        ? placeRepository.findMarkersInBounds(
+                                req.swLat(), req.swLng(), req.neLat(), req.neLng())
+                        : placeRepository.findMarkersInBoundsFiltered(
+                                req.swLat(),
+                                req.swLng(),
+                                req.neLat(),
+                                req.neLng(),
+                                filter.stream().map(PracticeType::name).toList(),
+                                filter.contains(PracticeType.PARKING) ? 1 : 0);
+        List<MarkerClusterer.Point> points =
+                rows.stream()
+                        .map(r -> new MarkerClusterer.Point(r.getId(), r.getLat(), r.getLng()))
+                        .toList();
+        return new MarkerClusterResponse(
+                rows.stream().map(PlaceCoordinateResponse::from).toList(),
+                clusterer.cluster(points));
     }
 
     /**

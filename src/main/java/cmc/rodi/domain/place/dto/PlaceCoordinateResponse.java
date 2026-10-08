@@ -2,6 +2,7 @@ package cmc.rodi.domain.place.dto;
 
 import cmc.rodi.domain.place.entity.Place;
 import cmc.rodi.domain.place.entity.PlaceType;
+import cmc.rodi.domain.place.repository.PlaceMarkerRow;
 import io.swagger.v3.oas.annotations.media.Schema;
 import org.locationtech.jts.geom.Point;
 
@@ -13,6 +14,16 @@ public record PlaceCoordinateResponse(
         @Schema(description = "시군구 단위 주소", example = "서울특별시 강남구") String address,
         @Schema(description = "위도") double lat,
         @Schema(description = "경도") double lng) {
+
+    public static PlaceCoordinateResponse from(PlaceMarkerRow row) {
+        return new PlaceCoordinateResponse(
+                row.getId(),
+                PlaceType.valueOf(row.getPlaceType()),
+                row.getName(),
+                row.getAddress(),
+                row.getLat(),
+                row.getLng());
+    }
 
     public static PlaceCoordinateResponse from(Place place) {
         Point location = place.getLocation();

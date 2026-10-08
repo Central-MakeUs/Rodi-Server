@@ -1,6 +1,7 @@
 package cmc.rodi.domain.place.controller;
 
 import cmc.rodi.domain.member.entity.PracticeType;
+import cmc.rodi.domain.place.dto.MarkerClusterResponse;
 import cmc.rodi.domain.place.dto.PlaceCoordinateResponse;
 import cmc.rodi.domain.place.dto.PlaceDetailResponse;
 import cmc.rodi.domain.place.dto.PlaceListItem;
@@ -17,13 +18,32 @@ import java.util.List;
 public interface PlaceControllerDocs {
 
     @Operation(
-            summary = "장소 좌표 목록(마커)",
+            summary = "장소 좌표 목록(마커) — deprecated",
+            deprecated = true,
             description =
-                    "전체 장소의 간단 좌표를 반환한다. 지도 마커·클라이언트 클러스터링용. 공개. "
-                            + "practiceTypes가 있으면 맞는 장소만(코스는 태그 중 하나라도, 주차장은 PARKING 포함 시), 없으면 전부.")
+                    "전체 장소의 간단 좌표를 반환한다. 클라이언트 클러스터링용. 공개. "
+                            + "practiceTypes가 있으면 맞는 장소만(코스는 태그 중 하나라도, 주차장은 PARKING 포함 시), 없으면 전부. "
+                            + "서버 클러스터링 API(GET /places/clusters)로 전환한 뒤 제거한다.")
     ApiResponse<List<PlaceCoordinateResponse>> getCoordinates(
             @Parameter(description = "필터 연습유형(반복·콤마 형식, 생략 시 필터 없음). 있으면 맞는 장소만")
                     List<PracticeType> practiceTypes);
+
+    @Operation(
+            summary = "지도 마커 클러스터(검색)",
+            description =
+                    "검색 범위(검색 시점 화면의 남서/북동) 안의 장소와, 확대 단계별 묶음을 한 번에 준다. "
+                            + "확대·축소할 때는 다시 요청하지 않고, 지금 화면의 경도 폭(동쪽 경도 − 서쪽 경도)이 "
+                            + "minLngSpan 이상 maxLngSpan 미만(null은 무한대)인 단계를 골라 그 단계의 clusters와 placeIds를 그린다. "
+                            + "클러스터를 탭하면 bounds에 맞춰 카메라를 옮긴다(여백은 앱이 정함). "
+                            + "재검색 버튼을 누를 때만 새 범위로 다시 요청한다. "
+                            + "공개 + 옵셔널 JWT — 로그인 회원이 홈 정렬 필터를 설정했으면 필터에 맞는 장소만 묶는다. "
+                            + "위도 ±85·경도 ±180 밖이거나 남서가 북동 이상이면 400.")
+    ApiResponse<MarkerClusterResponse> getClusters(
+            @Parameter(description = "검색 범위 남서 위도") double swLat,
+            @Parameter(description = "검색 범위 남서 경도") double swLng,
+            @Parameter(description = "검색 범위 북동 위도") double neLat,
+            @Parameter(description = "검색 범위 북동 경도") double neLng,
+            @Parameter(hidden = true) Long memberId);
 
     @Operation(
             summary = "현위치 장소 목록",
