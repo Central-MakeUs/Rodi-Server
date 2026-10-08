@@ -1,0 +1,236 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>클러스터 튜닝</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
+<style>
+  :root { --bg: #f4f4f2; --panel: #fff; --text: #222; --muted: #6b6b66; --line: #ddd; --accent: #6c5ce7; }
+  * { box-sizing: border-box; }
+  body { margin: 0; font-family: -apple-system, "Apple SD Gothic Neo", sans-serif; background: var(--bg); color: var(--text); }
+  .wrap { display: flex; gap: 24px; padding: 20px; align-items: flex-start; }
+  .panel { width: 340px; flex: none; background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 16px; }
+  h1 { font-size: 16px; margin: 0 0 4px; }
+  .hint { font-size: 12px; color: var(--muted); margin: 0 0 14px; line-height: 1.5; }
+  .row { margin-bottom: 14px; }
+  .row label { display: flex; justify-content: space-between; font-size: 13px; margin-bottom: 4px; }
+  .row label b { font-weight: 600; }
+  .row small { display: block; font-size: 11px; color: var(--muted); margin-top: 2px; }
+  input[type=range], select { width: 100%; }
+  .buttons { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 14px; }
+  button { font: inherit; font-size: 13px; padding: 6px 10px; border: 1px solid var(--line); border-radius: 8px; background: #fafafa; cursor: pointer; }
+  button.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+  table { width: 100%; font-size: 12px; border-collapse: collapse; }
+  td { padding: 3px 0; border-bottom: 1px solid #f0f0f0; }
+  td:last-child { text-align: right; font-variant-numeric: tabular-nums; }
+  .yml { font-family: ui-monospace, monospace; font-size: 11px; background: #f7f7f5; border: 1px solid var(--line); border-radius: 8px; padding: 8px; white-space: pre; margin-top: 12px; }
+  .phone { flex: none; border: 10px solid #222; border-radius: 36px; overflow: hidden; background: #ddd; position: relative; }
+  #map { width: 100%; height: 100%; }
+  .error { color: #c0392b; font-size: 12px; min-height: 16px; }
+  .cluster-icon { display: flex; align-items: center; justify-content: center; border-radius: 50%; background: var(--accent); color: #fff; font-size: 12px; font-weight: 600; border: 2px solid #fff; box-shadow: 0 1px 3px rgba(0,0,0,.3); }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="panel">
+    <h1>마커 클러스터 튜닝</h1>
+    <p class="hint">로컬 DB 장소로 실제 서버 계산을 돌려 봅니다(비로그인 기준). "재검색"을 누르면 지금 화면 범위로 검색하고, 확대·축소는 앱처럼 요청 없이 단계만 바꿉니다. 클러스터를 누르면 bounds로 확대됩니다.</p>
+
+    <div class="buttons">
+      <button class="primary" id="search">재검색 (현재 화면)</button>
+      <button id="seoul">서울 시내</button>
+      <button id="korea">한반도 전체</button>
+    </div>
+
+    <div class="row">
+      <label for="phone">화면 크기 <b id="phoneLabel"></b></label>
+      <select id="phone">
+        <option value="375x812">375 × 812 (iPhone 13 mini·X)</option>
+        <option value="393x852" selected>393 × 852 (iPhone 15)</option>
+        <option value="412x915">412 × 915 (Galaxy S)</option>
+        <option value="360x800">360 × 800 (Galaxy A)</option>
+      </select>
+    </div>
+
+    <div class="row">
+      <label for="targetColumns">화면당 칸 수 <b id="targetColumnsVal"></b></label>
+      <input type="range" id="targetColumns" min="1" max="10" step="1">
+      <small>target-columns — 클수록 칸이 작아져 원이 많아짐(실제 약 0.7~1.4배)</small>
+    </div>
+    <div class="row">
+      <label for="noClusterWidth">묶지 않는 화면 폭 <b id="noClusterWidthVal"></b></label>
+      <input type="range" id="noClusterWidth" min="250" max="5000" step="50">
+      <small>no-cluster-width(3857 단위) — 화면 폭이 이 이하면 모두 개별 표시</small>
+    </div>
+    <div class="row">
+      <label for="clusterInsetRatio">원 위치 제한 <b id="clusterInsetRatioVal"></b></label>
+      <input type="range" id="clusterInsetRatio" min="0" max="0.5" step="0.05">
+      <small>cluster-inset-ratio — 칸 가장자리에서 이 비율 안쪽에만 원을 그림</small>
+    </div>
+    <div class="row">
+      <label for="maxCellLevel">가장 넓은 칸 <b id="maxCellLevelVal"></b></label>
+      <input type="range" id="maxCellLevel" min="12" max="20" step="1">
+      <small>max-cell-level — 한반도 전체 화면에서 쓰는 칸 크기</small>
+    </div>
+
+    <table>
+      <tr><td>화면 경도 폭</td><td id="span">-</td></tr>
+      <tr><td>쓰는 단계</td><td id="level">-</td></tr>
+      <tr><td>클러스터 / 개별</td><td id="counts">-</td></tr>
+      <tr><td>화면의 마커 수</td><td id="visible">-</td></tr>
+      <tr><td>검색 장소 수</td><td id="total">-</td></tr>
+      <tr><td>응답 시간</td><td id="elapsed">-</td></tr>
+    </table>
+    <div class="error" id="error"></div>
+    <div class="yml" id="yml"></div>
+  </div>
+
+  <div class="phone" id="phoneFrame"><div id="map"></div></div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<script>
+const X_PER_LNG = 6378137 * Math.PI / 180;
+const GROUND_RATIO = Math.cos(37.5 * Math.PI / 180); // 한국 위도에서 3857 단위 → 지상 거리
+const SEOUL = [[37.45, 126.80], [37.65, 127.15]];
+const KOREA = [[33.0, 124.5], [38.7, 131.0]];
+const params = ['targetColumns', 'noClusterWidth', 'clusterInsetRatio', 'maxCellLevel'];
+
+const map = L.map('map', { zoomSnap: 0.25, zoomDelta: 0.5, wheelPxPerZoomLevel: 120 });
+L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+  maxZoom: 19, attribution: '&copy; OpenStreetMap contributors'
+}).addTo(map);
+
+const markerLayer = L.layerGroup().addTo(map);
+let searchRect = null;
+let lastSearch = null;   // { swLat, swLng, neLat, neLng }
+let result = null;       // { places, levels }
+let placeById = new Map();
+let debounce = null;
+
+const $ = id => document.getElementById(id);
+
+function setPhone() {
+  const [w, h] = $('phone').value.split('x').map(Number);
+  $('phoneFrame').style.width = (w + 20) + 'px';
+  $('phoneFrame').style.height = (h + 20) + 'px';
+  $('phoneLabel').textContent = `${w}×${h}`;
+  map.invalidateSize();
+  render();
+}
+
+function sliderLabels() {
+  $('targetColumnsVal').textContent = $('targetColumns').value + '칸';
+  const ncw = Number($('noClusterWidth').value);
+  $('noClusterWidthVal').textContent = `${ncw} (지상 약 ${(ncw * GROUND_RATIO / 1000).toFixed(2)}km)`;
+  $('clusterInsetRatioVal').textContent = Number($('clusterInsetRatio').value).toFixed(2);
+  const lvl = Number($('maxCellLevel').value);
+  $('maxCellLevelVal').textContent = `2^${lvl} (지상 약 ${Math.round(2 ** lvl * GROUND_RATIO / 1000)}km)`;
+  $('yml').textContent =
+`marker-cluster:
+  target-columns: ${$('targetColumns').value}
+  no-cluster-width: ${$('noClusterWidth').value}
+  cluster-inset-ratio: ${$('clusterInsetRatio').value}
+  max-cell-level: ${$('maxCellLevel').value}`;
+}
+
+async function search(bounds) {
+  lastSearch = {
+    swLat: bounds.getSouth(), swLng: bounds.getWest(),
+    neLat: bounds.getNorth(), neLng: bounds.getEast()
+  };
+  await fetchClusters();
+}
+
+async function fetchClusters() {
+  if (!lastSearch) return;
+  const q = new URLSearchParams({ ...lastSearch });
+  params.forEach(p => q.set(p, $(p).value));
+  const started = performance.now();
+  try {
+    const res = await fetch('/dev/places/clusters?' + q);
+    const body = await res.json();
+    if (!res.ok || !body.isSuccess) throw new Error(body.message || res.status);
+    result = body.data;
+    placeById = new Map(result.places.map(p => [p.id, p]));
+    $('elapsed').textContent = Math.round(performance.now() - started) + 'ms';
+    $('total').textContent = result.places.length + '개';
+    $('error').textContent = '';
+  } catch (e) {
+    $('error').textContent = '요청 실패: ' + e.message;
+    return;
+  }
+  if (searchRect) searchRect.remove();
+  searchRect = L.rectangle(
+    [[lastSearch.swLat, lastSearch.swLng], [lastSearch.neLat, lastSearch.neLng]],
+    { color: '#6c5ce7', weight: 1, dashArray: '4 4', fill: false, interactive: false }
+  ).addTo(map);
+  render();
+}
+
+/** 앱 규칙 그대로: 지금 화면 경도 폭이 minLngSpan 이상 maxLngSpan 미만(null은 무한대)인 단계. */
+function pickLevel(span) {
+  return result.levels.findIndex(l => span >= l.minLngSpan && (l.maxLngSpan === null || span < l.maxLngSpan));
+}
+
+function render() {
+  if (!result) return;
+  const view = map.getBounds();
+  const span = view.getEast() - view.getWest();
+  const index = pickLevel(span);
+  const level = result.levels[index];
+  markerLayer.clearLayers();
+  let visible = 0;
+
+  level.clusters.forEach(c => {
+    const size = c.count >= 100 ? 44 : c.count >= 10 ? 38 : 32;
+    const icon = L.divIcon({
+      className: '', iconSize: [size, size],
+      html: `<div class="cluster-icon" style="width:${size}px;height:${size}px">${c.count}</div>`
+    });
+    const marker = L.marker([c.lat, c.lng], { icon }).addTo(markerLayer);
+    marker.on('click', () => map.fitBounds(
+      [[c.bounds.swLat, c.bounds.swLng], [c.bounds.neLat, c.bounds.neLng]], { padding: [40, 40] }));
+    if (view.contains([c.lat, c.lng])) visible++;
+  });
+  level.placeIds.forEach(id => {
+    const p = placeById.get(id);
+    L.circleMarker([p.lat, p.lng], {
+      radius: 6, color: '#fff', weight: 2,
+      fillColor: p.type === 'PARKING' ? '#e17055' : '#00b894', fillOpacity: 1
+    }).bindTooltip(`${p.name} (${p.type === 'PARKING' ? '주차장' : '코스'})`).addTo(markerLayer);
+    if (view.contains([p.lat, p.lng])) visible++;
+  });
+
+  $('span').textContent = span.toFixed(4) + '°';
+  $('level').textContent = `${index + 1} / ${result.levels.length}` +
+    (index === result.levels.length - 1 ? ' (묶지 않음)' : '');
+  $('counts').textContent = `${level.clusters.length} / ${level.placeIds.length}`;
+  $('visible').textContent = visible + '개';
+}
+
+async function init() {
+  const defaults = await (await fetch('/dev/cluster-tuning/defaults')).json();
+  params.forEach(p => { $(p).value = defaults[p]; });
+  sliderLabels();
+  setPhone();
+  map.fitBounds(SEOUL);
+  await search(map.getBounds());
+}
+
+params.forEach(p => $(p).addEventListener('input', () => {
+  sliderLabels();
+  clearTimeout(debounce);
+  debounce = setTimeout(fetchClusters, 200);
+}));
+$('phone').addEventListener('change', setPhone);
+$('search').addEventListener('click', () => search(map.getBounds()));
+$('seoul').addEventListener('click', () => { map.fitBounds(SEOUL); setTimeout(() => search(map.getBounds()), 300); });
+$('korea').addEventListener('click', () => { map.fitBounds(KOREA); setTimeout(() => search(map.getBounds()), 300); });
+map.on('zoomend moveend', render);
+
+init();
+</script>
+</body>
+</html>
