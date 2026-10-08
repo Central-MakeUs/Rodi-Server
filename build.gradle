@@ -64,6 +64,31 @@ dependencies {
     implementation 'org.springframework.boot:spring-boot-starter-actuator'
 }
 
+// === 로컬 전용 dev 소스셋(스펙 021) ===
+// src/dev: 마커 클러스터링 튜닝 페이지처럼 로컬 실행(bootRun)에서만 쓰는 코드. 배포 jar(bootJar)·운영 이미지에는 넣지 않는다.
+// 운영 코드가 바뀌어 dev 코드가 깨지면 바로 알 수 있도록 check(= build)가 컴파일한다.
+sourceSets {
+    dev {
+        compileClasspath += sourceSets.main.output
+        runtimeClasspath += sourceSets.main.output
+    }
+}
+
+configurations {
+    devImplementation.extendsFrom implementation
+    devCompileOnly.extendsFrom compileOnly
+    devAnnotationProcessor.extendsFrom annotationProcessor
+    devRuntimeOnly.extendsFrom runtimeOnly
+}
+
+tasks.named('bootRun') {
+    classpath += sourceSets.dev.output
+}
+
+tasks.named('check') {
+    dependsOn tasks.named('devClasses')
+}
+
 tasks.named('test') {
     useJUnitPlatform()
     finalizedBy tasks.named('jacocoTestReport')
