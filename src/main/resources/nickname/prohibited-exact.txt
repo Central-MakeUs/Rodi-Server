@@ -1,0 +1,91 @@
+# 닉네임 금칙어 — 정확 일치 판정: 비교 키(소문자·한글/영문만) 전체가 이 단어와 같으면 거부한다.
+# 한 글자·일상어와 겹치는 단어처럼 '포함'으로 두면 오탐이 큰 것들이다. 스펙 019 · ADR 0014.
+#
+# Includes words from "List of Dirty, Naughty, Obscene, and Otherwise Bad Words"
+#   © 2012–2020 Shutterstock, Inc.
+#   https://github.com/LDNOOBW/List-of-Dirty-Naughty-Obscene-and-Otherwise-Bad-Words
+#   (commit 5faf2ba42d7b1c0977169ec3611df25a3c08eb13, files: ko, en)
+#   Licensed under CC BY 4.0 — https://creativecommons.org/licenses/by/4.0/
+# Changes: split into contains/exact lists by Rodi rules, emoji/duplicate entries removed,
+#   Rodi-authored words added (section "Rodi 직접 작성").
+
+# --- LDNOOBW ko ---
+거유
+고자
+노모
+망가
+미친
+씹
+애자
+야사
+에로
+유모
+자위
+하드코어
+호로
+
+# --- LDNOOBW en ---
+2g1c
+anal
+anus
+ass
+bbw
+boob
+butt
+cialis
+clit
+cock
+coon
+cum
+dick
+dvda
+fag
+guro
+horny
+humping
+kike
+mong
+nude
+orgy
+paki
+poof
+poon
+quim
+rape
+raping
+rapist
+rimming
+scat
+semen
+sex
+sexo
+sexy
+s&m
+smut
+spic
+suck
+tit
+tits
+twat
+twink
+wank
+xx
+yaoi
+
+# --- Rodi 직접 작성 ---
+년
+놈
+젖
+엿
+시바
+십팔
+졸라
+걸레
+애미
+애비
+호구
+병맛
+관종
+일베
+메갈
+뒤져
