@@ -34,4 +34,5 @@
 | [0012](0012-visit-record-duplicate-guard.md) | 방문 기록 중복 방지 — 쿨다운 | Accepted |
 | [0013](0013-withdrawal-locked-as-status.md) | 재가입 대기 안내 — 에러 대신 상태 응답 | Accepted |
 | [0014](0014-nickname-validation-and-profanity-filter.md) | 닉네임 검증 — 형식 규칙 + 리소스 금칙어(포함/정확 일치 분리) | Accepted |
+| [0015](0015-server-side-grid-marker-clustering.md) | 지도 마커 클러스터링 — 서버 고정 그리드 | Accepted |
 | [0016](0016-filter-param-and-sort-tags.md) | 홈 유형 필터 분리 — 저장 태그는 정렬(sort_tags), 필터는 요청 파라미터 | Accepted |

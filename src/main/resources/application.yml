@@ -16,6 +16,14 @@ spring:
     baseline-on-migrate: true   # PostGIS 기본 객체(spatial_ref_sys 등)로 스키마가 비어있지 않아 필요
     baseline-version: 0         # 기본값 1이면 V1이 스킵됨 → 0으로 낮춰 V1부터 적용
 
+# 지도 마커 클러스터링(스펙 021). 길이 단위는 Web Mercator(3857) — 한국 위도에서 지상 거리의 약 1.25배.
+# 로컬 튜닝 페이지(/dev/cluster-tuning)에서 화면을 보며 정한 값을 여기에 반영한다.
+marker-cluster:
+  target-columns: 5          # 화면 가로에 들어갈 목표 칸 수(실제 약 3.5~7칸)
+  no-cluster-width: 1250     # 화면 폭이 이 이하면 묶지 않음(지상 약 1km)
+  cluster-inset-ratio: 0.25  # 클러스터 위치를 칸 가장자리에서 이 비율만큼 안쪽으로 제한
+  max-cell-level: 18         # 가장 넓은 단계의 칸 = 2^18(지상 약 210km), 한반도 전체 화면용(튜닝 페이지로 확인, 2026-10-15)
+
 springdoc:
   swagger-ui:
     path: /swagger-ui.html
