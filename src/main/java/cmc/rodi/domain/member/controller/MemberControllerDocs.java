@@ -7,6 +7,7 @@ import cmc.rodi.domain.member.dto.MemberUpdateRequest;
 import cmc.rodi.domain.member.dto.MyPageResponse;
 import cmc.rodi.domain.member.dto.OnboardingFormResponse;
 import cmc.rodi.domain.member.dto.OnboardingRequest;
+import cmc.rodi.domain.member.dto.SortTagsRequest;
 import cmc.rodi.global.common.pagination.CursorPage;
 import cmc.rodi.global.common.response.ApiResponse;
 import io.swagger.v3.oas.annotations.Operation;
@@ -55,10 +56,20 @@ public interface MemberControllerDocs {
             @Parameter(hidden = true) Long memberId, OnboardingRequest request);
 
     @Operation(
-            summary = "홈 정렬 필터 저장",
+            summary = "홈 정렬 기준 저장",
             description =
-                    "홈 정렬 필터(연습유형 리스트)를 전체 교체 저장한다. 카테고리는 클라가 연습유형으로 풀어 보낸다. "
-                            + "빈 배열이면 필터 해제(전체 노출). 저장된 값은 인증된 목록·검색 정렬에 적용된다. JWT 필요.")
+                    "홈 정렬 기준(연습유형 리스트)을 전체 교체 저장한다. 카테고리는 클라가 연습유형으로 풀어 보낸다. "
+                            + "저장된 값은 인증된 목록·검색에서 매칭 장소를 앞에 두는 정렬에만 쓰인다(필터 아님 — 필터는 "
+                            + "목록·검색·마커의 practiceTypes 파라미터). 빈 배열이면 해제(거리순). JWT 필요.")
+    ApiResponse<Void> updateSortTags(
+            @Parameter(hidden = true) Long memberId, SortTagsRequest request);
+
+    @Operation(
+            summary = "홈 정렬 기준 저장(옛 경로)",
+            deprecated = true,
+            description =
+                    "PUT /members/me/sort-tags의 옛 경로. 본문 필드명만 filterTags이고 동작은 같다(sort_tags에 저장). "
+                            + "앱이 새 경로로 바뀌면 제거한다. JWT 필요.")
     ApiResponse<Void> updateFilterTags(
             @Parameter(hidden = true) Long memberId, FilterTagsRequest request);
 

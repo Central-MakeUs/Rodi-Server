@@ -1,5 +1,6 @@
 package cmc.rodi.domain.member.controller;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
@@ -24,8 +25,8 @@ import cmc.rodi.domain.member.entity.Level;
 import cmc.rodi.domain.member.entity.PracticeType;
 import cmc.rodi.domain.member.service.MemberBlockService;
 import cmc.rodi.domain.member.service.MemberCourseTutorialService;
-import cmc.rodi.domain.member.service.MemberFilterService;
 import cmc.rodi.domain.member.service.MemberProfileService;
+import cmc.rodi.domain.member.service.MemberSortService;
 import cmc.rodi.domain.member.service.MemberWithdrawalService;
 import cmc.rodi.domain.member.service.OnboardingService;
 import cmc.rodi.global.auth.jwt.JwtAuthenticationFilter;
@@ -39,9 +40,12 @@ import java.util.List;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
+import org.springframework.boot.test.system.CapturedOutput;
+import org.springframework.boot.test.system.OutputCaptureExtension;
 import org.springframework.context.annotation.ComponentScan.Filter;
 import org.springframework.context.annotation.FilterType;
 import org.springframework.context.annotation.Import;
@@ -72,7 +76,7 @@ class MemberControllerTest {
     @MockitoBean MemberWithdrawalService memberWithdrawalService;
     @MockitoBean OnboardingService onboardingService;
     @MockitoBean MemberProfileService memberProfileService;
-    @MockitoBean MemberFilterService memberFilterService;
+    @MockitoBean MemberSortService memberSortService;
     @MockitoBean MemberBlockService memberBlockService;
     @MockitoBean MemberCourseTutorialService memberCourseTutorialService;
 
@@ -321,7 +325,76 @@ class MemberControllerTest {
     }
 
     @Test
-    @DisplayName("필터 저장: 200 + @CurrentMember의 회원 id로 연습유형 리스트 위임")
+    @DisplayName("정렬 기준 저장: 200 + @CurrentMember의 회원 id로 연습유형 리스트 위임")
+    void 정렬_기준_저장() throws Exception {
+        authenticate(7L);
+
+        mockMvc.perform(
+                        put("/api/v1/members/me/sort-tags")
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content(
+                                        "{\"sortTags\":[\"U_TURN\",\"INTERSECTION\",\"PARKING\"]}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.isSuccess").value(true));
+
+        verify(memberSortService)
+                .updateSortTags(
+                        7L,
+                        List.of(
+                                PracticeType.U_TURN,
+                                PracticeType.INTERSECTION,
+                                PracticeType.PARKING));
+    }
+
+    @Test
+    @DisplayName("정렬 기준 저장: 빈 배열도 200(해제)")
+    void 정렬_기준_저장_빈배열() throws Exception {
+        authenticate(7L);
+
+        mockMvc.perform(
+                        put("/api/v1/members/me/sort-tags")
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content("{\"sortTags\":[]}"))
+                .andExpect(status().isOk());
+
+        verify(memberSortService).updateSortTags(7L, List.of());
+    }
+
+    @Test
+    @DisplayName("정렬 기준 저장: 무효 enum 값·sortTags 누락은 400이고 저장하지 않는다")
+    void 정렬_기준_저장_검증_400() throws Exception {
+        authenticate(7L);
+
+        for (String body :
+                List.of("{\"sortTags\":[\"NOT_A_TYPE\"]}", "{}", "{\"sortTags\":[null]}")) {
+            mockMvc.perform(
+                            put("/api/v1/members/me/sort-tags")
+                                    .contentType(MediaType.APPLICATION_JSON)
+                                    .content(body))
+                    .andExpect(status().isBadRequest())
+                    .andExpect(jsonPath("$.isSuccess").value(false));
+        }
+
+        verify(memberSortService, never()).updateSortTags(any(), any());
+    }
+
+    @Test
+    @DisplayName("옛 경로 filter-tags: 호출마다 deprecated 로그를 남긴다")
+    @ExtendWith(OutputCaptureExtension.class)
+    void 옛_경로_로그(CapturedOutput output) throws Exception {
+        authenticate(7L);
+
+        mockMvc.perform(
+                        put("/api/v1/members/me/filter-tags")
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content("{\"filterTags\":[\"U_TURN\"]}"))
+                .andExpect(status().isOk());
+
+        assertThat(output).contains("deprecated PUT /members/me/filter-tags 호출 memberId=7");
+    }
+
+    @Test
+    @DisplayName("옛 경로 filter-tags: 200 + sort_tags 저장으로 위임")
     void 필터_저장() throws Exception {
         authenticate(7L);
 
@@ -333,8 +406,8 @@ class MemberControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.isSuccess").value(true));
 
-        verify(memberFilterService)
-                .updateFilterTags(
+        verify(memberSortService)
+                .updateSortTags(
                         7L,
                         List.of(
                                 PracticeType.U_TURN,
@@ -343,7 +416,7 @@ class MemberControllerTest {
     }
 
     @Test
-    @DisplayName("필터 저장: 빈 배열도 200(필터 해제)")
+    @DisplayName("옛 경로 filter-tags: 빈 배열도 200(해제)")
     void 필터_저장_빈배열() throws Exception {
         authenticate(7L);
 
@@ -353,11 +426,11 @@ class MemberControllerTest {
                                 .content("{\"filterTags\":[]}"))
                 .andExpect(status().isOk());
 
-        verify(memberFilterService).updateFilterTags(7L, List.of());
+        verify(memberSortService).updateSortTags(7L, List.of());
     }
 
     @Test
-    @DisplayName("필터 저장: 무효 enum 값은 400")
+    @DisplayName("옛 경로 filter-tags: 무효 enum 값은 400")
     void 필터_저장_무효값_400() throws Exception {
         authenticate(7L);
 
@@ -370,7 +443,7 @@ class MemberControllerTest {
     }
 
     @Test
-    @DisplayName("필터 저장: filterTags 누락(null)은 400")
+    @DisplayName("옛 경로 filter-tags: filterTags 누락(null)은 400")
     void 필터_저장_누락_400() throws Exception {
         authenticate(7L);
 
@@ -383,7 +456,7 @@ class MemberControllerTest {
     }
 
     @Test
-    @DisplayName("필터 저장: 리스트에 null 요소가 있으면 400(500 아님)")
+    @DisplayName("옛 경로 filter-tags: 리스트에 null 요소가 있으면 400(500 아님)")
     void 필터_저장_null요소_400() throws Exception {
         authenticate(7L);
 

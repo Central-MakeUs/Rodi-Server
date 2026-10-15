@@ -59,12 +59,12 @@ public class Member extends BaseEntity {
     private long totalDistanceMeters;
 
     /**
-     * 홈 정렬 필터(스펙 007). 회원이 선택한 연습유형 집합(카테고리는 클라 전용이라 풀린 값만 저장). NULL/빈 값 = 필터 없음(거리순). 인증된 목록·검색에서만
-     * 적용된다.
+     * 홈 정렬 기준(스펙 007·019). 회원이 선택한 연습유형 집합(카테고리는 클라 전용이라 풀린 값만 저장). 인증된 목록·검색에서 매칭 place를 앞에 둔다(필터가
+     * 아니라 정렬 — 필터는 요청 파라미터). NULL = 정렬 없음(거리순).
      */
     @JdbcTypeCode(SqlTypes.JSON)
-    @Column(name = "filter_tags", columnDefinition = "jsonb")
-    private List<PracticeType> filterTags;
+    @Column(name = "sort_tags", columnDefinition = "jsonb")
+    private List<PracticeType> sortTags;
 
     /** 코스 등록 튜토리얼 완료 시각(스펙 017). NULL이면 아직 보지 않았다. */
     @Column(name = "course_tutorial_completed_at")
@@ -148,10 +148,9 @@ public class Member extends BaseEntity {
         this.drivingGoal = (drivingGoal == null || drivingGoal.isBlank()) ? null : drivingGoal;
     }
 
-    /** 홈 정렬 필터 전체 교체. 빈 값이면 필터 없음(null)으로 지운다. */
-    public void updateFilterTags(List<PracticeType> filterTags) {
-        this.filterTags =
-                (filterTags == null || filterTags.isEmpty()) ? null : List.copyOf(filterTags);
+    /** 홈 정렬 기준 전체 교체. 빈 값이면 정렬 없음(null)으로 지운다. */
+    public void updateSortTags(List<PracticeType> sortTags) {
+        this.sortTags = (sortTags == null || sortTags.isEmpty()) ? null : List.copyOf(sortTags);
     }
 
     /** 코스 등록 튜토리얼 완료. 여러 번 호출해도 최초 완료 시각을 유지한다. */

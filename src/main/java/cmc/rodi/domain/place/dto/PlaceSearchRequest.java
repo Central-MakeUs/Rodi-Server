@@ -1,18 +1,33 @@
 package cmc.rodi.domain.place.dto;
 
+import cmc.rodi.domain.member.entity.PracticeType;
 import cmc.rodi.global.exception.BusinessException;
 import cmc.rodi.global.exception.ErrorCode;
+import java.util.List;
 
 /**
  * 코스 검색(스펙 007) 요청 파라미터. 키워드(시군구 주소 일부) + 현위치(거리 정렬 기준) + 페이지 크기·커서. 공개 API라 잘못된 입력을 쿼리 전에 400으로
- * 막는다: 키워드는 트림 후 1~50자, 위도 [-90,90]·경도 [-180,180], size 1~100. 키워드는 트림해 보관한다.
+ * 막는다: 키워드는 트림 후 1~50자, 위도 [-90,90]·경도 [-180,180], size 1~100. 키워드는 트림해 보관한다. {@code
+ * practiceTypes}는 필터(스펙 019) — 비어 있으면 필터 없음.
  */
-public record PlaceSearchRequest(String keyword, double lat, double lng, int size, String cursor) {
+public record PlaceSearchRequest(
+        String keyword,
+        double lat,
+        double lng,
+        int size,
+        String cursor,
+        List<PracticeType> practiceTypes) {
 
     private static final int MAX_KEYWORD_LENGTH = 50;
     private static final int MAX_SIZE = 100;
 
+    /** 필터 없는 요청. */
+    public PlaceSearchRequest(String keyword, double lat, double lng, int size, String cursor) {
+        this(keyword, lat, lng, size, cursor, List.of());
+    }
+
     public PlaceSearchRequest {
+        practiceTypes = PracticeTypeParams.normalize(practiceTypes);
         keyword = keyword == null ? "" : keyword.trim();
         if (keyword.isEmpty() || keyword.length() > MAX_KEYWORD_LENGTH) {
             throw new BusinessException(ErrorCode.INVALID_INPUT_VALUE);

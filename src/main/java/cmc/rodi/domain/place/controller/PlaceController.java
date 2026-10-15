@@ -1,10 +1,12 @@
 package cmc.rodi.domain.place.controller;
 
+import cmc.rodi.domain.member.entity.PracticeType;
 import cmc.rodi.domain.place.dto.PlaceCoordinateResponse;
 import cmc.rodi.domain.place.dto.PlaceDetailResponse;
 import cmc.rodi.domain.place.dto.PlaceListItem;
 import cmc.rodi.domain.place.dto.PlaceListRequest;
 import cmc.rodi.domain.place.dto.PlaceSearchRequest;
+import cmc.rodi.domain.place.dto.PracticeTypeParams;
 import cmc.rodi.domain.place.dto.RelatedSearchRequest;
 import cmc.rodi.domain.place.dto.RelatedSearchResponse;
 import cmc.rodi.domain.place.service.BookmarkQueryService;
@@ -35,8 +37,10 @@ public class PlaceController implements PlaceControllerDocs {
 
     @Override
     @GetMapping("/coordinates")
-    public ApiResponse<List<PlaceCoordinateResponse>> getCoordinates() {
-        return ApiResponse.success(placeQueryService.getAllCoordinates());
+    public ApiResponse<List<PlaceCoordinateResponse>> getCoordinates(
+            @RequestParam(required = false) List<PracticeType> practiceTypes) {
+        return ApiResponse.success(
+                placeQueryService.getAllCoordinates(PracticeTypeParams.normalize(practiceTypes)));
     }
 
     @Override
@@ -50,10 +54,12 @@ public class PlaceController implements PlaceControllerDocs {
             @RequestParam double lng,
             @RequestParam(defaultValue = "20") int size,
             @RequestParam(required = false) String cursor,
+            @RequestParam(required = false) List<PracticeType> practiceTypes,
             @CurrentMember(required = false) Long memberId) {
         return ApiResponse.success(
                 placeQueryService.getPlaces(
-                        new PlaceListRequest(swLat, swLng, neLat, neLng, lat, lng, size, cursor),
+                        new PlaceListRequest(
+                                swLat, swLng, neLat, neLng, lat, lng, size, cursor, practiceTypes),
                         memberId));
     }
 
@@ -65,10 +71,12 @@ public class PlaceController implements PlaceControllerDocs {
             @RequestParam double lng,
             @RequestParam(defaultValue = "20") int size,
             @RequestParam(required = false) String cursor,
+            @RequestParam(required = false) List<PracticeType> practiceTypes,
             @CurrentMember Long memberId) {
         return ApiResponse.success(
                 placeQueryService.searchPlaces(
-                        new PlaceSearchRequest(keyword, lat, lng, size, cursor), memberId));
+                        new PlaceSearchRequest(keyword, lat, lng, size, cursor, practiceTypes),
+                        memberId));
     }
 
     @Override
