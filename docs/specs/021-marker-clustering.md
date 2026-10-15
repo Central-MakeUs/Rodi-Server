@@ -13,6 +13,8 @@
 | 2026-10-09 | **Approved** | 승인 — 구현은 #74 머지 후 develop 기준으로 시작 |
 | 2026-10-09 | Approved | 튜닝 코드 위치 확정 — 별도 소스 폴더 `src/dev`(git 관리, 로컬 실행에만 포함, 배포 jar 제외), Swagger 비노출 |
 | 2026-10-09 | In Progress | 구현 완료 — 계산 로직·클러스터 API·dev 소스셋·로컬 튜닝 페이지. 성능 측정 기록. **남은 것: 실제 로컬 DB로 기본값 튜닝**, #74 머지 후 develop 합치기 |
+| 2026-10-15 | Draft | **유형 필터를 `practiceTypes` 파라미터로 변경** — #74(PR #77)가 저장 필터를 정렬 기준(`sort_tags`)으로 바꾸고 필터는 요청 파라미터로 분리했다([ADR 0016](../adr/0016-filter-param-and-sort-tags.md)). 클러스터도 같은 규칙을 따른다: `practiceTypes`가 있으면 맞는 장소만, 없으면 전부. 회원·토큰과 무관해 옵셔널 JWT를 뺀다. develop(#77·#78) 위로 rebase |
+| 2026-10-15 | Approved | `practiceTypes` 필터 변경 승인 |
 
 ## 배경 / 목적
 
@@ -41,8 +43,9 @@
 ### 기능 요구사항
 
 1. **검색**: 검색 범위(화면 bbox)를 받아, 그 범위의 장소 목록과 **확대 단계별 묶음**을 준다.
-2. **묶는 대상**: 검색 범위 안의 장소만 — 주차장 전체 + 승인(`APPROVED`)·미삭제 코스, 여기에 회원 유형 필터(#74와 같은 규칙: 인증 회원이 필터를 가지면 맞는 장소만, 비로그인·빈 필터는 전부).
-3. **목록과 개수 일치**: 어느 단계든 `클러스터 개수 합 + 개별 장소 수 = 장소 목록 수`이고, 같은 범위·같은 필터의 `GET /places` 전체 개수(`totalCount`)와 같다.
+2. **묶는 대상**: 검색 범위 안의 장소만 — 주차장 전체 + 승인(`APPROVED`)·미삭제 코스, 여기에 유형 필터(`practiceTypes` 파라미터, [스펙 019](019-refinements-1.md)와 같은 규칙: 있으면 맞는 장소만 — 코스는 태그 중 하나라도, 주차장은 PARKING 포함 시 — 없으면 전부).
+   - 회원의 정렬 기준(`sort_tags`)은 쓰지 않는다. 정렬은 순서만 바꾸고 장소 집합은 바꾸지 않으므로 지도와 무관하다.
+3. **목록과 개수 일치**: 어느 단계든 `클러스터 개수 합 + 개별 장소 수 = 장소 목록 수`이고, 같은 범위·같은 `practiceTypes`의 `GET /places` 전체 개수(`totalCount`)와 같다(로그인 여부와 무관 — 목록의 정렬은 개수에 영향이 없다).
 4. **고정 그리드**: Web Mercator(EPSG:3857) 원점에 고정된 정사각형 격자로 나눈다. 같은 칸의 장소가 **2개 이상이면 클러스터, 1개면 개별 장소**다.
 5. **단계**: 단계마다 칸 크기가 정해져 있고(2배 단위), 단계마다 **쓰이는 화면 경도 폭 범위**(`minLngSpan` 이상 `maxLngSpan` 미만)를 붙인다. 앱은 지금 화면의 경도 폭으로 단계를 고른다([단계 구성](#단계-구성)).
 6. **묶지 않는 단계**: 화면 폭이 지상 약 1km 이하인 범위에서는 모든 장소를 개별로 보여주는 단계를 쓴다.
@@ -50,11 +53,11 @@
 8. **클러스터 정보**: 개수, 위치, 범위(`bounds`, 묶인 장소들을 감싸는 영역). 앱은 탭하면 `bounds`에 맞춰 카메라를 옮긴다.
 9. **클러스터 위치는 칸 안쪽으로 제한한 중심점**: 묶인 장소들의 중심점에 그리되, 칸 가장자리에서 칸 크기의 1/4 안쪽 영역을 벗어나면 그 영역 안으로 당긴다([클러스터 위치](#클러스터-위치)).
 10. **`bounds` 최소 크기**: 탭 한 번에 반드시 개별 장소로 풀리도록 `bounds`의 가로·세로를 최소 크기 이상으로 넓힌다([bounds 최소 크기](#bounds-최소-크기)).
-11. **결정적 응답**: 같은 범위·같은 필터면 항상 같은 응답(항목·순서)을 준다.
+11. **결정적 응답**: 같은 범위·같은 `practiceTypes`면 항상 같은 응답(항목·순서)을 준다.
 
 ### 비기능 요구사항
 
-- **공개 API + 옵셔널 JWT**(필터 적용용). `SecurityConfig` 공개 경로에 추가하고 `@CurrentMember(required = false)`로 받는다 — #74의 `/places/coordinates`와 같은 방식.
+- **공개 API**. `SecurityConfig` 공개 경로에 추가한다. 필터가 요청 파라미터라 회원 식별이 필요 없어 토큰을 읽지 않는다(`/places/coordinates`와 같다).
 - **조회 1회 + 메모리 계산**: 검색 범위의 장소를 bbox 인덱스(`idx_place_location`, GiST)로 한 번 조회하고, 단계별 묶음은 애플리케이션에서 계산한다. 합성 장소 1만 개 기준 응답 시간을 측정해 구현 노트에 기록한다(CI 단언은 하지 않는다).
 - **알고리즘과 무관한 응답**: 칸 번호·칸 크기 등 그리드 전용 값을 응답에 넣지 않는다(ADR 0015 §5).
 - **기본값은 설정으로**: 칸 수·묶지 않는 폭·원 위치 제한을 `application.yml` 설정값으로 두어 코드 수정 없이 조정한다.
@@ -63,8 +66,8 @@
 
 | Method | Path | 설명 | 인증 |
 |--------|------|------|------|
-| GET | `/api/v1/places/clusters` | 검색 범위의 장소 + 확대 단계별 묶음 | 공개(옵셔널 JWT — 필터 적용) |
-| GET | `/api/v1/places/coordinates` | 전체 좌표 — **deprecated**, 앱 전환 후 제거 | 공개(옵셔널 JWT) |
+| GET | `/api/v1/places/clusters` | 검색 범위의 장소 + 확대 단계별 묶음 | 공개 |
+| GET | `/api/v1/places/coordinates` | 전체 좌표(`practiceTypes` 필터 지원) — **deprecated**, 앱 전환 후 제거 | 공개 |
 
 `PlaceController`에 둔다(단발 엔드포인트, 소유 컨트롤러 기준).
 
@@ -72,12 +75,14 @@
 
 ```
 GET /api/v1/places/clusters?swLat=37.45&swLng=126.80&neLat=37.65&neLng=127.15
+GET /api/v1/places/clusters?swLat=37.45&swLng=126.80&neLat=37.65&neLng=127.15&practiceTypes=U_TURN,PARKING
 ```
 
 | 파라미터 | 필수 | 설명 |
 |----------|------|------|
 | `swLat`·`swLng` | O | 검색 범위(검색 시점 화면) 남서 모서리 |
 | `neLat`·`neLng` | O | 검색 범위 북동 모서리 |
+| `practiceTypes` | X | 필터 연습유형. 반복(`?a=X&a=Y`)·콤마(`?a=X,Y`) 형식, 중복은 하나로, 생략·빈 값이면 필터 없음, 없는 값은 400 `COMMON_400`([스펙 019](019-refinements-1.md)와 같다). 앱은 목록(`GET /places`)과 **같은 값**을 보낸다 |
 
 - 위도 −85~85(Web Mercator 유효 범위), 경도 −180~180, `swLat < neLat`, `swLng < neLng`가 아니면 400 `COMMON_400`. 날짜변경선을 넘는 범위는 지원하지 않는다(국내 서비스).
 
@@ -110,7 +115,7 @@ GET /api/v1/places/clusters?swLat=37.45&swLng=126.80&neLat=37.65&neLng=127.15
 
 | 필드 | 설명 |
 |------|------|
-| `places` | 검색 범위의 장소 전체(필터 적용). 기존 `PlaceCoordinateResponse`와 같은 필드. id 오름차순 |
+| `places` | 검색 범위의 장소 전체(`practiceTypes` 필터 적용). 기존 `PlaceCoordinateResponse`와 같은 필드. id 오름차순 |
 | `levels` | 확대 단계. **넓은 화면용 → 좁은 화면용** 순서(그리드 단계들 → 묶지 않는 단계). 예시는 일부 단계만 보였다 |
 | `levels[].minLngSpan`·`maxLngSpan` | 이 단계를 쓰는 화면 경도 폭 범위(`min` 이상 `max` 미만). `maxLngSpan: null`은 상한 없음(가장 넓은 단계) |
 | `levels[].clusters` | 클러스터. `lat`·`lng`는 그릴 위치, `count`는 묶인 장소 수(2 이상), `bounds`는 탭했을 때 맞출 범위 |
@@ -201,8 +206,8 @@ y = clamp(중심점Y, 칸최소Y + inner, 칸최대Y − inner)
 | `MarkerClusterResponse` | `places` + `levels` |
 | `MarkerClusterProperties` | `marker-cluster.*` 설정 바인딩 |
 | `MarkerClusterer` | 투영·단계 구성·칸 묶기·위치 제한·`bounds` 최소 크기(순수 계산, 단위 테스트 대상) |
-| `PlaceRepository` | 검색 범위 장소 조회(노출 조건·필터 포함) |
-| `PlaceQueryService.getClusters` | 필터 해석(#74의 `resolveFilter`) → 조회 → `MarkerClusterer` → 응답 |
+| `PlaceRepository` | 검색 범위 장소 조회(노출 조건·필터 포함). 목록 쿼리처럼 **쿼리 하나**에 `useFilter` 플래그와 공통 매칭 술어 `MATCHES_FILTER`를 쓴다([ADR 0016](../adr/0016-filter-param-and-sort-tags.md)) |
+| `PlaceQueryService.getClusters` | `practiceTypes` → 조회 → `MarkerClusterer` → 응답 |
 
 ## 앱 연동 가이드
 
@@ -230,7 +235,7 @@ y = clamp(중심점Y, 칸최소Y + inner, 칸최대Y − inner)
 | 코드 | 운영 코드와 분리된 **별도 소스 폴더 `src/dev`**(`src/dev/java/cmc/rodi/dev/…`, `src/dev/resources/dev/…`). git으로 관리한다. Gradle `dev` 소스셋으로 **`bootRun`(로컬 실행)에만 포함**하고 배포용 `bootJar`·운영 이미지에는 넣지 않는다. 운영 코드가 바뀌어 튜닝 코드가 깨지는 것을 알 수 있도록 `./gradlew build`(CI)는 `dev` 소스셋도 컴파일한다 |
 | Swagger | 튜닝 컨트롤러는 `@Hidden`으로 API 문서에 노출하지 않는다(로컬 Swagger에도 안 보임) |
 | 지도 | Leaflet + OpenStreetMap 타일(키 불필요, Web Mercator). 앱의 카카오 지도와 투영·글꼴·원 크기가 조금 다를 수 있어, 튜닝 후 최종 모습은 앱 연동 때 한 번 더 확인한다 |
-| 데이터 | 로컬 DB의 장소. 노출 조건은 실제 API와 같다(필터는 비로그인 기준 — 전부) |
+| 데이터 | 로컬 DB의 장소. 노출 조건은 실제 API와 같다(필터 없이 전부) |
 | 계산 | 실제 서버 코드(`MarkerClusterer`)를 그대로 쓴다. 페이지가 바꾼 설정값만 요청에 실어 보내는 **튜닝 전용 엔드포인트**(`GET /dev/places/clusters`, `local` 전용)를 거친다. 운영 API `/places/clusters`는 설정 덮어쓰기를 받지 않는다 |
 | 조작 | 슬라이더로 `target-columns`·`no-cluster-width`·`cluster-inset-ratio`·`max-cell-level`을 바꾸면 바로 다시 계산해 그린다 |
 | 화면 크기 | 폰 화면 틀(예: 375×812, 393×852)을 골라 그 크기의 지도 영역에서 본다 |
@@ -250,7 +255,7 @@ y = clamp(중심점Y, 칸최소Y + inner, 칸최대Y − inner)
 
 - [x] 같은 칸에 장소 3개, 다른 칸에 1개가 있으면 그 단계에 클러스터(count 3) 1개와 `placeIds` 1개가 있다.
 - [x] 모든 단계에서 `클러스터 count 합 + placeIds 수 = places 수`다.
-- [x] `places` 수가 같은 범위·같은 필터의 `GET /places` `totalCount`와 같다.
+- [ ] `places` 수가 같은 범위·같은 `practiceTypes`의 `GET /places` `totalCount`와 같다(필터 없음·있음 모두).
 - [x] 검색 범위 밖의 장소는 어느 단계에도 없다.
 - [x] 클러스터 `lat`·`lng`는 묶인 장소들의 중심점이고(칸 안쪽 영역에 있을 때), `bounds`는 묶인 장소들을 모두 포함한다.
 - [x] 중심점이 칸 가장자리 1/4 영역에 있으면 클러스터 위치가 안쪽 영역 경계로 당겨진다 — 공유 경계에 장소가 몰린 이웃 두 칸의 클러스터 위치가 칸 크기의 절반 이상 떨어진다.
@@ -261,14 +266,16 @@ y = clamp(중심점Y, 칸최소Y + inner, 칸최대Y − inner)
 **노출·필터**
 
 - [x] 미승인(`PENDING`·`REJECTED`)·삭제된 코스는 `places`와 어느 단계에도 없다.
-- [x] 필터가 있는 인증 회원에게는 필터에 맞는 장소만 준다(코스는 태그 겹침, 주차장은 PARKING 포함 시). 비로그인·빈 필터는 전부다.
+- [ ] `practiceTypes`가 있으면 맞는 장소만 준다(코스는 태그 겹침, 주차장은 PARKING 포함 시). 없으면 전부다.
+- [ ] `sort_tags`가 있는 회원의 토큰을 보내도 결과가 토큰 없을 때와 같다.
+- [ ] `practiceTypes`의 반복·콤마 형식이 같은 결과를 내고, 없는 값은 400 `COMMON_400`이다.
 
 **검증·설정·기타**
 
 - [x] 범위 파라미터 누락, 위경도 범위 밖, `sw ≥ ne`는 400 `COMMON_400`이다.
 - [x] 토큰 없이도 200이다.
 - [x] `marker-cluster.*` 설정을 바꾸면 코드 수정 없이 단계·위치 계산에 반영된다.
-- [x] `/places/coordinates`는 그대로 동작하고, Swagger에 deprecated로 표시된다.
+- [x] `/places/coordinates`는 그대로 동작하고(`practiceTypes` 필터 포함), Swagger에 deprecated로 표시된다.
 - [x] 튜닝 페이지·튜닝 엔드포인트는 `local` 프로필에서만 등록되고, 그 외 프로필에서는 404다.
 - [x] 배포용 jar(`bootJar`)에 `src/dev`의 클래스·리소스가 들어 있지 않다.
 - [x] 로컬 실행 시 `/v3/api-docs`에 튜닝 엔드포인트가 없다.
@@ -285,13 +292,13 @@ y = clamp(중심점Y, 칸최소Y + inner, 칸최대Y − inner)
 |----------|------|
 | 순수 계산 | `MarkerClusterer`·`MarkerClusterProperties`(`domain/place/service`) |
 | 응답·요청 | `MarkerClusterResponse`·`MarkerClusterRequest`(`domain/place/dto`) |
-| 조회 | `PlaceRepository.findMarkersInBounds`·`findMarkersInBoundsFiltered` — 노출 조건(`VISIBLE`)과 GiST 인덱스 공유 |
+| 조회 | `PlaceRepository.findMarkersInBounds` — 노출 조건(`VISIBLE`)·필터 술어(`MATCHES_FILTER`)를 목록 쿼리와 공유, GiST 인덱스 사용 |
 | 서비스 | `PlaceQueryService.getClusters` — 클러스터러를 바꿔 끼우는 오버로드는 튜닝 페이지용 |
 | 튜닝 | `src/dev` — `ClusterTuningController`(`/dev/cluster-tuning`, `/dev/places/clusters`)·`DevSecurityConfig`·`cluster-tuning.html` |
 
 - 단계 경계는 `단계 k의 하한 = 단계 k−1의 상한`으로 계산해, 부동소수 오차로 구간 사이에 틈이 생기지 않는다.
 - 칸 묶기는 단계마다 장소 수만큼 한 번씩 돈다(O(장소 수 × 단계 수)). 결과 순서는 정렬로 고정해 입력 순서와 무관하다.
-- 회원 필터는 #74와 같은 **필터에 맞는 장소만** 규칙으로 구현했다. #74 머지 전 develop의 목록(`GET /places`)은 "매칭 먼저, 비매칭도 전부"라, 필터가 있는 회원은 #74 머지 전까지 클러스터 수와 목록 수가 다를 수 있다. 비로그인·빈 필터는 지금도 같다(테스트로 확인).
+- 필터는 처음에 #74 초안(회원 저장 필터로 맞는 장소만)으로 구현했다가, #74가 저장 값을 정렬 전용(`sort_tags`)으로 바꾸고 필터를 요청 파라미터로 분리하면서(2026-10-15) `practiceTypes` 파라미터로 옮겼다. 목록과 같은 술어(`MATCHES_FILTER`)를 써서 같은 `practiceTypes`면 개수가 항상 같다.
 
 ### 성능 측정 (2026-10-09)
 
