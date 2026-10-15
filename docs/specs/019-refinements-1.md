@@ -12,6 +12,7 @@
 | 2026-10-01 | Approved | **1번(레벨별 연습 기록) 보류** — 화면 도출 후 재확인·구현. #74는 2·3·4번만 |
 | 2026-10-15 | Draft | **2번 재설계** — 첫 진입 시 매칭 코스가 없어 빈 화면이 자주 나오는 문제로, 저장 필터로 매칭 장소만 주던 방식(9dc4505)을 되돌리고 **저장 태그는 정렬 기준(`sort_tags`), 필터는 요청 파라미터(`practiceTypes`)**로 분리. 옛 PUT 경로는 별칭으로 유지. **1번은 [스펙 022](022-level-practice-record.md)으로 분리(추후 구현)** |
 | 2026-10-15 | Approved | 2번 재설계 승인 — 비로그인 파라미터 필터 허용(미해결 질문 4), 마이그레이션은 V27(먼저 머지되는 #74가 사용, #75 닉네임은 rebase 시 V28로) |
+| 2026-10-15 | Approved | **필터와 정렬 동시 적용 · 쿼리 통합** — `practiceTypes`가 있어도 `sort_tags` 정렬을 적용한다(필터 안에서 매칭 우선). 모드별 쿼리(기본·정렬·필터)를 목록·검색 각각 **하나의 쿼리**로 합치고, 커서 `sortValue`를 항상 `matched\|distance`로 통일(거리만 있는 커서는 matched=0으로 받음) |
 
 ## 배경 / 목적
 
@@ -49,16 +50,16 @@
    - **정렬 기준 저장(`sort_tags`)** — `member.filter_tags`를 `sort_tags`로 이름만 바꾼다. 값·의미(전체 교체, 빈 목록이면 해제)는 그대로다.
      - 새 경로 `PUT /members/me/sort-tags`(`{ "sortTags": [...] }`)로 저장한다.
      - 옛 경로 `PUT /members/me/filter-tags`(`{ "filterTags": [...] }`)는 **별칭으로 남긴다.** 같은 서비스 메서드를 불러 `sort_tags`에 저장한다. Swagger에 deprecated로 표시하고, 호출될 때마다 INFO 로그를 남겨 앱이 아직 옛 경로를 쓰는지 확인할 수 있게 한다.
-   - **요청별 동작** — 목록(`GET /places`)·검색(`GET /places/search`)은 아래 셋 중 하나로 동작한다.
+   - **필터와 정렬은 독립적으로 함께 적용된다** — 목록(`GET /places`)·검색(`GET /places/search`)에서
+     - **필터(무엇을 보여줄지)**: `practiceTypes`가 있으면 맞는 장소**만**, 없으면 전부.
+     - **정렬(어떤 순서로)**: 인증 회원의 `sort_tags`가 있으면 그에 맞는 장소가 **먼저**, 그다음 나머지. 같은 그룹 안에서는 거리 → id. `sort_tags`가 없거나 비로그인이면 거리 → id.
 
-     | 요청 | 결과 | 정렬 | 커서 `sortValue` |
+     | `practiceTypes` | 인증 + `sort_tags` | 결과 | 순서 |
      |------|------|------|------|
-     | `practiceTypes` **있음** | 매칭 장소**만** | 거리 → id | `distance` |
-     | 없음 + 인증 + `sort_tags` 있음 | **전부** | 매칭 우선 → 거리 → id | `matched\|distance` |
-     | 없음 + 그 외(비로그인·빈 `sort_tags`) | 전부 | 거리 → id | `distance` |
-
-     - 파라미터로 필터할 때는 `sort_tags`를 쓰지 않는다(필터 결과 안에서는 순수 거리순).
-     - 정렬 모드는 스펙 007의 기존 동작 그대로다(develop과 같음).
+     | 없음 | 없음 | 전부 | 거리 |
+     | 없음 | 있음 | 전부 | `sort_tags` 매칭 우선 → 거리 (스펙 007과 같음) |
+     | 있음 | 없음 | 필터 매칭만 | 거리 |
+     | 있음 | 있음 | 필터 매칭만 | 그 안에서 `sort_tags` 매칭 우선 → 거리 |
    - **지도 마커(`GET /places/coordinates`)** — `practiceTypes`가 있으면 매칭 장소만, 없으면 전부. 순서가 의미 없어 `sort_tags`는 쓰지 않는다. 지금처럼 인증 없이 호출한다.
    - **매칭 규칙**은 필터와 정렬이 같다 — 코스는 태그 중 하나라도 기준에 있으면(합집합), 주차장은 기준에 `PARKING`이 있으면.
    - **인증** — 목록은 옵셔널 JWT, 검색은 **JWT 필수**(변경 없음), 마커는 공개. 파라미터 필터는 토큰과 관계없이 동작한다.
@@ -100,14 +101,29 @@ PUT /members/me/filter-tags { filterTags }  → MemberController.updateFilterTag
 
 두 엔드포인트는 단발 엔드포인트라 소유 컨트롤러인 `MemberController`에 나란히 둔다.
 
-**쿼리** — 매칭 조건은 공통 상수 `MATCHES_FILTER` 하나로 정렬(`CASE WHEN ... THEN 1 ELSE 0 END AS matched`)과 필터(`WHERE`)가 함께 쓴다. 두 쿼리의 매칭 규칙이 어긋나지 않게 하기 위함이다.
+**쿼리 — 목록·검색 각각 하나로 합친다.** 필터와 정렬 기준을 모두 파라미터로 받고, 쓰지 않는 쪽은 플래그로 끈다. 모드마다 쿼리를 따로 두면 필터+정렬 조합까지 4벌이 되고 서비스도 모드 분기가 늘어서다.
 
-| 용도 | 목록 | 검색 | 건수(totalCount) |
-|------|------|------|------|
-| 기본 | `findInViewport` | `searchByKeyword` | `countInViewport` · `countByKeyword` |
-| 정렬(`sort_tags`) | `findInViewportSorted` | `searchByKeywordSorted` | 기본과 같음(전부) |
-| 필터(`practiceTypes`) | `findInViewportFiltered` | `searchByKeywordFiltered` | `countInViewportFiltered` · `countByKeywordFiltered` |
-| 마커 필터 | `findAllVisibleFiltered` | — | — |
+```sql
+SELECT ...,
+       CASE WHEN :useSort AND <sort 기준 매칭> THEN 1 ELSE 0 END AS matched
+FROM place p
+WHERE <뷰포트 또는 키워드> AND <노출 조건(VISIBLE)>
+  AND (:useFilter = false OR <filter 기준 매칭>)
+-- 커서 keyset (matched, distance, id)
+ORDER BY matched DESC, distance ASC, id ASC
+```
+
+| 용도 | 목록 | 검색 |
+|------|------|------|
+| 데이터 | `findInViewport` | `searchByKeyword` |
+| 건수(totalCount) | `countInViewport` | `countByKeyword` |
+
+- 매칭 규칙(코스는 태그 중 하나라도, 주차장은 PARKING 포함 시)은 필터용 `MATCHES_FILTER`와 정렬용 `MATCHES_SORT` 두 상수로 둔다. `@Query`에는 컴파일 타임 상수만 들어가 파라미터 이름을 바꿔 끼울 수 없으므로, **파라미터 이름만 다르고 술어는 같은 두 상수**다. 같은 규칙인지는 테스트로 지킨다(같은 기준을 필터와 정렬에 넣으면 매칭 장소 집합이 같다).
+- 쓰지 않는 기준은 `IN ()`(빈 목록)이 SQL 오류이므로 자리표시 목록을 넘기고 플래그로 끈다. 이 처리는 서비스 한 곳에서 한다.
+- `sort_tags`가 없으면 모든 행의 `matched`가 0이라 결과는 거리순과 같다.
+- 건수는 필터만 반영한다(정렬은 개수에 영향 없음).
+- 서비스는 모드 분기 없이 요청의 `practiceTypes`와 회원의 `sort_tags`를 채워 한 쿼리를 부른다.
+- 지도 마커는 순서가 없어 정렬과 무관하므로 지금처럼 `findAllVisible`·`findAllVisibleFiltered`(JPQL) 둘로 둔다.
 
 - 지금(develop)의 `*Filtered`는 정렬 쿼리라 `*Sorted`로 이름을 바꾸고, `*Filtered`는 매칭만 거르는 쿼리로 새로 둔다(9dc4505에 있던 쿼리를 다시 쓴다).
 
@@ -175,14 +191,21 @@ GET /api/v1/places?...&practiceTypes=U_TURN,PARKING          (콤마 형식도 �
 - 없는 enum 값이면 400 `COMMON_400`.
 - 검색·마커도 같은 파라미터·규칙이다.
 
-**정렬 (파라미터 없음, 인증 + `sort_tags` 있음)** — 스펙 007 그대로다.
+**정렬 (인증 + `sort_tags` 있음)** — 스펙 007 그대로이고, 필터와 함께 쓰면 필터 결과 안에서 정렬한다.
 
 ```text
 GET /api/v1/places?...   (JWT, sort_tags = [U_TURN, PARKING])
 → U_TURN 태그 코스·주차장이 먼저(거리순), 그다음 나머지 전부(거리순). totalCount는 전부의 개수
+
+GET /api/v1/places?...&practiceTypes=PARKING,INTERSECTION   (JWT, sort_tags = [INTERSECTION])
+→ 주차장·교차로 코스만. 그중 교차로 코스가 먼저(거리순), 그다음 주차장(거리순). totalCount는 필터 매칭 수
 ```
 
-**커서** — 모드마다 `sortValue` 형식이 다르다(위 요청별 동작 표). 다음 페이지는 **첫 페이지와 같은 조건**(파라미터·토큰)으로 불러야 하며, 모드와 맞지 않는 형식의 커서는 400 `COMMON_400`이다(예: 필터 모드에 `matched|distance` 커서). 형식 검증은 develop의 커서 파싱을 그대로 쓴다.
+**커서** — 커서 페이징은 그대로이고, 커서 안의 `sortValue`가 **항상 `matched|distance`** 한 형식이 된다(쿼리가 하나라 정렬 키가 늘 `(matched, distance, id)`).
+
+- 다음 페이지는 **첫 페이지와 같은 조건**(파라미터·토큰)으로 부른다. 조건이 바뀌면 첫 페이지부터 다시 부른다.
+- **거리만 있는 커서(`distance`)도 받는다** — `matched=0`으로 해석한다. 배포 전 앱이 정렬 없이 받은 커서는 이 형식이고, 그때 모든 행이 `matched=0`이라 해석이 정확하다. 배포 순간 스크롤 중이던 사용자가 400을 받지 않게 하기 위함이다.
+- 형식·값이 비정상인 커서(숫자 아님, `matched`가 0·1 외, 음수·NaN 거리)는 400 `COMMON_400`.
 
 **정렬 기준 저장**
 
@@ -300,13 +323,15 @@ GET /api/v1/places?...   (JWT, sort_tags = [U_TURN, PARKING])
 - [ ] V27 후 `member.sort_tags`에 기존 `filter_tags` 값이 그대로 남아 있다.
 - [ ] `PUT /members/me/sort-tags`와 `PUT /members/me/filter-tags`가 모두 200이고, 같은 `sort_tags` 컬럼에 저장된다. 빈 배열이면 해제된다.
 - [ ] 옛 경로를 호출하면 INFO 로그가 한 줄 남는다.
-- [ ] `practiceTypes`가 있으면 목록·검색·마커에 **비매칭 장소가 나오지 않는다**(태그가 겹치지 않는 코스, 파라미터에 PARKING이 없을 때의 주차장). 결과는 거리순이다.
-- [ ] 필터 적용 시 `totalCount`가 매칭 장소 수와 같고, 2페이지가 `distance` 커서로 누락·중복 없이 이어진다.
-- [ ] `practiceTypes`가 있으면 `sort_tags`가 있는 회원이어도 결과가 같다(정렬 미적용).
+- [ ] `practiceTypes`가 있으면 목록·검색·마커에 **비매칭 장소가 나오지 않는다**(태그가 겹치지 않는 코스, 파라미터에 PARKING이 없을 때의 주차장).
+- [ ] 필터 적용 시 `totalCount`가 매칭 장소 수와 같고, 2페이지가 누락·중복 없이 이어진다.
+- [ ] `sort_tags`가 없으면(비로그인 포함) 필터 결과가 거리순이다.
+- [ ] `practiceTypes`와 `sort_tags`가 함께 있으면 **필터 매칭 장소만, 그 안에서 `sort_tags` 매칭이 먼저** 나오고, 정렬 경계를 넘는 2페이지가 누락·중복 없이 이어진다.
+- [ ] 파라미터 없이 `sort_tags`가 있는 인증 회원은 **매칭 장소가 먼저, 비매칭도 전부** 나오고 2페이지가 이어진다(develop과 같은 결과).
+- [ ] 비로그인·빈 `sort_tags`이고 파라미터도 없으면 전부, 거리순이다. 마커는 토큰 없이 200이다.
+- [ ] 같은 연습유형을 필터와 정렬 기준에 넣으면 필터 결과와 정렬의 매칭 그룹이 같은 장소 집합이다(두 매칭 상수의 규칙 일치).
+- [ ] 다음 커서는 항상 `matched|distance` 형식이고, 거리만 있는 커서(`distance`)도 `matched=0`으로 받아 이어진다. 비정상 커서는 400이다.
 - [ ] 반복·콤마 형식이 같은 결과를 내고, 없는 enum 값은 400이다.
-- [ ] 파라미터 없이 `sort_tags`가 있는 인증 회원은 **매칭 장소가 먼저, 비매칭도 전부** 나오고, 2페이지가 `matched|distance` 커서로 이어진다(develop과 같은 결과).
-- [ ] 비로그인·빈 `sort_tags`는 전부, 거리순이다. 마커는 토큰 없이 200이다.
-- [ ] 모드와 맞지 않는 커서는 400이다.
 
 **3·4. 온보딩**
 - [ ] 온보딩 폼이 2단계를 반환한다 — 1단계(Q1~Q4-2, `skippable: false`)·2단계(연습유형·차종·운전 목표, `skippable: true`). 문항은 `order` 1~8 순서다.
