@@ -20,7 +20,7 @@ import org.springframework.transaction.annotation.Transactional;
 @RequiredArgsConstructor
 public class MemberProfileService {
 
-    /** V27의 닉네임 유니크 인덱스. */
+    /** V28의 닉네임 유니크 인덱스. */
     private static final String NICKNAME_UNIQUE_INDEX = "uq_member_nickname_lower";
 
     private final MemberRepository memberRepository;

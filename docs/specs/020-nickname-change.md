@@ -7,8 +7,9 @@
 | 2026-10-08 | Draft | 최초 작성 — 이슈 [#75](https://github.com/Central-MakeUs/Rodi-Server/issues/75), 설계 결정 [ADR 0014](../adr/0014-nickname-validation-and-profanity-filter.md) |
 | 2026-10-08 | Draft | 미해결 질문 1·2 확정 — PATCH는 **보낸 필드만 수정**(생략=변경 없음, `drivingGoal` null/빈값=삭제), 중복은 **대소문자 무시**(`lower(nickname)` 유니크 인덱스) |
 | 2026-10-08 | **Approved** | 승인 — 금칙어 단어 목록은 스펙에서 빼고 분류 기준·출처 표기만 유지. LDNOOBW는 커밋 `5faf2ba` 기준으로 **한 번 가공해 커밋**(A안) |
-| 2026-10-08 | Implemented | 구현 완료 — V27·후보 풀 이관, `ProhibitedWords`·`NicknamePolicy`, `NicknameService`·확인 API, PATCH 닉네임. 허용 목록은 **위치 기반**(덮인 일치만 무시)으로 정정, 부분 수정은 **setter 호출 여부로 생략/null 구분**(구현 노트) |
+| 2026-10-08 | Implemented | 구현 완료 — V28·후보 풀 이관, `ProhibitedWords`·`NicknamePolicy`, `NicknameService`·확인 API, PATCH 닉네임. 허용 목록은 **위치 기반**(덮인 일치만 무시)으로 정정, 부분 수정은 **setter 호출 여부로 생략/null 구분**(구현 노트) |
 | 2026-10-08 | Implemented | 스펙 번호 019 → **020** — #74의 `019-refinements-1.md`가 먼저 머지되어 번호 충돌을 피함 |
+| 2026-10-15 | Implemented | develop(#77 머지) 위로 rebase — #77이 V27(`sort_tags` 이름 변경)을 먼저 써서 닉네임 이관 마이그레이션을 **V28**로 변경 |
 
 ## 배경 / 목적
 
@@ -132,7 +133,7 @@
 
 ## 도메인 모델
 
-스키마 변경은 닉네임 값 이관(V27)뿐이다. 새 테이블·컬럼은 없다.
+스키마 변경은 닉네임 값 이관(V28)뿐이다. 새 테이블·컬럼은 없다.
 
 ### 구성요소 (`domain/member`)
 
@@ -236,7 +237,7 @@
 
 운영 중 미탐·오탐이 발견되면 파일을 고쳐 재배포한다.
 
-### 마이그레이션 V27 — 닉네임 공백을 `_`로 + 대소문자 무시 유니크
+### 마이그레이션 V28 — 닉네임 공백을 `_`로 + 대소문자 무시 유니크
 
 > V26(`widen_text_columns_for_graphemes`)이 현재 최대 번호다.
 
@@ -286,8 +287,8 @@ CREATE UNIQUE INDEX uq_member_nickname_lower ON member (lower(nickname));
 
 **이관·후보 풀**
 
-- [x] Flyway V27 적용 후 `차근차근 토끼`였던 회원 닉네임이 `차근차근_토끼`로 조회된다.
-- [x] V27 적용 후 DB에 대소문자만 다른 닉네임을 직접 넣으면 유니크 인덱스 위반이 난다.
+- [x] Flyway V28 적용 후 `차근차근 토끼`였던 회원 닉네임이 `차근차근_토끼`로 조회된다.
+- [x] V28 적용 후 DB에 대소문자만 다른 닉네임을 직접 넣으면 유니크 인덱스 위반이 난다.
 - [x] 후보 풀 990개 전부가 `_` 형식이고, 전부 `NicknamePolicy`를 통과한다(형식·금칙어).
 - [x] 신규 가입 시 `_` 형식 닉네임이 부여된다.
 
@@ -314,4 +315,4 @@ CREATE UNIQUE INDEX uq_member_nickname_lower ON member (lower(nickname));
 
 - **PATCH는 보낸 필드만 수정한다**(2026-10-08). 필드 생략과 `null`을 구분하고, `drivingGoal`의 `null`/빈값 삭제 동작은 유지한다. 닉네임만 바꾸는 요청이 운전 목표를 지우는 사고를 막는다.
 - **금칙어 목록은 스펙에 싣지 않는다**(2026-10-08). 분류 기준·출처 표기만 정하고, 단어는 구현 PR에서 파일로 검토한다. 직접 작성 항목에 표기 변형도 넣는다.
-- **중복은 대소문자를 무시한다**(2026-10-08). 사칭 방지가 목적이며, V27에서 유니크 기준을 `lower(nickname)`으로 바꾼다.
+- **중복은 대소문자를 무시한다**(2026-10-08). 사칭 방지가 목적이며, V28에서 유니크 기준을 `lower(nickname)`으로 바꾼다.

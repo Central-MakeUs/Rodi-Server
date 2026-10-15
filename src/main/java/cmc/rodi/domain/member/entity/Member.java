@@ -35,7 +35,7 @@ public class Member extends BaseEntity {
 
     /**
      * 닉네임은 가입 시 후보 풀에서 무작위로 부여한다. 회원 간 유일하며 영문 대소문자는 구분하지 않는다 — DB의 {@code lower(nickname)} 유니크
-     * 인덱스(V27)가 보장한다. 표현식 인덱스라 JPA {@code unique}로는 나타낼 수 없어 스키마는 Flyway가 관리한다.
+     * 인덱스(V28)가 보장한다. 표현식 인덱스라 JPA {@code unique}로는 나타낼 수 없어 스키마는 Flyway가 관리한다.
      */
     @Column(length = 30)
     private String nickname;

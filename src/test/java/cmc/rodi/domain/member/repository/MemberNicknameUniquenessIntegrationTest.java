@@ -13,7 +13,7 @@ import org.springframework.context.annotation.Import;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.transaction.annotation.Transactional;
 
-/** 닉네임 유일성(V27): 영문 대소문자 무시 유니크 인덱스와 본인 제외 중복 조회를 실제 DB로 검증한다. */
+/** 닉네임 유일성(V28): 영문 대소문자 무시 유니크 인덱스와 본인 제외 중복 조회를 실제 DB로 검증한다. */
 @SpringBootTest
 @Import(TestcontainersConfiguration.class)
 @Transactional

@@ -14,7 +14,7 @@ public interface MemberRepository extends JpaRepository<Member, Long> {
 
     /**
      * 다른 회원이 이 닉네임을 쓰고 있는지(영문 대소문자 무시). 본인({@code excludeMemberId})은 제외해, 자기 닉네임을 다시 내거나 대소문자만 바꾸는
-     * 경우를 중복으로 보지 않는다. {@code lower()} 비교라 V27의 {@code lower(nickname)} 유니크 인덱스를 탄다.
+     * 경우를 중복으로 보지 않는다. {@code lower()} 비교라 V28의 {@code lower(nickname)} 유니크 인덱스를 탄다.
      */
     @Query(
             "select count(m) > 0 from Member m"
