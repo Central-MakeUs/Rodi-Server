@@ -108,6 +108,7 @@ let lastSearch = null;   // { swLat, swLng, neLat, neLng }
 let result = null;       // { places, levels }
 let placeById = new Map();
 let debounce = null;
+let requestSeq = 0;      // 마지막으로 보낸 요청 번호 — 늦게 도착한 이전 응답은 버린다
 
 const $ = id => document.getElementById(id);
 
@@ -145,12 +146,15 @@ async function search(bounds) {
 
 async function fetchClusters() {
   if (!lastSearch) return;
-  const q = new URLSearchParams({ ...lastSearch });
+  const seq = ++requestSeq;
+  const area = { ...lastSearch };   // 이 요청의 검색 범위
+  const q = new URLSearchParams(area);
   params.forEach(p => q.set(p, $(p).value));
   const started = performance.now();
   try {
     const res = await fetch('/dev/places/clusters?' + q);
     const body = await res.json();
+    if (seq !== requestSeq) return;  // 더 최근 요청이 있으면 이 응답은 반영하지 않는다
     if (!res.ok || !body.isSuccess) throw new Error(body.message || res.status);
     result = body.data;
     placeById = new Map(result.places.map(p => [p.id, p]));
@@ -158,15 +162,22 @@ async function fetchClusters() {
     $('total').textContent = result.places.length + '개';
     $('error').textContent = '';
   } catch (e) {
-    $('error').textContent = '요청 실패: ' + e.message;
+    if (seq === requestSeq) $('error').textContent = '요청 실패: ' + e.message;
     return;
   }
   if (searchRect) searchRect.remove();
   searchRect = L.rectangle(
-    [[lastSearch.swLat, lastSearch.swLng], [lastSearch.neLat, lastSearch.neLng]],
+    [[area.swLat, area.swLng], [area.neLat, area.neLng]],
     { color: '#6c5ce7', weight: 1, dashArray: '4 4', fill: false, interactive: false }
   ).addTo(map);
   render();
+}
+
+/** 장소 툴팁. 이름은 사용자가 등록할 수 있어 HTML로 해석되지 않게 textContent로 넣는다. */
+function tooltipOf(p) {
+  const el = document.createElement('span');
+  el.textContent = `${p.name} (${p.type === 'PARKING' ? '주차장' : '코스'})`;
+  return el;
 }
 
 /** 앱 규칙 그대로: 지금 화면 경도 폭이 minLngSpan 이상 maxLngSpan 미만(null은 무한대)인 단계. */
@@ -199,7 +210,7 @@ function render() {
     L.circleMarker([p.lat, p.lng], {
       radius: 6, color: '#fff', weight: 2,
       fillColor: p.type === 'PARKING' ? '#e17055' : '#00b894', fillOpacity: 1
-    }).bindTooltip(`${p.name} (${p.type === 'PARKING' ? '주차장' : '코스'})`).addTo(markerLayer);
+    }).bindTooltip(tooltipOf(p)).addTo(markerLayer);
     if (view.contains([p.lat, p.lng])) visible++;
   });
 
