@@ -146,19 +146,19 @@ class PlaceClusterIntegrationTest {
     }
 
     @Test
-    @DisplayName("기본 11단계이고, 모든 단계에서 클러스터 count 합 + 개별 장소 수 = 장소 수")
+    @DisplayName("기본 12단계이고, 모든 단계에서 클러스터 count 합 + 개별 장소 수 = 장소 수")
     void 단계_개수_불변() {
         seed();
 
         MarkerClusterResponse response = placeQueryService.getClusters(searchArea());
 
-        assertThat(response.levels()).hasSize(11);
+        assertThat(response.levels()).hasSize(12);
         for (Level level : response.levels()) {
             int clustered = level.clusters().stream().mapToInt(Cluster::count).sum();
             assertThat(clustered + level.placeIds().size()).isEqualTo(response.places().size());
         }
         // 묶지 않는 단계는 장소 목록 전체
-        assertThat(response.levels().get(10).placeIds())
+        assertThat(response.levels().get(11).placeIds())
                 .containsExactlyElementsOf(
                         response.places().stream().map(PlaceCoordinateResponse::id).toList());
     }
@@ -283,9 +283,9 @@ class PlaceClusterIntegrationTest {
                                 .param("neLng", String.valueOf(NE_LNG)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.places.length()").value(4))
-                .andExpect(jsonPath("$.data.levels.length()").value(11))
+                .andExpect(jsonPath("$.data.levels.length()").value(12))
                 .andExpect(jsonPath("$.data.levels[0].maxLngSpan").doesNotExist())
-                .andExpect(jsonPath("$.data.levels[10].minLngSpan").value(0.0));
+                .andExpect(jsonPath("$.data.levels[11].minLngSpan").value(0.0));
     }
 
     @Test

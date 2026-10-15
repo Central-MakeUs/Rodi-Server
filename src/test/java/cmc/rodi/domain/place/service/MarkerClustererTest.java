@@ -21,13 +21,13 @@ class MarkerClustererTest {
     private static final double R = 6_378_137.0;
     private static final double X = MarkerClusterer.X_PER_LNG_DEGREE;
     private static final MarkerClusterProperties DEFAULTS =
-            new MarkerClusterProperties(5, 1250, 0.25, 17);
+            new MarkerClusterProperties(5, 1250, 0.25, 18);
 
     private final MarkerClusterer clusterer = new MarkerClusterer(DEFAULTS);
 
-    /** 단계 k의 인덱스 — 가장 넓은 단계(17)가 0. */
+    /** 단계 k의 인덱스 — 가장 넓은 단계(18)가 0. */
     private static int index(int k) {
-        return 17 - k;
+        return 18 - k;
     }
 
     @Nested
@@ -35,14 +35,14 @@ class MarkerClustererTest {
     class Levels {
 
         @Test
-        @DisplayName("기본값: 그리드 17~8과 묶지 않는 단계, 모두 11개를 넓은 순으로 준다")
-        void 기본_11단계() {
+        @DisplayName("기본값: 그리드 18~8과 묶지 않는 단계, 모두 12개를 넓은 순으로 준다")
+        void 기본_12단계() {
             List<Level> levels = clusterer.cluster(List.of());
 
-            assertThat(levels).hasSize(11);
+            assertThat(levels).hasSize(12);
             assertThat(levels.get(0).maxLngSpan()).isNull();
-            assertThat(levels.get(10).minLngSpan()).isZero();
-            assertThat(levels.get(10).maxLngSpan()).isCloseTo(1250 / X, within(1e-12));
+            assertThat(levels.get(11).minLngSpan()).isZero();
+            assertThat(levels.get(11).maxLngSpan()).isCloseTo(1250 / X, within(1e-12));
         }
 
         @Test
@@ -137,7 +137,7 @@ class MarkerClustererTest {
         void 묶지_않는_단계() {
             List<Point> points = List.of(point(2, 0, 0), point(1, 1, 1));
 
-            Level last = clusterer.cluster(points).get(10);
+            Level last = clusterer.cluster(points).get(11);
 
             assertThat(last.clusters()).isEmpty();
             assertThat(last.placeIds()).containsExactly(1L, 2L);
@@ -247,14 +247,14 @@ class MarkerClustererTest {
             assertThat(height).isCloseTo(625, within(1e-6));
 
             double lngSpan = cluster.bounds().neLng() - cluster.bounds().swLng();
-            assertThat(lngSpan).isLessThan(levels.get(10).maxLngSpan());
+            assertThat(lngSpan).isLessThan(levels.get(11).maxLngSpan());
         }
 
         @Test
         @DisplayName("원 위치 제한이 0이면 경계에 몰려도 중심점 그대로다")
         void 위치_제한_0() {
             MarkerClusterer noInset =
-                    new MarkerClusterer(new MarkerClusterProperties(5, 1250, 0, 17));
+                    new MarkerClusterer(new MarkerClusterProperties(5, 1250, 0, 18));
 
             Cluster cluster =
                     noInset.cluster(List.of(point(1, 4000, 2000), point(2, 4050, 2000)))

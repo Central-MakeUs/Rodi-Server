@@ -22,7 +22,7 @@ marker-cluster:
   target-columns: 5          # 화면 가로에 들어갈 목표 칸 수(실제 약 3.5~7칸)
   no-cluster-width: 1250     # 화면 폭이 이 이하면 묶지 않음(지상 약 1km)
   cluster-inset-ratio: 0.25  # 클러스터 위치를 칸 가장자리에서 이 비율만큼 안쪽으로 제한
-  max-cell-level: 17         # 가장 넓은 단계의 칸 = 2^17(지상 약 105km), 한반도 전체 화면용
+  max-cell-level: 18         # 가장 넓은 단계의 칸 = 2^18(지상 약 210km), 한반도 전체 화면용(튜닝 페이지로 확인, 2026-10-15)
 
 springdoc:
   swagger-ui:
