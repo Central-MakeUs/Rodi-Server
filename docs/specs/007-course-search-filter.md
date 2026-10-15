@@ -15,10 +15,13 @@
 | 2026-07-26 | In Progress | 필터 저장 **A안(서버) 확정** — `member.filter_tags`에 `List<PracticeType>` 저장(V9), 카테고리는 클라 전용 유지, **backfill 없음**, 적용은 인증 시에만. Unit 2에서 구현 |
 | 2026-07-26 | In Progress | **Unit 2 필터 정렬 구현** — V9 컬럼·`PUT /members/me/filter-tags`·`@CurrentMember(required=false)` 옵셔널 JWT·목록/검색 매칭 우선 정렬·커서 확장·전역 400 핸들러(무효 본문). 필터는 저장값에서만(쿼리 파라미터 없음). 남은 건 클러스터링뿐 |
 | 2026-07-26 | In Progress | 회의 반영 — **검색을 로그인 전용으로 변경**(GET /places/search JWT 필수, 비로그인 401). 뷰포트 목록은 옵셔널 JWT 유지 |
+| 2026-10-15 | Approved | [스펙 019](019-refinements-1.md) 2번으로 변경 — `filter_tags` → **`sort_tags`**(V27, `PUT /members/me/sort-tags`, 옛 경로는 별칭), 저장 값은 정렬 기준으로만. **필터는 `practiceTypes` 요청 파라미터**(목록·검색·마커, 매칭 장소만). [ADR 0016](../adr/0016-filter-param-and-sort-tags.md) |
 
 ## 배경 / 목적
 
 홈에서 원하는 지역의 코스를 찾으려면 지도를 직접 움직이는 방법뿐이다. **시군구 주소 검색**으로 지역을 바로 찾게 하고, 온보딩에서 배정된 **레벨에 맞는 코스가 자동으로 앞에 노출**되도록 홈 정렬 필터를 도입한다.
+
+> **2026-10-15 변경** — 아래의 서버 저장 `filter_tags`는 `sort_tags`로 이름이 바뀌고 정렬 기준으로만 쓰인다. 필터는 요청 파라미터 `practiceTypes`로 받는다. 현재 동작은 [스펙 019](019-refinements-1.md) 2번을 따른다.
 
 **필터는 서버 저장(로그인 전용)이다**: 회원의 선택 연습유형을 `member.filter_tags`(jsonb, V9)에 저장하고 `PUT /members/me/filter-tags`로 갱신한다. 목록·검색은 **인증된 요청일 때만** 저장 필터로 매칭 우선 정렬하고, 비로그인은 거리순만(검색은 로그인 필수). **카테고리(기초 주행 등)는 클라 전용 UX 개념** — 클라가 카테고리→연습유형 매핑·온보딩 기본값 계산을 하고 풀린 `PracticeType` 리스트를 PUT으로 보낸다. 서버는 카테고리를 모르며 연습유형만 저장·매칭한다(서버 카테고리 enum 없음).
 

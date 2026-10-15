@@ -109,9 +109,9 @@ class CourseVisibilityIntegrationTest {
                 .toList();
     }
 
-    /** 필터 정렬 경로(findInViewportFiltered)를 타게 하는 회원. */
-    private Long memberWithFilter() {
-        owner.updateFilterTags(List.of(PracticeType.STRAIGHT));
+    /** 정렬 기준(sort_tags)이 있는 회원 — 정렬 매칭 술어가 노출 조건과 함께 도는지 본다. */
+    private Long memberWithSortTags() {
+        owner.updateSortTags(List.of(PracticeType.STRAIGHT));
         memberRepository.save(owner);
         return owner.getId();
     }
@@ -131,13 +131,35 @@ class CourseVisibilityIntegrationTest {
     }
 
     @Test
-    @DisplayName("필터 정렬 목록에서도 대기·반려·삭제는 빠진다")
-    void 필터_목록() {
+    @DisplayName("정렬 목록에서도 대기·반려·삭제는 빠진다")
+    void 정렬_목록() {
         CursorPage<PlaceListItem> page =
                 placeQueryService.getPlaces(
                         new PlaceListRequest(
                                 SW_LAT, SW_LNG, NE_LAT, NE_LNG, ME_LAT, ME_LNG, 50, null),
-                        memberWithFilter());
+                        memberWithSortTags());
+
+        assertThat(namesOf(page))
+                .containsExactlyInAnyOrder(PREFIX + "-승인", PREFIX + "-주차장")
+                .doesNotContain(PREFIX + "-대기", PREFIX + "-반려", PREFIX + "-삭제");
+    }
+
+    @Test
+    @DisplayName("필터 목록(practiceTypes)에서도 대기·반려·삭제는 빠진다")
+    void 필터_목록() {
+        CursorPage<PlaceListItem> page =
+                placeQueryService.getPlaces(
+                        new PlaceListRequest(
+                                SW_LAT,
+                                SW_LNG,
+                                NE_LAT,
+                                NE_LNG,
+                                ME_LAT,
+                                ME_LNG,
+                                50,
+                                null,
+                                List.of(PracticeType.STRAIGHT, PracticeType.PARKING)),
+                        null);
 
         assertThat(namesOf(page))
                 .containsExactlyInAnyOrder(PREFIX + "-승인", PREFIX + "-주차장")
@@ -156,14 +178,32 @@ class CourseVisibilityIntegrationTest {
     }
 
     @Test
-    @DisplayName("필터 정렬 검색에서도 대기·반려·삭제는 빠진다")
-    void 필터_검색() {
+    @DisplayName("정렬 검색에서도 대기·반려·삭제는 빠진다")
+    void 정렬_검색() {
         CursorPage<PlaceListItem> page =
                 placeQueryService.searchPlaces(
                         new PlaceSearchRequest(PREFIX, ME_LAT, ME_LNG, 50, null),
-                        memberWithFilter());
+                        memberWithSortTags());
 
         assertThat(namesOf(page)).containsExactlyInAnyOrder(PREFIX + "-승인", PREFIX + "-주차장");
+    }
+
+    @Test
+    @DisplayName("필터 검색(practiceTypes)에서도 대기·반려·삭제는 빠진다")
+    void 필터_검색() {
+        CursorPage<PlaceListItem> page =
+                placeQueryService.searchPlaces(
+                        new PlaceSearchRequest(
+                                PREFIX,
+                                ME_LAT,
+                                ME_LNG,
+                                50,
+                                null,
+                                List.of(PracticeType.STRAIGHT, PracticeType.PARKING)),
+                        null);
+
+        assertThat(namesOf(page)).containsExactlyInAnyOrder(PREFIX + "-승인", PREFIX + "-주차장");
+        assertThat(page.totalCount()).isEqualTo(2);
     }
 
     @Test
@@ -180,15 +220,20 @@ class CourseVisibilityIntegrationTest {
     }
 
     @Test
-    @DisplayName("마커 좌표: 대기·반려·삭제 코스는 내려가지 않는다")
+    @DisplayName("마커 좌표: 필터 유무와 관계없이 대기·반려·삭제 코스는 내려가지 않는다")
     void 마커_좌표() {
-        List<String> names =
-                placeQueryService.getAllCoordinates().stream()
-                        .map(c -> c.name())
-                        .filter(n -> n != null && n.startsWith(PREFIX))
-                        .toList();
+        for (List<PracticeType> practiceTypes :
+                List.of(
+                        List.<PracticeType>of(),
+                        List.of(PracticeType.STRAIGHT, PracticeType.PARKING))) {
+            List<String> names =
+                    placeQueryService.getAllCoordinates(practiceTypes).stream()
+                            .map(c -> c.name())
+                            .filter(n -> n != null && n.startsWith(PREFIX))
+                            .toList();
 
-        assertThat(names).containsExactlyInAnyOrder(PREFIX + "-승인", PREFIX + "-주차장");
+            assertThat(names).containsExactlyInAnyOrder(PREFIX + "-승인", PREFIX + "-주차장");
+        }
     }
 
     @Test

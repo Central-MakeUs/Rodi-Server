@@ -14,6 +14,7 @@ import cmc.rodi.domain.place.repository.CourseRepository;
 import cmc.rodi.domain.place.repository.ParkingRepository;
 import cmc.rodi.domain.place.service.PlaceQueryService;
 import cmc.rodi.support.TestcontainersConfiguration;
+import java.util.List;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.locationtech.jts.geom.Coordinate;
@@ -51,7 +52,7 @@ class PlaceCoordinateIntegrationTest {
         parkingRepository.save(
                 Parking.builder().name("u3-주차장").location(point(37.5734, 126.9759)).build());
 
-        var all = placeQueryService.getAllCoordinates();
+        var all = placeQueryService.getAllCoordinates(List.of());
 
         PlaceCoordinateResponse course =
                 all.stream().filter(p -> p.name().equals("u3-코스")).findFirst().orElseThrow();

@@ -1,5 +1,6 @@
 package cmc.rodi.domain.place.controller;
 
+import cmc.rodi.domain.member.entity.PracticeType;
 import cmc.rodi.domain.place.dto.PlaceCoordinateResponse;
 import cmc.rodi.domain.place.dto.PlaceDetailResponse;
 import cmc.rodi.domain.place.dto.PlaceListItem;
@@ -17,15 +18,20 @@ public interface PlaceControllerDocs {
 
     @Operation(
             summary = "장소 좌표 목록(마커)",
-            description = "전체 장소의 간단 좌표를 반환한다. 지도 마커·클라이언트 클러스터링용. 공개.")
-    ApiResponse<List<PlaceCoordinateResponse>> getCoordinates();
+            description =
+                    "전체 장소의 간단 좌표를 반환한다. 지도 마커·클라이언트 클러스터링용. 공개. "
+                            + "practiceTypes가 있으면 맞는 장소만(코스는 태그 중 하나라도, 주차장은 PARKING 포함 시), 없으면 전부.")
+    ApiResponse<List<PlaceCoordinateResponse>> getCoordinates(
+            @Parameter(description = "필터 연습유형(반복·콤마 형식, 생략 시 필터 없음). 있으면 맞는 장소만")
+                    List<PracticeType> practiceTypes);
 
     @Operation(
             summary = "현위치 장소 목록",
             description =
                     "지도 뷰포트(남서/북동) 안의 place(코스+주차장)를 커서 페이징한다. 코스는 태그·주행거리 포함, 주차장은 공통 필드만. "
-                            + "totalCount는 뷰포트 총계. 옵셔널 JWT — 로그인 회원이 홈 정렬 필터를 설정했으면 필터 매칭 place가 "
-                            + "먼저(비매칭도 후순위로 전부 노출), 아니면 거리순만.")
+                            + "옵셔널 JWT. practiceTypes가 있으면 맞는 장소만(totalCount도 필터 적용), 없으면 전부. "
+                            + "필터 여부와 관계없이 로그인 회원의 정렬 기준(sort_tags)에 맞는 장소가 먼저, 그다음 나머지이고 "
+                            + "각각 거리순. 정렬 기준이 없거나 비로그인이면 거리순만. 다음 페이지는 첫 페이지와 같은 조건으로 호출한다.")
     ApiResponse<CursorPage<PlaceListItem>> getPlaces(
             @Parameter(description = "남서 위도") double swLat,
             @Parameter(description = "남서 경도") double swLng,
@@ -35,6 +41,8 @@ public interface PlaceControllerDocs {
             @Parameter(description = "현위치 경도") double lng,
             @Parameter(description = "페이지 크기(기본 20)") int size,
             @Parameter(description = "다음 페이지 커서(없으면 첫 페이지)") String cursor,
+            @Parameter(description = "필터 연습유형(반복·콤마 형식, 생략 시 필터 없음). 있으면 맞는 장소만")
+                    List<PracticeType> practiceTypes,
             @Parameter(hidden = true) Long memberId);
 
     @Operation(
@@ -42,13 +50,17 @@ public interface PlaceControllerDocs {
             description =
                     "키워드로 place의 주소(시군구) 또는 장소명을 부분 일치 검색한다(전국 대상, 코스+주차장). "
                             + "아이템은 현위치 목록과 동일, 키워드는 트림 후 1~50자, totalCount는 첫 페이지에서만. "
-                            + "JWT 필요(비로그인 검색 불가). 회원 필터가 있으면 매칭 우선, 아니면 거리순만.")
+                            + "JWT 필요(비로그인 검색 불가). practiceTypes가 있으면 맞는 장소만(totalCount도 필터 적용). "
+                            + "필터 여부와 관계없이 정렬 기준(sort_tags)에 맞는 장소가 먼저, 그다음 나머지이고 각각 거리순. "
+                            + "정렬 기준이 없으면 거리순만.")
     ApiResponse<CursorPage<PlaceListItem>> searchPlaces(
             @Parameter(description = "검색 키워드(주소 또는 장소명 일부, 예: 강남, 한강)") String keyword,
             @Parameter(description = "현위치 위도") double lat,
             @Parameter(description = "현위치 경도") double lng,
             @Parameter(description = "페이지 크기(기본 20)") int size,
             @Parameter(description = "다음 페이지 커서(없으면 첫 페이지)") String cursor,
+            @Parameter(description = "필터 연습유형(반복·콤마 형식, 생략 시 필터 없음). 있으면 맞는 장소만")
+                    List<PracticeType> practiceTypes,
             @Parameter(hidden = true) Long memberId);
 
     @Operation(

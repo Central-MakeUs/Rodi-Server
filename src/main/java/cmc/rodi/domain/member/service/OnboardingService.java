@@ -1,5 +1,6 @@
 package cmc.rodi.domain.member.service;
 
+import cmc.rodi.domain.member.dto.OnboardingFormResponse;
 import cmc.rodi.domain.member.dto.OnboardingRequest;
 import cmc.rodi.domain.member.entity.Member;
 import cmc.rodi.domain.member.entity.MemberOnboarding;
@@ -24,6 +25,11 @@ public class OnboardingService {
 
     private final MemberRepository memberRepository;
     private final MemberOnboardingRepository memberOnboardingRepository;
+
+    /** 온보딩 폼. 문구·순서·흐름 규칙을 서버가 정의해 내려준다(스펙 019). 저장이 없어 조회 트랜잭션도 열지 않는다. */
+    public OnboardingFormResponse getForm() {
+        return OnboardingFormResponse.of();
+    }
 
     @Transactional
     public void submit(Long memberId, OnboardingRequest request) {
