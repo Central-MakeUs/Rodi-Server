@@ -109,9 +109,9 @@ class CourseVisibilityIntegrationTest {
                 .toList();
     }
 
-    /** 필터 경로(findInViewportFiltered)를 타게 하는 회원. 모든 seed 유형과 맞는 필터라 노출 조건만 결과를 가른다. */
+    /** 필터 정렬 경로(findInViewportFiltered)를 타게 하는 회원. */
     private Long memberWithFilter() {
-        owner.updateFilterTags(List.of(PracticeType.STRAIGHT, PracticeType.PARKING));
+        owner.updateFilterTags(List.of(PracticeType.STRAIGHT));
         memberRepository.save(owner);
         return owner.getId();
     }
@@ -131,7 +131,7 @@ class CourseVisibilityIntegrationTest {
     }
 
     @Test
-    @DisplayName("필터 목록에서도 대기·반려·삭제는 빠진다")
+    @DisplayName("필터 정렬 목록에서도 대기·반려·삭제는 빠진다")
     void 필터_목록() {
         CursorPage<PlaceListItem> page =
                 placeQueryService.getPlaces(
@@ -156,7 +156,7 @@ class CourseVisibilityIntegrationTest {
     }
 
     @Test
-    @DisplayName("필터 검색에서도 대기·반려·삭제는 빠진다")
+    @DisplayName("필터 정렬 검색에서도 대기·반려·삭제는 빠진다")
     void 필터_검색() {
         CursorPage<PlaceListItem> page =
                 placeQueryService.searchPlaces(
@@ -183,7 +183,7 @@ class CourseVisibilityIntegrationTest {
     @DisplayName("마커 좌표: 대기·반려·삭제 코스는 내려가지 않는다")
     void 마커_좌표() {
         List<String> names =
-                placeQueryService.getAllCoordinates(null).stream()
+                placeQueryService.getAllCoordinates().stream()
                         .map(c -> c.name())
                         .filter(n -> n != null && n.startsWith(PREFIX))
                         .toList();

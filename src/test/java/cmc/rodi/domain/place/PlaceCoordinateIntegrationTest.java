@@ -51,7 +51,7 @@ class PlaceCoordinateIntegrationTest {
         parkingRepository.save(
                 Parking.builder().name("u3-주차장").location(point(37.5734, 126.9759)).build());
 
-        var all = placeQueryService.getAllCoordinates(null);
+        var all = placeQueryService.getAllCoordinates();
 
         PlaceCoordinateResponse course =
                 all.stream().filter(p -> p.name().equals("u3-코스")).findFirst().orElseThrow();
