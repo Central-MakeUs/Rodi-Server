@@ -15,12 +15,13 @@ import cmc.rodi.domain.place.dto.MarkerClusterResponse;
 import cmc.rodi.domain.place.dto.MarkerClusterResponse.Cluster;
 import cmc.rodi.domain.place.dto.MarkerClusterResponse.Level;
 import cmc.rodi.domain.place.dto.PlaceCoordinateResponse;
+import cmc.rodi.domain.place.dto.PlaceListRequest;
 import cmc.rodi.domain.place.entity.Course;
 import cmc.rodi.domain.place.entity.Parking;
 import cmc.rodi.domain.place.repository.CourseRepository;
 import cmc.rodi.domain.place.repository.ParkingRepository;
-import cmc.rodi.domain.place.repository.PlaceRepository;
 import cmc.rodi.domain.place.service.PlaceQueryService;
+import cmc.rodi.global.auth.jwt.TokenProvider;
 import cmc.rodi.global.exception.BusinessException;
 import cmc.rodi.support.TestcontainersConfiguration;
 import java.time.LocalDateTime;
@@ -37,6 +38,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.annotation.Import;
+import org.springframework.http.HttpHeaders;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -56,12 +58,12 @@ class PlaceClusterIntegrationTest {
     private static final double SW_LAT = 37.70, SW_LNG = 128.80, NE_LAT = 37.85, NE_LNG = 129.00;
 
     @Autowired PlaceQueryService placeQueryService;
-    @Autowired PlaceRepository placeRepository;
     @Autowired CourseRepository courseRepository;
     @Autowired ParkingRepository parkingRepository;
     @Autowired MemberRepository memberRepository;
     @Autowired MemberSortService memberSortService;
     @Autowired MockMvc mockMvc;
+    @Autowired TokenProvider tokenProvider;
 
     private static Point point(double lat, double lng) {
         return GEO.createPoint(new Coordinate(lng, lat));
@@ -69,6 +71,28 @@ class PlaceClusterIntegrationTest {
 
     private static MarkerClusterRequest searchArea() {
         return new MarkerClusterRequest(SW_LAT, SW_LNG, NE_LAT, NE_LNG);
+    }
+
+    private static MarkerClusterRequest searchArea(PracticeType... practiceTypes) {
+        return new MarkerClusterRequest(SW_LAT, SW_LNG, NE_LAT, NE_LNG, List.of(practiceTypes));
+    }
+
+    /** 같은 범위·같은 필터의 목록(GET /places) 전체 개수. 현위치는 개수와 무관해 범위 중심을 쓴다. */
+    private long listTotalCount(PracticeType... practiceTypes) {
+        return placeQueryService
+                .getPlaces(
+                        new PlaceListRequest(
+                                SW_LAT,
+                                SW_LNG,
+                                NE_LAT,
+                                NE_LNG,
+                                (SW_LAT + NE_LAT) / 2,
+                                (SW_LNG + NE_LNG) / 2,
+                                1,
+                                null,
+                                List.of(practiceTypes)),
+                        null)
+                .totalCount();
     }
 
     /** 범위 안: 교차로 코스 2개·직선 코스 1개·주차장 1개(노출). 범위 안이지만 미승인·삭제 코스, 범위 밖 코스(미노출). */
@@ -115,7 +139,7 @@ class PlaceClusterIntegrationTest {
     void 범위_노출_조건() {
         seed();
 
-        MarkerClusterResponse response = placeQueryService.getClusters(searchArea(), null);
+        MarkerClusterResponse response = placeQueryService.getClusters(searchArea());
 
         assertThat(names(response))
                 .containsExactlyInAnyOrder("강릉-교차로-1", "강릉-교차로-2", "강릉-직선", "강릉-주차장");
@@ -126,7 +150,7 @@ class PlaceClusterIntegrationTest {
     void 단계_개수_불변() {
         seed();
 
-        MarkerClusterResponse response = placeQueryService.getClusters(searchArea(), null);
+        MarkerClusterResponse response = placeQueryService.getClusters(searchArea());
 
         assertThat(response.levels()).hasSize(11);
         for (Level level : response.levels()) {
@@ -140,42 +164,101 @@ class PlaceClusterIntegrationTest {
     }
 
     @Test
-    @DisplayName("장소 수는 같은 범위 목록의 전체 개수(countInViewport)와 같다")
+    @DisplayName("장소 수는 같은 범위·같은 practiceTypes의 목록 전체 개수(totalCount)와 같다")
     void 목록_개수_일치() {
         seed();
+        List<PracticeType[]> filters =
+                List.of(
+                        new PracticeType[] {},
+                        new PracticeType[] {PracticeType.INTERSECTION},
+                        new PracticeType[] {PracticeType.STRAIGHT, PracticeType.PARKING},
+                        new PracticeType[] {PracticeType.U_TURN});
 
-        MarkerClusterResponse response = placeQueryService.getClusters(searchArea(), null);
-
-        assertThat((long) response.places().size())
-                .isEqualTo(
-                        placeRepository.countInViewport(
-                                SW_LAT, SW_LNG, NE_LAT, NE_LNG, false, List.of("__UNUSED__"), 0));
+        for (PracticeType[] filter : filters) {
+            assertThat((long) placeQueryService.getClusters(searchArea(filter)).places().size())
+                    .as(List.of(filter).toString())
+                    .isEqualTo(listTotalCount(filter));
+        }
     }
 
     @Test
-    @DisplayName("회원 필터: 필터에 맞는 장소만 — 코스는 태그 겹침, 주차장은 PARKING 포함 시")
-    void 회원_필터() {
+    @DisplayName("유형 필터(practiceTypes): 맞는 장소만 — 코스는 태그 겹침, 주차장은 PARKING 포함 시")
+    void 유형_필터() {
         seed();
-        Member member = memberRepository.save(Member.createBySocial("cluster-filter@test.com"));
 
-        memberSortService.updateSortTags(member.getId(), List.of(PracticeType.INTERSECTION));
-        assertThat(names(placeQueryService.getClusters(searchArea(), member.getId())))
+        assertThat(names(placeQueryService.getClusters(searchArea(PracticeType.INTERSECTION))))
                 .containsExactlyInAnyOrder("강릉-교차로-1", "강릉-교차로-2");
-
-        memberSortService.updateSortTags(
-                member.getId(), List.of(PracticeType.STRAIGHT, PracticeType.PARKING));
-        assertThat(names(placeQueryService.getClusters(searchArea(), member.getId())))
+        assertThat(
+                        names(
+                                placeQueryService.getClusters(
+                                        searchArea(PracticeType.STRAIGHT, PracticeType.PARKING))))
                 .containsExactlyInAnyOrder("강릉-직선", "강릉-주차장");
+        assertThat(names(placeQueryService.getClusters(searchArea(PracticeType.U_TURN)))).isEmpty();
     }
 
     @Test
-    @DisplayName("빈 필터는 비로그인과 같다(전부)")
-    void 빈_필터() {
+    @DisplayName("API: sort_tags가 있는 회원의 토큰을 보내도 토큰 없을 때와 같은 응답")
+    void API_토큰_무관() throws Exception {
         seed();
-        Member member = memberRepository.save(Member.createBySocial("cluster-empty@test.com"));
+        Member member = memberRepository.save(Member.createBySocial("cluster-sort@test.com"));
+        memberSortService.updateSortTags(member.getId(), List.of(PracticeType.INTERSECTION));
 
-        assertThat(placeQueryService.getClusters(searchArea(), member.getId()))
-                .isEqualTo(placeQueryService.getClusters(searchArea(), null));
+        String anonymous =
+                mockMvc.perform(clustersRequest())
+                        .andExpect(status().isOk())
+                        .andReturn()
+                        .getResponse()
+                        .getContentAsString();
+        String withToken =
+                mockMvc.perform(
+                                clustersRequest()
+                                        .header(
+                                                HttpHeaders.AUTHORIZATION,
+                                                "Bearer "
+                                                        + tokenProvider.createAccessToken(
+                                                                member.getId())))
+                        .andExpect(status().isOk())
+                        .andReturn()
+                        .getResponse()
+                        .getContentAsString();
+
+        assertThat(withToken).isEqualTo(anonymous);
+    }
+
+    @Test
+    @DisplayName("API: practiceTypes 반복·콤마 형식은 같은 결과, 없는 값은 400")
+    void API_필터_파라미터() throws Exception {
+        seed();
+
+        String repeated =
+                mockMvc.perform(
+                                clustersRequest()
+                                        .param("practiceTypes", "STRAIGHT")
+                                        .param("practiceTypes", "PARKING"))
+                        .andExpect(status().isOk())
+                        .andExpect(jsonPath("$.data.places.length()").value(2))
+                        .andReturn()
+                        .getResponse()
+                        .getContentAsString();
+        String comma =
+                mockMvc.perform(clustersRequest().param("practiceTypes", "STRAIGHT,PARKING"))
+                        .andExpect(status().isOk())
+                        .andReturn()
+                        .getResponse()
+                        .getContentAsString();
+        assertThat(comma).isEqualTo(repeated);
+
+        mockMvc.perform(clustersRequest().param("practiceTypes", "NOT_A_TYPE"))
+                .andExpect(status().isBadRequest());
+    }
+
+    private static org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder
+            clustersRequest() {
+        return get("/api/v1/places/clusters")
+                .param("swLat", String.valueOf(SW_LAT))
+                .param("swLng", String.valueOf(SW_LNG))
+                .param("neLat", String.valueOf(NE_LAT))
+                .param("neLng", String.valueOf(NE_LNG));
     }
 
     @Test
@@ -183,8 +266,8 @@ class PlaceClusterIntegrationTest {
     void 결정적() {
         seed();
 
-        assertThat(placeQueryService.getClusters(searchArea(), null))
-                .isEqualTo(placeQueryService.getClusters(searchArea(), null));
+        assertThat(placeQueryService.getClusters(searchArea()))
+                .isEqualTo(placeQueryService.getClusters(searchArea()));
     }
 
     @Test

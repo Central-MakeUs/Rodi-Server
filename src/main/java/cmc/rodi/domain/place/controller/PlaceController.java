@@ -52,10 +52,10 @@ public class PlaceController implements PlaceControllerDocs {
             @RequestParam double swLng,
             @RequestParam double neLat,
             @RequestParam double neLng,
-            @CurrentMember(required = false) Long memberId) {
+            @RequestParam(required = false) List<PracticeType> practiceTypes) {
         return ApiResponse.success(
                 placeQueryService.getClusters(
-                        new MarkerClusterRequest(swLat, swLng, neLat, neLng), memberId));
+                        new MarkerClusterRequest(swLat, swLng, neLat, neLng, practiceTypes)));
     }
 
     @Override

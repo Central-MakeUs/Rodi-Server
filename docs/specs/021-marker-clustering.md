@@ -255,7 +255,7 @@ y = clamp(중심점Y, 칸최소Y + inner, 칸최대Y − inner)
 
 - [x] 같은 칸에 장소 3개, 다른 칸에 1개가 있으면 그 단계에 클러스터(count 3) 1개와 `placeIds` 1개가 있다.
 - [x] 모든 단계에서 `클러스터 count 합 + placeIds 수 = places 수`다.
-- [ ] `places` 수가 같은 범위·같은 `practiceTypes`의 `GET /places` `totalCount`와 같다(필터 없음·있음 모두).
+- [x] `places` 수가 같은 범위·같은 `practiceTypes`의 `GET /places` `totalCount`와 같다(필터 없음·있음 모두).
 - [x] 검색 범위 밖의 장소는 어느 단계에도 없다.
 - [x] 클러스터 `lat`·`lng`는 묶인 장소들의 중심점이고(칸 안쪽 영역에 있을 때), `bounds`는 묶인 장소들을 모두 포함한다.
 - [x] 중심점이 칸 가장자리 1/4 영역에 있으면 클러스터 위치가 안쪽 영역 경계로 당겨진다 — 공유 경계에 장소가 몰린 이웃 두 칸의 클러스터 위치가 칸 크기의 절반 이상 떨어진다.
@@ -266,9 +266,9 @@ y = clamp(중심점Y, 칸최소Y + inner, 칸최대Y − inner)
 **노출·필터**
 
 - [x] 미승인(`PENDING`·`REJECTED`)·삭제된 코스는 `places`와 어느 단계에도 없다.
-- [ ] `practiceTypes`가 있으면 맞는 장소만 준다(코스는 태그 겹침, 주차장은 PARKING 포함 시). 없으면 전부다.
-- [ ] `sort_tags`가 있는 회원의 토큰을 보내도 결과가 토큰 없을 때와 같다.
-- [ ] `practiceTypes`의 반복·콤마 형식이 같은 결과를 내고, 없는 값은 400 `COMMON_400`이다.
+- [x] `practiceTypes`가 있으면 맞는 장소만 준다(코스는 태그 겹침, 주차장은 PARKING 포함 시). 없으면 전부다.
+- [x] `sort_tags`가 있는 회원의 토큰을 보내도 결과가 토큰 없을 때와 같다.
+- [x] `practiceTypes`의 반복·콤마 형식이 같은 결과를 내고, 없는 값은 400 `COMMON_400`이다.
 
 **검증·설정·기타**
 

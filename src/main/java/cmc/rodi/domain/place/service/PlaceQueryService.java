@@ -64,30 +64,27 @@ public class PlaceQueryService {
     }
 
     /**
-     * 마커 클러스터 검색(스펙 021). 검색 범위의 장소와 확대 단계별 묶음을 한 번에 준다. 인증된 회원이 필터를 가지면 필터에 맞는 장소만 묶는다(비로그인·빈 필터는
-     * 전부). memberId는 옵셔널 JWT라 null 가능.
+     * 마커 클러스터 검색(스펙 021). 검색 범위의 장소와 확대 단계별 묶음을 한 번에 준다. {@code practiceTypes}가 있으면 맞는 장소만 묶는다(스펙
+     * 019와 같은 필터). 회원 정렬 기준(sort_tags)은 장소 집합을 바꾸지 않아 쓰지 않는다.
      */
     @Transactional(readOnly = true)
-    public MarkerClusterResponse getClusters(MarkerClusterRequest req, Long memberId) {
-        return getClusters(req, memberId, markerClusterer);
+    public MarkerClusterResponse getClusters(MarkerClusterRequest req) {
+        return getClusters(req, markerClusterer);
     }
 
     /** 클러스터러를 바꿔 끼우는 판 — 로컬 튜닝 페이지가 슬라이더로 바꾼 설정값으로 계산할 때 쓴다. */
     @Transactional(readOnly = true)
-    public MarkerClusterResponse getClusters(
-            MarkerClusterRequest req, Long memberId, MarkerClusterer clusterer) {
-        List<PracticeType> filter = resolveSortTags(memberId);
+    public MarkerClusterResponse getClusters(MarkerClusterRequest req, MarkerClusterer clusterer) {
+        TypeCriteria filter = TypeCriteria.of(req.practiceTypes());
         List<PlaceMarkerRow> rows =
-                filter.isEmpty()
-                        ? placeRepository.findMarkersInBounds(
-                                req.swLat(), req.swLng(), req.neLat(), req.neLng())
-                        : placeRepository.findMarkersInBoundsFiltered(
-                                req.swLat(),
-                                req.swLng(),
-                                req.neLat(),
-                                req.neLng(),
-                                filter.stream().map(PracticeType::name).toList(),
-                                filter.contains(PracticeType.PARKING) ? 1 : 0);
+                placeRepository.findMarkersInBounds(
+                        req.swLat(),
+                        req.swLng(),
+                        req.neLat(),
+                        req.neLng(),
+                        filter.used(),
+                        filter.names(),
+                        filter.parkingFlag());
         List<MarkerClusterer.Point> points =
                 rows.stream()
                         .map(r -> new MarkerClusterer.Point(r.getId(), r.getLat(), r.getLng()))

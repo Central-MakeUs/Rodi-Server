@@ -66,33 +66,10 @@ public interface PlaceRepository extends JpaRepository<Place, Long> {
             """)
     List<Place> findAllVisible();
 
-    /** 마커 클러스터 검색(스펙 021) — 검색 범위 안의 노출 장소 전체, id 오름차순. 묶는 계산은 애플리케이션이 한다. */
-    @Query(
-            value =
-                    """
-                    SELECT p.id AS id,
-                           p.place_type AS "placeType",
-                           p.name AS name,
-                           p.address AS address,
-                           ST_Y(p.location) AS lat,
-                           ST_X(p.location) AS lng
-                    FROM place p
-                    WHERE p.location && ST_MakeEnvelope(:swLng, :swLat, :neLng, :neLat, 4326)
-                      AND """
-                            + VISIBLE
-                            + """
-                    ORDER BY p.id
-                    """,
-            nativeQuery = true)
-    List<PlaceMarkerRow> findMarkersInBounds(
-            @Param("swLat") double swLat,
-            @Param("swLng") double swLng,
-            @Param("neLat") double neLat,
-            @Param("neLng") double neLng);
-
     /**
-     * {@link #findMarkersInBounds} 중 회원 필터에 맞는 것만 — 코스는 태그가 필터와 겹칠 때, 주차장은 필터에 PARKING이 있을 때({@code
-     * parkingFlag = 1}).
+     * 마커 클러스터 검색(스펙 021) — 검색 범위 안의 노출 장소 전체, id 오름차순. 묶는 계산은 애플리케이션이 한다. {@code useFilter}면 {@link
+     * #MATCHES_FILTER}에 맞는 장소만(목록 {@link #findInViewport}와 같은 술어라 같은 범위·같은 필터면 개수가 같다). 쓰지 않는 필터
+     * 목록은 빈 {@code IN ()}이 SQL 오류라 자리표시 값을 넘긴다.
      */
     @Query(
             value =
@@ -105,23 +82,24 @@ public interface PlaceRepository extends JpaRepository<Place, Long> {
                            ST_X(p.location) AS lng
                     FROM place p
                     WHERE p.location && ST_MakeEnvelope(:swLng, :swLat, :neLng, :neLat, 4326)
-                      AND ((p.place_type = 'PARKING' AND :parkingFlag = 1)
-                           OR EXISTS (SELECT 1 FROM course_practice_type cpt
-                                      WHERE cpt.course_id = p.id
-                                        AND cpt.practice_type IN (:practiceTypes)))
                       AND """
                             + VISIBLE
                             + """
+                      AND (:useFilter = false OR """
+                            + MATCHES_FILTER
+                            + """
+                      )
                     ORDER BY p.id
                     """,
             nativeQuery = true)
-    List<PlaceMarkerRow> findMarkersInBoundsFiltered(
+    List<PlaceMarkerRow> findMarkersInBounds(
             @Param("swLat") double swLat,
             @Param("swLng") double swLng,
             @Param("neLat") double neLat,
             @Param("neLng") double neLng,
-            @Param("practiceTypes") List<String> practiceTypes,
-            @Param("parkingFlag") int parkingFlag);
+            @Param("useFilter") boolean useFilter,
+            @Param("filterTypes") List<String> filterTypes,
+            @Param("filterParking") int filterParking);
 
     /**
      * 필터를 건 마커용 좌표(스펙 019). {@link #findAllVisible} 중 {@code practiceTypes} 파라미터에 맞는 것만 — 코스는 태그가

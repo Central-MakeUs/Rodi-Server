@@ -29,7 +29,7 @@ public class SecurityConfig {
         "/error",
         "/api/v1/auth/**", // 소셜 로그인·토큰 재발급·로그아웃(토큰 없이 접근)
         "/api/v1/places/coordinates", // 지도 마커 좌표(공개, deprecated — 클러스터 API로 전환 후 제거)
-        "/api/v1/places/clusters", // 지도 마커 클러스터(공개, 옵셔널 JWT)
+        "/api/v1/places/clusters", // 지도 마커 클러스터(공개)
         "/api/v1/places" // 현위치 목록(공개, 옵셔널 JWT). 검색·상세·북마크는 JWT
     };
 

@@ -73,7 +73,6 @@ public class ClusterTuningController {
         return ApiResponse.success(
                 placeQueryService.getClusters(
                         new MarkerClusterRequest(swLat, swLng, neLat, neLng),
-                        null,
                         new MarkerClusterer(properties)));
     }
 }

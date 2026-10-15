@@ -36,14 +36,16 @@ public interface PlaceControllerDocs {
                             + "minLngSpan 이상 maxLngSpan 미만(null은 무한대)인 단계를 골라 그 단계의 clusters와 placeIds를 그린다. "
                             + "클러스터를 탭하면 bounds에 맞춰 카메라를 옮긴다(여백은 앱이 정함). "
                             + "재검색 버튼을 누를 때만 새 범위로 다시 요청한다. "
-                            + "공개 + 옵셔널 JWT — 로그인 회원이 홈 정렬 필터를 설정했으면 필터에 맞는 장소만 묶는다. "
+                            + "공개. practiceTypes가 있으면 맞는 장소만 묶는다(목록 GET /places와 같은 필터 — 같은 범위·같은 값이면 "
+                            + "places 수가 목록 totalCount와 같다). "
                             + "위도 ±85·경도 ±180 밖이거나 남서가 북동 이상이면 400.")
     ApiResponse<MarkerClusterResponse> getClusters(
             @Parameter(description = "검색 범위 남서 위도") double swLat,
             @Parameter(description = "검색 범위 남서 경도") double swLng,
             @Parameter(description = "검색 범위 북동 위도") double neLat,
             @Parameter(description = "검색 범위 북동 경도") double neLng,
-            @Parameter(hidden = true) Long memberId);
+            @Parameter(description = "필터 연습유형(반복·콤마 형식, 생략 시 필터 없음). 있으면 맞는 장소만")
+                    List<PracticeType> practiceTypes);
 
     @Operation(
             summary = "현위치 장소 목록",
