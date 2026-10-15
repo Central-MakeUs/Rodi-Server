@@ -1,4 +1,4 @@
-# 1차 보완 (레벨별 연습 기록 · 유형 필터 · 온보딩 폼 · '없음' 배타 선택)
+# 1차 보완 (유형 필터·정렬 분리 · 온보딩 폼 · '없음' 배타 선택)
 
 ## Status
 
@@ -10,24 +10,34 @@
 | 2026-09-28 | Approved | 미방문 사유는 레벨 검사 없이 요청한 기록에 저장(현재 동작 유지, `PRACTICE_409_3` 제거 — 잠정, 미해결 질문 2). 스펙 승인 |
 | 2026-09-29 | Approved | 온보딩 폼 문구·구조 확정 — 2단계(steps)·2단계 건너뛰기, Q1 `YEARS_3_9` = "3~9년", 연습유형 라벨을 온보딩 화면 표기로 통일(코스 등록 폼 공용), 연습유형은 평면 목록. 유형 필터 적용 범위 조정 여지(미해결 질문 3) |
 | 2026-10-01 | Approved | **1번(레벨별 연습 기록) 보류** — 화면 도출 후 재확인·구현. #74는 2·3·4번만 |
+| 2026-10-15 | Draft | **2번 재설계** — 첫 진입 시 매칭 코스가 없어 빈 화면이 자주 나오는 문제로, 저장 필터로 매칭 장소만 주던 방식(9dc4505)을 되돌리고 **저장 태그는 정렬 기준(`sort_tags`), 필터는 요청 파라미터(`practiceTypes`)**로 분리. 옛 PUT 경로는 별칭으로 유지. **1번은 [스펙 022](022-level-practice-record.md)으로 분리(추후 구현)** |
+| 2026-10-15 | Approved | 2번 재설계 승인 — 비로그인 파라미터 필터 허용(미해결 질문 4), 마이그레이션은 V27(먼저 머지되는 #74가 사용, #75 닉네임은 rebase 시 V28로) |
 
 ## 배경 / 목적
 
-데모데이 이후 나온 수정 요청 4건을 반영하는 **1차 보완**이다. 새 도메인은 없고 **이미 구현된 스펙 004·007·011의 동작을 바꾸는 작업**이라 [스펙 013](013-app-integration-refinements.md)처럼 한 문서로 묶는다. 온보딩 폼(3번)과 '없음' 배타 선택(4번)은 같은 문항 정의를 공유해 한 곳에서 봐야 앞뒤가 맞는다.
+데모데이 이후 나온 수정 요청을 반영하는 **1차 보완**이다. 새 도메인은 없고 **이미 구현된 스펙 004·007의 동작을 바꾸는 작업**이라 [스펙 013](013-app-integration-refinements.md)처럼 한 문서로 묶는다. 온보딩 폼(3번)과 '없음' 배타 선택(4번)은 같은 문항 정의를 공유해 한 곳에서 봐야 앞뒤가 맞는다.
 
 | # | 요청 | 성격 | 관련 스펙 | 진행 |
 |---|------|------|-----------|------|
-| 1 | 연습 기록을 **레벨별로** 저장·표시 | 스키마·정책 변경 | 011 · 012 · 013 | **보류** — 화면 도출 후 |
-| 2 | 유형 필터를 정렬에서 **진짜 필터**로(매칭 장소만) | 동작 변경 | 007 | 구현 |
+| 1 | 연습 기록을 **레벨별로** 저장·표시 | 스키마·정책 변경 | 011 · 012 · 013 | **추후 구현** — [스펙 022](022-level-practice-record.md)으로 분리 |
+| 2 | 저장 태그는 **정렬**, 필터는 **요청 파라미터**로 분리 | 동작 변경·파라미터 추가 | 007 | 구현 |
 | 3 | 온보딩 폼을 서버에서 내려주기 | 신규 API | 004 | 구현 |
 | 4 | 온보딩 '없음' 선택 시 복수 응답 금지 | 검증 추가 | 004 | 구현 |
 
-> **1번은 보류한다(2026-10-01).** 레벨별 연습 기록 화면이 아직 도출되지 않아, 화면이 나온 뒤 이 스펙의 1번 설계(도메인 모델 1절·API 1절·완료 조건 1)를 다시 확인하고 구현한다. 이번 이슈(#74)는 2·3·4번만 담는다.
+**2번이 바뀐 이유(2026-10-15)** — 처음에는 저장된 `filter_tags`로 **매칭 장소만** 주도록 바꿨다(9dc4505). 그런데 아직 코스 수가 적어, 필터를 저장한 회원이 앱에 들어오자마자 매칭 장소가 없는 빈 화면을 자주 보게 된다. 목표는 **빈 화면을 최대한 덜 보여주는 것**이다.
+
+- 저장된 태그는 **정렬 기준으로만** 쓴다(매칭 장소를 위로, 나머지도 전부 보여줌). 스펙 007의 기존 동작 그대로라 9dc4505를 되돌렸다. 저장 값의 쓰임이 정렬이므로 이름을 `filter_tags` → **`sort_tags`**로 바꾼다.
+- **필터는 사용자가 직접 적용할 때만** 건다. 앱이 필터 선택을 로컬에 저장하고 요청마다 `practiceTypes` 파라미터로 보낸다. 서버는 필터 상태를 저장하지 않는다.
+- 앱의 초기 필터값은 없다(첫 진입은 항상 필터 없음).
+
+> **1번은 [스펙 022](022-level-practice-record.md)으로 옮겼다(추후 구현).** 레벨별 연습 기록 화면이 도출된 뒤 그 스펙을 다시 확인하고 이슈를 연다. 이번 이슈(#74)는 2·3·4번만 담는다.
 
 ### 범위 밖
 
 - **레벨 점수 계산의 서버 이관** — 레벨 변환(점수→레벨)은 지금처럼 클라이언트가 한다. 폼은 문항·선택지만 내려주고 점수는 담지 않는다(리뷰에서 제외 확정).
-- 필터 저장 방식(`member.filter_tags`, `PUT /members/me/filter-tags`)과 카테고리 UX — 그대로다.
+- **`sort_tags` 자동 채우기** — 온보딩 제출 시 연습유형을 `sort_tags`로 복사하지 않는다. 지금처럼 앱이 온보딩 후 PUT으로 저장한다.
+- **옛 경로 `PUT /members/me/filter-tags` 제거** — 앱이 새 경로로 바뀐 뒤 별도 이슈에서 지운다.
+- **카테고리 UX** — 그대로 클라이언트 전용 개념이다. 서버는 풀린 `PracticeType` 목록만 받는다.
 - 신고 사유·미방문 사유 폼(`FormResponse`) — 변경 없다.
 - **Q4 값의 조건 검증** — `roadExperiences`에 `SOLO`가 없는데 `soloDrivingRange`·`soloParkingLevel`이 오는 경우를 400으로 막지 않는다. 폼의 `showWhen`으로 클라이언트가 막는다(리뷰에서 제외 확정).
 
@@ -35,90 +45,71 @@
 
 ### 기능 요구사항
 
-1. **레벨별 연습 기록**
-   - 연습 항목은 **(회원, 장소, 레벨)마다 한 행**이다. 레벨이 오르면 같은 코스를 다시 [연습하기]해도 **새 기록**(연습 횟수 0, `PLANNED`)으로 시작하고, 지난 레벨의 기록은 그대로 남는다.
-   - 내 연습 목록은 **레벨을 골라 조회**한다(`level` 파라미터). 생략하면 **현재 레벨**이다.
-   - **지난 레벨 기록으로 방문이 오면 현재 레벨 기록에 남긴다.** 레벨이 오른 뒤 예전 기록(`practiceId`)으로 같은 장소를 다녀와도 200이다. 서버가 그 장소의 현재 레벨 기록을 찾거나 새로 만들어 방문을 기록하고, 지난 레벨 기록은 바뀌지 않는다.
-   - **미방문 사유는 레벨과 관계없이 요청한 기록에 저장한다**(현재 동작 유지). 사유는 레벨·거리·인증에 영향이 없고, "그때 왜 못 갔나"라는 그 기록의 계획에 대한 답이라 그 레벨 기록에 남는 것이 맞다. 지난 레벨 기록은 다시 방문·[연습하기]되지 않으므로 거기 남긴 사유는 지워지지 않는다. **잠정 결정** — 409로 막을지는 화면 도출 후 정한다(미해결 질문 2, 보류).
-   - 담기는 온보딩(레벨 배정)을 마친 회원만 할 수 있다.
-2. **유형 필터**
-   - 인증된 회원이 저장한 `filter_tags`가 있으면 **매칭되는 장소만** 반환한다. 비매칭 장소는 더 이상 후순위로도 나오지 않는다.
-   - 적용 대상: **현위치 목록(`GET /places`) · 검색(`GET /places/search`) · 지도 마커(`GET /places/coordinates`)**.
-   - 매칭 규칙은 기존과 같다 — 코스는 태그 중 하나라도 필터에 있으면(합집합), 주차장은 필터에 `PARKING`이 있으면.
-   - 필터가 없으면(비로그인·빈 필터) 지금과 같이 전부 반환한다.
+2. **유형 필터·정렬 분리**
+   - **정렬 기준 저장(`sort_tags`)** — `member.filter_tags`를 `sort_tags`로 이름만 바꾼다. 값·의미(전체 교체, 빈 목록이면 해제)는 그대로다.
+     - 새 경로 `PUT /members/me/sort-tags`(`{ "sortTags": [...] }`)로 저장한다.
+     - 옛 경로 `PUT /members/me/filter-tags`(`{ "filterTags": [...] }`)는 **별칭으로 남긴다.** 같은 서비스 메서드를 불러 `sort_tags`에 저장한다. Swagger에 deprecated로 표시하고, 호출될 때마다 INFO 로그를 남겨 앱이 아직 옛 경로를 쓰는지 확인할 수 있게 한다.
+   - **요청별 동작** — 목록(`GET /places`)·검색(`GET /places/search`)은 아래 셋 중 하나로 동작한다.
+
+     | 요청 | 결과 | 정렬 | 커서 `sortValue` |
+     |------|------|------|------|
+     | `practiceTypes` **있음** | 매칭 장소**만** | 거리 → id | `distance` |
+     | 없음 + 인증 + `sort_tags` 있음 | **전부** | 매칭 우선 → 거리 → id | `matched\|distance` |
+     | 없음 + 그 외(비로그인·빈 `sort_tags`) | 전부 | 거리 → id | `distance` |
+
+     - 파라미터로 필터할 때는 `sort_tags`를 쓰지 않는다(필터 결과 안에서는 순수 거리순).
+     - 정렬 모드는 스펙 007의 기존 동작 그대로다(develop과 같음).
+   - **지도 마커(`GET /places/coordinates`)** — `practiceTypes`가 있으면 매칭 장소만, 없으면 전부. 순서가 의미 없어 `sort_tags`는 쓰지 않는다. 지금처럼 인증 없이 호출한다.
+   - **매칭 규칙**은 필터와 정렬이 같다 — 코스는 태그 중 하나라도 기준에 있으면(합집합), 주차장은 기준에 `PARKING`이 있으면.
+   - **인증** — 목록은 옵셔널 JWT, 검색은 **JWT 필수**(변경 없음), 마커는 공개. 파라미터 필터는 토큰과 관계없이 동작한다.
+   - 연관 검색어(`/places/related-search`)는 변경 없다(필터·정렬 없음).
 3. **온보딩 폼 조회** — 온보딩 문항·선택지·선택 규칙을 서버가 내려준다. 문구·순서를 앱 배포 없이 바꿀 수 있게 하는 것이 목적이다(코스 등록 폼과 같은 이유).
 4. **'없음' 배타 선택** — 복수 선택 문항에서 '없음'은 **단독으로만** 고를 수 있다. 서버는 '없음'과 다른 선택지가 함께 오면 **400**으로 거부하고, 폼 응답에 배타 선택지임을 표시(`exclusive: true`)해 클라이언트가 UI에서도 막을 수 있게 한다.
    - 현재 해당 문항은 **Q3 도로 주행 경험(`roadExperiences`)의 `NONE`** 하나다. Q4-2의 `NONE`은 단일 선택이라 해당 없다.
 
 ### 비기능 요구사항
 
-- **하위호환을 깨는 변경이 있다** — 목록·검색에서 비매칭 장소가 사라지고(2번), 필터 적용 시 `totalCount`가 줄어든다. 연습 목록은 기본이 현재 레벨이라 레벨업한 회원의 지난 기록이 기본 목록에서 빠진다(1번). 앱 업데이트와 함께 나간다.
-- 방문 기록의 잠금 순서(**연습 항목 → 회원**, ADR 0012)는 그대로 유지한다.
-- 스키마 변경(V27)은 한 커밋에 담고, 그 커밋 시점에 빌드·기동 가능해야 한다.
+- **하위호환을 지킨다** — 서버만 먼저 배포해도 기존 앱이 그대로 동작한다.
+  - 파라미터 없는 요청은 develop과 같은 결과다(정렬 동작 그대로, 커서 형식도 그대로).
+  - 옛 PUT 경로·요청 본문이 그대로 동작한다.
+  - 앱이 `practiceTypes`를 보내기 전까지는 필터가 걸리지 않는다(괜찮다고 확인, 2026-10-15).
+- 컬럼 이름 변경(V27)은 한 커밋에 담고(#75 닉네임 브랜치도 V27을 쓰므로 #74를 먼저 머지하고 #75는 V28로 바꾼다), 그 커밋 시점에 빌드·기동 가능해야 한다(엔티티 매핑을 같은 커밋에서 바꾼다).
 
 ## 도메인 모델
 
-### 1. member_practice — 레벨 컬럼 추가 (V27) — 보류
+### 2. 정렬 기준 저장·필터 쿼리
+
+**V27 — 컬럼 이름 변경**
 
 ```sql
-ALTER TABLE member_practice ADD COLUMN level VARCHAR(20);
-
--- 기존 기록은 회원의 현재 레벨 기록으로 본다(레벨 없는 회원은 SEED)
-UPDATE member_practice mp
-   SET level = COALESCE(m.level, 'SEED')
-  FROM member m
- WHERE m.id = mp.member_id;
-
-ALTER TABLE member_practice ALTER COLUMN level SET NOT NULL;
-
-ALTER TABLE member_practice DROP CONSTRAINT uq_member_practice;
-ALTER TABLE member_practice
-    ADD CONSTRAINT uq_member_practice UNIQUE (member_id, place_id, level);
-
--- 레벨 값은 enum 밖의 값을 DB에서 막는다(후기 member_level의 ck_review_member_level과 같은 방식)
-ALTER TABLE member_practice
-    ADD CONSTRAINT ck_member_practice_level
-        CHECK (level IN ('SEED', 'ROOKIE', 'OWNER', 'EXPLORER', 'NAVIGATOR'));
-
-DROP INDEX idx_member_practice_recent;
-CREATE INDEX idx_member_practice_recent
-    ON member_practice (member_id, level, COALESCE(visited_at, created_at) DESC, id DESC);
+ALTER TABLE member RENAME COLUMN filter_tags TO sort_tags;
 ```
 
-- **`level`** = 이 기록이 속한 레벨. 담을 때 회원의 현재 레벨로 정해지고 이후 바뀌지 않는다(후기의 `member_level` 스냅샷과 같은 성질).
-- **백필은 회원의 현재 레벨**로 한다. 기존 기록이 마이그레이션 직후 기본 목록(현재 레벨)에서 사라지지 않게 하기 위함이다. 과거에 어느 레벨에서 방문했는지는 남아 있지 않아 복원할 수 없다.
-- 레벨 없는 회원(온보딩 미완료)의 기록은 SEED로 채운다. 온보딩을 마친 회원은 원래 레벨이 비어 있으면 안 되므로 해당 행은 없거나 드물다고 보고 따로 처리하지 않는다.
-- **`verified_level`은 유지한다.** 새 기록에서는 항상 `null` 또는 `level`과 같은 값이 된다(방문은 항상 현재 레벨 기록에 남고, 인증 레벨로 **기록의 `level`**을 쓴다 — 승급을 일으킨 방문도 승급 전 레벨 = 기록의 레벨). 백필된 기존 행은 `level`보다 낮은 `verified_level`을 가질 수 있어, 후기 배지 판정(`existsByMemberIdAndPlaceIdAndVerifiedLevel`)을 바꾸지 않으려면 이 컬럼이 필요하다.
+- 데이터·타입(jsonb `List<PracticeType>`)은 그대로다.
+- 엔티티·서비스 이름도 맞춘다: `Member.filterTags` → `sortTags`, `updateFilterTags()` → `updateSortTags()`, `MemberFilterService` → `MemberSortService`, 요청 DTO `SortTagsRequest { sortTags }`. 옛 경로용 `FilterTagsRequest { filterTags }`는 별칭 제거 때 함께 지운다.
 
-**승급을 일으킨 방문** — 스펙 013 규칙 그대로다. SEED 기록으로 방문해 ROOKIE가 되면 그 방문과 인증은 SEED 기록에 남고, ROOKIE에서는 다시 [연습하기]로 새 기록을 만든다.
+**PUT 호출 흐름**
 
-**엔티티 규칙**
+```text
+PUT /members/me/sort-tags   { sortTags }    → MemberController.updateSortTags()   ─┐
+PUT /members/me/filter-tags { filterTags }  → MemberController.updateFilterTags() ─┤ (deprecated, INFO 로그)
+                                                                                   ▼
+                                          MemberSortService.updateSortTags(memberId, types)
+                                            → 회원 조회(없으면 404) → Member.updateSortTags(types)
+```
 
-| 메서드 | 규칙 |
-|--------|------|
-| `MemberPractice.builder().level(...)` | 담을 때 회원 현재 레벨 필수 |
-| `isCurrentFor(Level memberLevel)` | `level == memberLevel`. 방문 대상 결정에 쓴다 |
-| `markVisited(...)` | 인증 시 `verified_level`에 회원 레벨 대신 **기록의 `level`**을 넣는다(값은 같지만, 드문 동시 승급에서도 `verified_level ≤ level`을 지킨다) |
+두 엔드포인트는 단발 엔드포인트라 소유 컨트롤러인 `MemberController`에 나란히 둔다.
 
-**서비스 규칙**
+**쿼리** — 매칭 조건은 공통 상수 `MATCHES_FILTER` 하나로 정렬(`CASE WHEN ... THEN 1 ELSE 0 END AS matched`)과 필터(`WHERE`)가 함께 쓴다. 두 쿼리의 매칭 규칙이 어긋나지 않게 하기 위함이다.
 
-- **담기** — 기존 기록 조회(`findByMemberIdAndPlaceId`)와 동시 담기 대비 INSERT(`insertIfAbsent`)에 모두 `level`을 조건으로 더한다. `insertIfAbsent`의 충돌 기준은 새 유니크 `(member_id, place_id, level)`이다.
-- **방문 기록의 처리 순서** — 잠금은 **요청 기록 → 현재 레벨 기록 → 회원** 순이다.
-  1. 요청한 기록을 잠근다(소유 확인).
-  2. 요청한 기록이 **쿨다운**(10분) 안이면 현재 상태로 200. 승급을 일으킨 방문을 앱이 재시도하는 경우다.
-  3. 회원 레벨을 읽는다. 요청한 기록이 현재 레벨이 아니면 그 장소의 **현재 레벨 기록을 찾거나 만들고**(`insertIfAbsent` 후 조회) 잠가 방문 대상으로 삼는다. 이 기록도 쿨다운 안이면 200(옮겨 기록한 방문의 재시도).
-  4. 회원을 잠그고 방문을 기록한다(누적 거리·승급).
-  - 레벨이 없는 회원(온보딩 미완료, 백필된 SEED 기록만 있음)은 옮길 레벨이 없으므로 요청한 기록에 그대로 남긴다.
-  - 교착이 없는 이유: 옮기는 방향은 항상 낮은 레벨 → 현재 레벨이고, 연습 항목을 모두 잠근 뒤에 회원을 잠그므로 ADR 0012의 순서(연습 항목 → 회원)를 지킨다.
-  - 3에서 읽은 레벨이 4의 잠금 전에 다른 방문으로 오를 수 있다(서로 다른 장소를 동시에 완주한 경우). 이때는 대상 기록에 그대로 기록한다 — 승급 직전 레벨의 방문이라 "승급을 일으킨 방문은 승급 전 레벨 기록에 남는다"는 규칙과 같다.
-- **방문 응답** — 실제로 방문이 남은 기록의 `practiceId`를 응답에 추가한다. 옮겨 기록했으면 요청한 id와 다르므로, 앱은 이 값으로 목록을 갱신한다.
-- **미방문 사유** — 변경 없다. 레벨을 검사하지 않고 요청한 기록에 저장한다.
+| 용도 | 목록 | 검색 | 건수(totalCount) |
+|------|------|------|------|
+| 기본 | `findInViewport` | `searchByKeyword` | `countInViewport` · `countByKeyword` |
+| 정렬(`sort_tags`) | `findInViewportSorted` | `searchByKeywordSorted` | 기본과 같음(전부) |
+| 필터(`practiceTypes`) | `findInViewportFiltered` | `searchByKeywordFiltered` | `countInViewportFiltered` · `countByKeywordFiltered` |
+| 마커 필터 | `findAllVisibleFiltered` | — | — |
 
-### 2. 필터 — 쿼리 변경
-
-- `findInViewportFiltered`·`searchByKeywordFiltered`의 `matched` 정렬을 **`WHERE` 조건**으로 바꾼다. 정렬·커서는 필터 없는 쿼리와 같은 `(distance, id)`가 되므로 **커서 형식이 하나로 합쳐진다**(`matched|distance` 합성 커서 제거).
-- `totalCount`는 필터를 적용한 개수다(`countInViewportFiltered`·`countByKeywordFiltered` 추가).
-- 마커(`findAllVisible`)에 같은 매칭 조건을 건 조회를 추가한다.
+- 지금(develop)의 `*Filtered`는 정렬 쿼리라 `*Sorted`로 이름을 바꾸고, `*Filtered`는 매칭만 거르는 쿼리로 새로 둔다(9dc4505에 있던 쿼리를 다시 쓴다).
 
 ### 3. 온보딩 폼 — 응답 구조
 
@@ -159,54 +150,52 @@ CREATE INDEX idx_member_practice_recent
 
 | Method | Path | 설명 | 인증 | 변경 |
 |--------|------|------|------|------|
-| POST | /api/v1/places/{placeId}/practices | 연습 담기 | JWT | 현재 레벨 기록으로 담기, 레벨 없으면 409 |
-| GET | /api/v1/members/me/practices | 내 연습 목록 | JWT | `level` 파라미터·응답 `level` 추가 |
-| POST | /api/v1/practices/{practiceId}/visits | 방문 기록 | JWT | 지난 레벨 기록이면 현재 레벨 기록에 기록, 응답 `practiceId` 추가 |
-| GET | /api/v1/places | 현위치 목록 | 옵셔널 JWT | 정렬 → 필터 |
-| GET | /api/v1/places/search | 검색 | JWT | 정렬 → 필터 |
-| GET | /api/v1/places/coordinates | 지도 마커 | **옵셔널 JWT** | 필터 적용(인증 시) |
+| GET | /api/v1/places | 현위치 목록 | 옵셔널 JWT | `practiceTypes` 파라미터 추가(필터) |
+| GET | /api/v1/places/search | 검색 | JWT | `practiceTypes` 파라미터 추가(필터) |
+| GET | /api/v1/places/coordinates | 지도 마커 | 없음 | `practiceTypes` 파라미터 추가(필터) |
+| PUT | /api/v1/members/me/sort-tags | 정렬 기준 저장 | JWT | **신규**(filter-tags의 새 이름) |
+| PUT | /api/v1/members/me/filter-tags | 정렬 기준 저장(옛 경로) | JWT | **deprecated** — 별칭 유지, 호출 로그 |
 | GET | /api/v1/members/me/onboarding-form | 온보딩 폼 | JWT | **신규** |
 | POST | /api/v1/members/me/onboarding | 온보딩 제출 | JWT | '없음' 배타·중복 검증 |
 
-**컨트롤러 배치** — 온보딩 폼은 단발 엔드포인트라 소유 컨트롤러인 `MemberController`에 둔다(온보딩 제출과 같은 곳).
+**컨트롤러 배치** — 온보딩 폼·sort-tags는 단발 엔드포인트라 소유 컨트롤러인 `MemberController`에 둔다.
 
-### 1. 레벨별 연습 기록 — 보류
+### 2. 유형 필터·정렬
 
-```json
-// GET /api/v1/members/me/practices?level=SEED&size=20   (level 생략 시 현재 레벨)
-{
-  "items": [
-    {
-      "practiceId": 12, "placeId": 1, "placeName": "한강 코스",
-      "practiceTypes": ["STRAIGHT", "LANE_CHANGE"],
-      "level": "SEED",
-      "status": "VISITED", "visitCount": 2, "lastActivityAt": "2026-08-05T18:20:00",
-      "hasReview": true, "isDeleted": false
-    }
-  ],
-  "hasNext": false, "nextCursor": null, "totalCount": 1
-}
-```
-
-- `level`은 유효한 레벨 enum. 잘못된 값이면 400. 레벨 없는 회원이 생략하면 빈 목록이다.
-- `totalCount`는 그 레벨의 기록 수다.
-- `hasReview`는 **이 기록의 레벨에서** 그 장소에 후기를 썼는지다(`review.member_level = practice.level`). 후기는 레벨마다 새로 쓸 수 있고 수정도 같은 레벨에서만 되므로(`isEditable`) 레벨별 기록과 기준을 맞춘다. 목록은 한 레벨만 조회하므로 `findReviewedPlaceIds`에 레벨 조건 하나만 더한다.
-
-**에러**
-
-| 상황 | 코드 |
-|------|------|
-| 레벨 없는 회원(온보딩 미완료)이 담기 | 409 `PRACTICE_409_2` 온보딩 후 이용 가능 |
-
-### 2. 유형 필터
+**필터 파라미터**
 
 ```text
-GET /api/v1/places?swLat=..&neLng=..&lat=..&lng=..   (JWT, filter_tags = [U_TURN, PARKING])
+GET /api/v1/places?swLat=..&swLng=..&neLat=..&neLng=..&lat=..&lng=..&practiceTypes=U_TURN&practiceTypes=PARKING
+GET /api/v1/places?...&practiceTypes=U_TURN,PARKING          (콤마 형식도 같은 의미)
 → U_TURN 태그 코스 + 주차장만, 거리순. totalCount도 이 조건의 개수
 ```
 
-- 커서는 필터 유무와 관계없이 `(distance, id)` 한 형식이다. 배포 전에 발급된 필터 커서(`matched|distance`)는 400이 된다 — 첫 페이지부터 다시 부르면 된다.
-- 마커 API는 `SecurityConfig`의 공개 경로를 유지하고 `@CurrentMember(required = false)`로 받는다.
+- `practiceTypes`는 `PracticeType` enum 목록이다. 반복(`?a=X&a=Y`)·콤마(`?a=X,Y`) 형식을 모두 받는다. 중복 값은 하나로 본다.
+- 생략하거나 빈 값(`practiceTypes=`)이면 필터 없음이다.
+- 없는 enum 값이면 400 `COMMON_400`.
+- 검색·마커도 같은 파라미터·규칙이다.
+
+**정렬 (파라미터 없음, 인증 + `sort_tags` 있음)** — 스펙 007 그대로다.
+
+```text
+GET /api/v1/places?...   (JWT, sort_tags = [U_TURN, PARKING])
+→ U_TURN 태그 코스·주차장이 먼저(거리순), 그다음 나머지 전부(거리순). totalCount는 전부의 개수
+```
+
+**커서** — 모드마다 `sortValue` 형식이 다르다(위 요청별 동작 표). 다음 페이지는 **첫 페이지와 같은 조건**(파라미터·토큰)으로 불러야 하며, 모드와 맞지 않는 형식의 커서는 400 `COMMON_400`이다(예: 필터 모드에 `matched|distance` 커서). 형식 검증은 develop의 커서 파싱을 그대로 쓴다.
+
+**정렬 기준 저장**
+
+```json
+// PUT /api/v1/members/me/sort-tags   (JWT)
+{ "sortTags": ["U_TURN", "INTERSECTION", "PARKING"] }
+// → 200, 본문 없음. 빈 배열이면 해제
+
+// PUT /api/v1/members/me/filter-tags   (JWT, deprecated — 같은 동작)
+{ "filterTags": ["U_TURN", "INTERSECTION", "PARKING"] }
+```
+
+- 검증은 기존과 같다 — 목록 누락·원소 `null`·없는 enum 값은 400, 없는 회원은 404.
 
 ### 3. 온보딩 폼 (신규)
 
@@ -307,24 +296,17 @@ GET /api/v1/places?swLat=..&neLng=..&lat=..&lng=..   (JWT, filter_tags = [U_TURN
 
 ## 완료 조건 (Acceptance Criteria)
 
-**1. 레벨별 연습 기록** — 보류(화면 도출 후)
-- [ ] V27 적용 후 기존 기록의 `level`이 회원의 현재 레벨(없으면 SEED)로 채워지고, 유니크가 `(member_id, place_id, level)`이 된다.
-- [ ] SEED 회원이 담은 코스를 ROOKIE 승급 후 다시 담으면 **새 행**(visitCount 0, PLANNED, level=ROOKIE)이 생기고 SEED 행은 그대로다.
-- [ ] 같은 레벨에서 다시 담으면 기존처럼 행을 늘리지 않고 PLANNED로 되돌린다(연습 횟수 유지).
-- [ ] 목록은 `level` 생략 시 현재 레벨 기록만, `level=SEED`면 SEED 기록만 반환하고 `totalCount`도 그 레벨 기준이다. 잘못된 `level`은 400.
-- [ ] ROOKIE 회원이 SEED 기록으로 방문하면 200이고, 그 장소의 ROOKIE 기록이 생기거나(없으면) 갱신된다. 응답 `practiceId`는 ROOKIE 기록이고 SEED 기록은 바뀌지 않는다.
-- [ ] 지난 레벨 기록에도 미방문 사유를 제출할 수 있고(200), 그 기록에만 저장된다.
-- [ ] V27 후 `level`에 enum 밖의 값을 넣으면 DB가 거부한다(`ck_member_practice_level`).
-- [ ] 레벨 없는 회원의 담기는 409 `PRACTICE_409_2`.
-- [ ] 승급을 일으킨 방문은 승급 전 레벨 기록에 남고, 인증 레벨도 승급 전 레벨이다(기존 규칙 유지).
-- [ ] 승급을 일으킨 방문을 쿨다운 안에 재시도하면 409가 아니라 200(현재 상태 그대로)이다.
-- [ ] 목록의 `hasReview`는 그 레벨에서 쓴 후기만 본다 — SEED에서 후기를 쓴 장소의 ROOKIE 기록은 `false`.
-
-**2. 유형 필터**
-- [ ] 필터가 있는 인증 회원의 목록·검색·마커에 **비매칭 장소가 나오지 않는다**(태그가 겹치지 않는 코스, 필터에 PARKING이 없을 때의 주차장).
-- [ ] 필터 적용 시 `totalCount`가 매칭 장소 수와 같다.
-- [ ] 필터 적용 목록의 2페이지가 `(distance, id)` 커서로 누락·중복 없이 이어진다.
-- [ ] 비로그인·빈 필터는 기존과 같은 결과(전부, 거리순)다. 마커는 토큰 없이도 200이다.
+**2. 유형 필터·정렬**
+- [ ] V27 후 `member.sort_tags`에 기존 `filter_tags` 값이 그대로 남아 있다.
+- [ ] `PUT /members/me/sort-tags`와 `PUT /members/me/filter-tags`가 모두 200이고, 같은 `sort_tags` 컬럼에 저장된다. 빈 배열이면 해제된다.
+- [ ] 옛 경로를 호출하면 INFO 로그가 한 줄 남는다.
+- [ ] `practiceTypes`가 있으면 목록·검색·마커에 **비매칭 장소가 나오지 않는다**(태그가 겹치지 않는 코스, 파라미터에 PARKING이 없을 때의 주차장). 결과는 거리순이다.
+- [ ] 필터 적용 시 `totalCount`가 매칭 장소 수와 같고, 2페이지가 `distance` 커서로 누락·중복 없이 이어진다.
+- [ ] `practiceTypes`가 있으면 `sort_tags`가 있는 회원이어도 결과가 같다(정렬 미적용).
+- [ ] 반복·콤마 형식이 같은 결과를 내고, 없는 enum 값은 400이다.
+- [ ] 파라미터 없이 `sort_tags`가 있는 인증 회원은 **매칭 장소가 먼저, 비매칭도 전부** 나오고, 2페이지가 `matched|distance` 커서로 이어진다(develop과 같은 결과).
+- [ ] 비로그인·빈 `sort_tags`는 전부, 거리순이다. 마커는 토큰 없이 200이다.
+- [ ] 모드와 맞지 않는 커서는 400이다.
 
 **3·4. 온보딩**
 - [ ] 온보딩 폼이 2단계를 반환한다 — 1단계(Q1~Q4-2, `skippable: false`)·2단계(연습유형·차종·운전 목표, `skippable: true`). 문항은 `order` 1~8 순서다.
@@ -339,5 +321,6 @@ GET /api/v1/places?swLat=..&neLng=..&lat=..&lng=..   (JWT, filter_tags = [U_TURN
 ## 미해결 질문
 
 1. ~~온보딩 폼 문항·문구~~ — 2026-09-29 화면 디자인으로 확정(도메인 모델 3절·API 3절).
-2. **지난 레벨 기록의 미방문 사유를 409로 막을지** — 1번과 함께 **보류(화면 도출 후 결정)**. 현재 설계는 허용(레벨 검사 없이 그 기록에 저장)이다. 지난 기록을 완전히 고정하려면 409 `PRACTICE_409_3`으로 막고 앱이 지난 레벨 목록에서 "안 했어요"를 숨긴다.
-3. **유형 필터 적용 범위** — 지금은 목록·검색·마커다. 연관 검색어(`/places/related-search`)는 필터 없이 전부 제안해, 자동완성에 뜬 장소가 필터 때문에 검색 결과에 없을 수 있다. 적용 범위는 앱 화면 흐름을 보고 조정할 수 있다(2026-09-28 사용자).
+2. ~~지난 레벨 기록의 미방문 사유를 409로 막을지~~ — 1번과 함께 [스펙 022](022-level-practice-record.md)으로 옮겼다.
+3. **유형 필터 적용 범위** — 목록·검색·마커다. 연관 검색어(`/places/related-search`)는 필터 없이 전부 제안해, 자동완성에 뜬 장소가 필터 때문에 검색 결과에 없을 수 있다. 적용 범위는 앱 화면 흐름을 보고 조정할 수 있다(2026-09-28 사용자).
+4. ~~비로그인 필터 허용~~ — **허용으로 확정(2026-10-15)**. 스펙 007·ADR 0011은 "필터는 로그인 전용"이었다. 파라미터 방식에서는 목록·마커에 비로그인도 `practiceTypes`를 보낼 수 있고, 이 스펙은 **허용**으로 둔다(필터 상태가 앱 로컬이라 막을 근거가 없음). 비로그인에게 필터 UI를 보여줄지는 앱이 정한다. 검색은 JWT 필수라 해당 없다.

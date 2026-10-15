@@ -30,6 +30,7 @@
 | [0008](0008-social-login.md) | 소셜 로그인 전략 | Accepted |
 | [0009](0009-authentication-authorization.md) | 사용자 인증/인가 전략 | Accepted |
 | [0010](0010-list-query-cursor-postgis.md) | 목록 조회 전략 — 커서 페이지네이션 (QueryDSL 배제) | Accepted |
-| [0011](0011-place-search-and-filter-sort.md) | 장소 검색·필터 정렬 — 별도 엔드포인트·ILIKE·서버 저장 필터 | Accepted |
+| [0011](0011-place-search-and-filter-sort.md) | 장소 검색·필터 정렬 — 별도 엔드포인트·ILIKE·서버 저장 필터 | Accepted (필터 저장 결정은 0016으로 대체) |
 | [0012](0012-visit-record-duplicate-guard.md) | 방문 기록 중복 방지 — 쿨다운 | Accepted |
 | [0013](0013-withdrawal-locked-as-status.md) | 재가입 대기 안내 — 에러 대신 상태 응답 | Accepted |
+| [0016](0016-filter-param-and-sort-tags.md) | 홈 유형 필터 분리 — 저장 태그는 정렬(sort_tags), 필터는 요청 파라미터 | Accepted |

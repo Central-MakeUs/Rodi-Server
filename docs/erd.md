@@ -41,7 +41,7 @@ erDiagram
         varchar level "레벨(SEED/ROOKIE/OWNER/EXPLORER/NAVIGATOR), 온보딩 전 null"
         varchar driving_goal "운전 목표(최대 30자, 마이페이지 노출). null 가능"
         bigint total_distance_meters "누적 인정 주행거리(m), 레벨 승급 기준"
-        jsonb filter_tags "홈 정렬 필터 연습유형 목록(null/빈 값=필터 없음)"
+        jsonb sort_tags "홈 목록·검색 매칭 우선 정렬 기준 연습유형 목록(null=정렬 없음). V27에서 filter_tags 이름 변경"
         timestamptz course_tutorial_completed_at "코스 등록 튜토리얼 완료 시각(null=미완료)"
         timestamptz created_at
         timestamptz updated_at

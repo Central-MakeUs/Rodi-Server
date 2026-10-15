@@ -15,6 +15,7 @@
 - `Draft` — 작성 중
 - `Approved` — 승인됨, 구현 가능
 - `Implemented` — 구현·검증 완료
+- `Deferred` — 설계만 두고 구현을 미룸(추후 구현)
 - `Deprecated` — 더 이상 유효하지 않음
 
 ## 목록
@@ -27,7 +28,7 @@
 | [온보딩](004-onboarding.md) | 닉네임 자동 부여·운전 경험/추가정보 수집·레벨 배정 | Draft |
 | [코스 탐색](005-place-course-discovery.md) | 장소/코스/주차장 조회(마커·거리순 목록·상세)·북마크 | Draft |
 | [마이페이지](006-mypage.md) | 프로필 조회(레벨·추천 태그·저장 수)·운전목표 수정·저장 목록 | Implemented |
-| [코스 검색·정렬 필터](007-course-search-filter.md) | 주소·장소명 검색(로그인 전용)·홈 정렬 필터(서버 저장 filter_tags)·클러스터링(보류) | Approved |
+| [코스 검색·정렬 필터](007-course-search-filter.md) | 주소·장소명 검색(로그인 전용)·홈 정렬(서버 저장 sort_tags, 019에서 이름 변경)·클러스터링(보류) | Approved |
 | [최근 검색어](008-recent-search.md) | 연관검색 선택 항목 등록(POST·type 구분)·최신순 조회·삭제(로그인 전용) | Implemented |
 | [연관 검색어](009-related-search.md) | 지역(관련도순 4개)·장소명(관련도순 20개 커서) 자동완성 구분 응답 | Implemented |
 | [장소 후기](010-place-review.md) | 후기 작성/수정/삭제·레벨별 목록·난이도 분포 요약·신고/차단(좋아요는 추후) | Implemented |
@@ -39,4 +40,5 @@
 | [코스 승인](016-course-approval.md) | 승인 상태 변경(임시로 로그인 사용자 전체, 추후 관리자 전용) | Implemented |
 | [코스 등록 튜토리얼](017-course-tutorial.md) | 코스 등록 튜토리얼 완료 저장·로그인 응답으로 완료 여부 전달 | Implemented |
 | [텍스트 길이 기준 변경](018-text-length-grapheme.md) | 운전 목표·후기 내용 길이를 grapheme cluster로 계산(이모지 글자 수 불일치 해소) | Implemented |
-| [1차 보완](019-refinements-1.md) | 유형 필터(매칭 장소만)·온보딩 폼·온보딩 '없음' 배타 선택(구현) · 레벨별 연습 기록(보류) | Approved |
+| [1차 보완](019-refinements-1.md) | 유형 필터·정렬 분리(sort_tags 정렬·practiceTypes 파라미터 필터)·온보딩 폼·온보딩 '없음' 배타 선택 | Approved |
+| [레벨별 연습 기록](022-level-practice-record.md) | 연습 기록을 (회원, 장소, 레벨)마다 저장·레벨별 목록 조회(019에서 분리, 추후 구현) | Deferred |
