@@ -5,6 +5,7 @@ import cmc.rodi.domain.member.dto.CourseTutorialCompletionResponse;
 import cmc.rodi.domain.member.dto.FilterTagsRequest;
 import cmc.rodi.domain.member.dto.MemberUpdateRequest;
 import cmc.rodi.domain.member.dto.MyPageResponse;
+import cmc.rodi.domain.member.dto.NicknameAvailabilityResponse;
 import cmc.rodi.domain.member.dto.OnboardingFormResponse;
 import cmc.rodi.domain.member.dto.OnboardingRequest;
 import cmc.rodi.domain.member.dto.SortTagsRequest;
@@ -13,6 +14,7 @@ import cmc.rodi.domain.member.service.MemberCourseTutorialService;
 import cmc.rodi.domain.member.service.MemberProfileService;
 import cmc.rodi.domain.member.service.MemberSortService;
 import cmc.rodi.domain.member.service.MemberWithdrawalService;
+import cmc.rodi.domain.member.service.NicknameService;
 import cmc.rodi.domain.member.service.OnboardingService;
 import cmc.rodi.global.auth.resolver.CurrentMember;
 import cmc.rodi.global.common.pagination.CursorPage;
@@ -49,6 +51,7 @@ public class MemberController implements MemberControllerDocs {
     private final MemberSortService memberSortService;
     private final MemberBlockService memberBlockService;
     private final MemberCourseTutorialService memberCourseTutorialService;
+    private final NicknameService nicknameService;
 
     @Override
     @GetMapping("/me")
@@ -75,6 +78,13 @@ public class MemberController implements MemberControllerDocs {
     @GetMapping("/me/onboarding-form")
     public ApiResponse<OnboardingFormResponse> getOnboardingForm() {
         return ApiResponse.success(onboardingService.getForm());
+    }
+
+    @Override
+    @GetMapping("/nickname/availability")
+    public ApiResponse<NicknameAvailabilityResponse> checkNicknameAvailability(
+            @CurrentMember Long memberId, @RequestParam String nickname) {
+        return ApiResponse.success(nicknameService.checkAvailability(memberId, nickname));
     }
 
     @Override

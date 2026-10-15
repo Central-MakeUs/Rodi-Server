@@ -34,8 +34,8 @@ public class GraphemeSizeValidator implements ConstraintValidator<GraphemeSize, 
         return countGraphemes(value) <= max;
     }
 
-    /** 사용자가 한 글자로 인식하는 단위(grapheme cluster)의 개수. */
-    private static int countGraphemes(String value) {
+    /** 사용자가 한 글자로 인식하는 단위(grapheme cluster)의 개수. 닉네임 길이 판정도 같은 기준을 쓴다. */
+    public static int countGraphemes(String value) {
         BreakIterator boundaries = BreakIterator.getCharacterInstance(Locale.ROOT);
         boundaries.setText(value);
         int count = 0;

@@ -5,6 +5,7 @@ import cmc.rodi.domain.member.dto.CourseTutorialCompletionResponse;
 import cmc.rodi.domain.member.dto.FilterTagsRequest;
 import cmc.rodi.domain.member.dto.MemberUpdateRequest;
 import cmc.rodi.domain.member.dto.MyPageResponse;
+import cmc.rodi.domain.member.dto.NicknameAvailabilityResponse;
 import cmc.rodi.domain.member.dto.OnboardingFormResponse;
 import cmc.rodi.domain.member.dto.OnboardingRequest;
 import cmc.rodi.domain.member.dto.SortTagsRequest;
@@ -34,7 +35,11 @@ public interface MemberControllerDocs {
 
     @Operation(
             summary = "회원 정보 수정(마이페이지)",
-            description = "회원 정보를 부분 수정한다. 현재 수정 가능 필드는 운전 목표(최대 30자, 빈값이면 삭제). JWT 필요.")
+            description =
+                    "회원 정보를 부분 수정한다. 보낸 필드만 바꾸고 생략한 필드는 그대로 둔다. "
+                            + "운전 목표: 최대 30자, null·빈값이면 삭제. "
+                            + "닉네임: 사용 가능 여부 확인 API와 같은 판정 — 위반 시 400 MEMBER_400_2(길이)·MEMBER_400_3(문자)·"
+                            + "MEMBER_400_4(금칙어), 중복이면 409 MEMBER_409_3. 하나라도 실패하면 아무것도 저장하지 않는다. JWT 필요.")
     ApiResponse<Void> updateMe(
             @Parameter(hidden = true) Long memberId, MemberUpdateRequest request);
 
@@ -46,6 +51,17 @@ public interface MemberControllerDocs {
                             + "흐름 규칙: skipsFollowUps 선택지를 고르면 후속 문항 생략, showWhen 문항은 조건 선택지를 골랐을 때만 노출, "
                             + "exclusive 선택지는 단독으로만. JWT 필요.")
     ApiResponse<OnboardingFormResponse> getOnboardingForm();
+
+    @Operation(
+            summary = "닉네임 사용 가능 여부 확인",
+            description =
+                    "저장하지 않고 닉네임 변경과 같은 판정만 한다. 규칙 위반도 200으로 내리고 available=false와 사유 코드(reason)를 준다 — "
+                            + "MEMBER_400_2 길이(2~10자) · MEMBER_400_3 문자(한글·영문·숫자·_, _는 처음·끝·연속 불가) · "
+                            + "MEMBER_400_4 금칙어 · MEMBER_409_3 중복(영문 대소문자 무시). 본인 현재 닉네임은 사용 가능. "
+                            + "확인 뒤 다른 회원이 먼저 쓸 수 있으므로 최종 판정은 변경 요청이 한다. JWT 필요.")
+    ApiResponse<NicknameAvailabilityResponse> checkNicknameAvailability(
+            @Parameter(hidden = true) Long memberId,
+            @Parameter(description = "확인할 닉네임(앞뒤 공백은 제거 후 판정)", example = "초보_탈출") String nickname);
 
     @Operation(
             summary = "온보딩 제출",

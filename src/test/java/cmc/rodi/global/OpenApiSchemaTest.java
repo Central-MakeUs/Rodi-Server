@@ -91,6 +91,19 @@ class OpenApiSchemaTest {
     }
 
     @Test
+    @DisplayName("회원 수정 요청 스키마엔 drivingGoal·nickname만 노출된다")
+    void 회원_수정_요청_필드() throws Exception {
+        JsonNode apiDocs = objectMapper.readTree(fetchApiDocs());
+
+        // 생략/null 구분용 내부 플래그(drivingGoalSent 등)가 요청 필드로 그려지면 안 된다
+        List<String> fields = new ArrayList<>();
+        apiDocs.at("/components/schemas/MemberUpdateRequest/properties")
+                .fieldNames()
+                .forEachRemaining(fields::add);
+        assertThat(fields).containsExactlyInAnyOrder("drivingGoal", "nickname");
+    }
+
+    @Test
     @DisplayName("폼 엔드포인트는 각자의 응답 예시를 갖는다")
     void 폼_예시_분리() throws Exception {
         JsonNode apiDocs = objectMapper.readTree(fetchApiDocs());
