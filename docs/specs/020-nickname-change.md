@@ -13,6 +13,7 @@
 | 2026-10-22 | Draft | **닉네임 변경 30일 제한** 추가(이슈 [#80](https://github.com/Central-MakeUs/Rodi-Server/issues/80)) — 바꾼 시각부터 정확히 30일 동안 다시 바꿀 수 없다. 첫 변경·같은 값·대소문자만 바꾸기는 제한에 세지 않는다. 마이페이지에 `nicknameChangeableAt` 추가 |
 | 2026-10-22 | **Approved** | 변경 제한 승인 — 구현 시작 |
 | 2026-10-22 | Approved | 다음 변경 가능 시각을 **PATCH 성공·`MEMBER_400_5` 실패 응답·확인 API·마이페이지** 네 곳에 `nicknameChangeableAt`으로 통일해 준다 — 앱이 확인 API를 안 써도 변경 요청 응답만으로 안내 가능. 실패 응답 data는 `BusinessException.getData()`를 재정의한 전용 예외로(ADR 0013 보완) |
+| 2026-10-22 | Implemented | 변경 제한 구현 완료 — V29, `Member` 변경 시각·다음 변경 가능 시각, 판정 맨 앞 제한 검사, `NicknameChangeCooldownException`, 응답 네 곳 `nicknameChangeableAt`(구현 노트) |
 
 ## 배경 / 목적
 
@@ -351,18 +352,18 @@ CREATE UNIQUE INDEX uq_member_nickname_lower ON member (lower(nickname));
 
 **변경 제한 (2026-10-22 추가)**
 
-- [ ] 처음 바꾸는 회원(`nicknameChangedAt` 없음)은 바로 바꿀 수 있고, 바꾼 뒤 `nicknameChangedAt`이 기록된다.
-- [ ] 바꾼 뒤 30일 이내에 다른 닉네임으로 바꾸면 400 `MEMBER_400_5`이고 닉네임은 그대로다.
-- [ ] 바꾼 시각 + 30일 정각부터는 다시 바꿀 수 있다(1초 전은 거부).
-- [ ] 제한 중 같은 닉네임을 보내면 200, 아무것도 바뀌지 않고 `nicknameChangedAt`도 그대로다.
-- [ ] 제한 중 대소문자만 바꾸면(`kim` → `Kim`) 200, 닉네임은 바뀌고 `nicknameChangedAt`은 그대로다.
-- [ ] 제한 중 `nickname`과 `drivingGoal`을 같이 보내면 400 `MEMBER_400_5`이고 둘 다 저장되지 않는다.
-- [ ] 제한 중 형식이 틀린 닉네임을 보내도 `MEMBER_400_5`가 먼저 나온다.
-- [ ] 마이페이지 `nicknameChangeableAt`은 제한 중이면 `nicknameChangedAt + 30일`, 아니면 `null`이다.
-- [ ] 확인 API는 제한 중이면 `available: false`·`reason: MEMBER_400_5`·`nicknameChangeableAt`, 같은 값·대소문자만 다른 값은 `available: true`다. 다른 사유면 `nicknameChangeableAt`은 `null`이다.
-- [ ] PATCH 성공 응답 data에 `nickname`과 `nicknameChangeableAt`이 있다(운전 목표만 바꿔도, 제한이 없으면 `null`).
-- [ ] `MEMBER_400_5` 실패 응답 data에 `nicknameChangeableAt`이 있고, 다른 에러(예: 409 중복)는 `data: null`이다.
-- [ ] Flyway V29 적용 후 기존 회원은 `nickname_changed_at`이 NULL이고 바로 바꿀 수 있다.
+- [x] 처음 바꾸는 회원(`nicknameChangedAt` 없음)은 바로 바꿀 수 있고, 바꾼 뒤 `nicknameChangedAt`이 기록된다.
+- [x] 바꾼 뒤 30일 이내에 다른 닉네임으로 바꾸면 400 `MEMBER_400_5`이고 닉네임은 그대로다.
+- [x] 바꾼 시각 + 30일 정각부터는 다시 바꿀 수 있다(1초 전은 거부).
+- [x] 제한 중 같은 닉네임을 보내면 200, 아무것도 바뀌지 않고 `nicknameChangedAt`도 그대로다.
+- [x] 제한 중 대소문자만 바꾸면(`kim` → `Kim`) 200, 닉네임은 바뀌고 `nicknameChangedAt`은 그대로다.
+- [x] 제한 중 `nickname`과 `drivingGoal`을 같이 보내면 400 `MEMBER_400_5`이고 둘 다 저장되지 않는다.
+- [x] 제한 중 형식이 틀린 닉네임을 보내도 `MEMBER_400_5`가 먼저 나온다.
+- [x] 마이페이지 `nicknameChangeableAt`은 제한 중이면 `nicknameChangedAt + 30일`, 아니면 `null`이다.
+- [x] 확인 API는 제한 중이면 `available: false`·`reason: MEMBER_400_5`·`nicknameChangeableAt`, 같은 값·대소문자만 다른 값은 `available: true`다. 다른 사유면 `nicknameChangeableAt`은 `null`이다.
+- [x] PATCH 성공 응답 data에 `nickname`과 `nicknameChangeableAt`이 있다(운전 목표만 바꿔도, 제한이 없으면 `null`).
+- [x] `MEMBER_400_5` 실패 응답 data에 `nicknameChangeableAt`이 있고, 다른 에러(예: 409 중복)는 `data: null`이다.
+- [x] Flyway V29 적용 후 기존 회원은 `nickname_changed_at`이 NULL이고 바로 바꿀 수 있다.
 
 **금칙어 로드**
 
@@ -378,6 +379,15 @@ CREATE UNIQUE INDEX uq_member_nickname_lower ON member (lower(nickname));
 - **허용 목록 판정**: 허용 단어를 지우고 검사하면 "초보지랄"의 "지랄"을 놓쳐, 포함 일치가 허용 단어 하나에 통째로 덮일 때만 무시하도록 바꿨다.
 - **금칙어 가공 중 조정**: 영어 사전 대조로 `twat`(sweetwater)을 정확 일치로, 허용 목록에 `prodig`·`aphrodi`(rodi)·`badminton`(admin)·`최후장`(후장)·`자지러`(자지)를 더했다. `뒤져`(뒤지다=찾다)는 정확 일치로 뒀다.
 - **예시 닉네임**: 중복 예시였던 `Rodi_Kim`은 사칭 금칙어 `rodi`에 먼저 걸려 `Drive_Kim`으로 바꿨다.
+
+### 변경 제한(30일) — 2026-10-22, #80
+
+- **규칙은 엔티티에**: `Member.changeNickname(nickname, now)`가 대소문자 무시로 같은지 보고, 다를 때만 `nicknameChangedAt`을 기록한다. 다음 변경 가능 시각은 `Member.nicknameChangeableAt(now, cooldown)` — 기간은 `NicknamePolicy.CHANGE_COOLDOWN`(30일) 한 곳에 둔다.
+- **판정 위치**: 변경 제한은 `NicknameService.findViolation`의 맨 앞에서 본다. PATCH와 확인 API가 같은 판정을 쓰므로 둘 다 자동으로 적용된다.
+- **시각**: 서비스가 `LocalDateTime.now()`를 마이크로초로 잘라 넘긴다(Postgres `TIMESTAMP` 정밀도). 저장 전후 값이 같아 "같은 값이면 변경 시각 그대로" 검증이 흔들리지 않는다. 30일 경계(정각 허용·1초 전 거부)는 엔티티 단위 테스트에서 시각을 직접 넣어 확인한다.
+- **에러 응답 data**: 공통 예외 구조를 넓히지 않고 `BusinessException.getData()`(기본 `null`)만 추가했다. 데이터를 싣는 건 이를 재정의한 `NicknameChangeCooldownException` 하나뿐이고, 다른 에러는 그대로 `data: null`이다(ADR 0013 보완 기록).
+- **PATCH 성공 응답 변경**: `data`가 `null`에서 `{ nickname, nicknameChangeableAt }`으로 바뀌었다. `data`를 무시하던 앱은 그대로지만, `data == null`로 성공을 판단하는 코드가 있다면 앱 팀 확인이 필요하다.
+- **기존 테스트 조정**: 한 테스트 안에서 닉네임을 두 번 바꾸던 정규화 테스트는 두 번째 변경이 제한에 걸려 둘로 나눴다. 본인 닉네임 테스트는 사전 상태를 자동 부여(`assignNickname`)로 만들었다.
 
 ## 미해결 질문
 
