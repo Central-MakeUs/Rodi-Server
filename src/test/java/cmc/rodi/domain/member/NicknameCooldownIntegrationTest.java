@@ -74,7 +74,10 @@ class NicknameCooldownIntegrationTest {
     void 첫_변경() throws Exception {
         처음_회원();
 
-        patchMe("{\"nickname\":\"초보_탈출\"}").andExpect(status().isOk());
+        patchMe("{\"nickname\":\"초보_탈출\"}")
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.nickname").value("초보_탈출"))
+                .andExpect(jsonPath("$.data.nicknameChangeableAt").exists());
 
         Member found = reload();
         assertThat(found.getNickname()).isEqualTo("초보_탈출");
@@ -85,10 +88,12 @@ class NicknameCooldownIntegrationTest {
     @DisplayName("제한 중: 다른 닉네임으로 바꾸면 400 MEMBER_400_5, 닉네임 그대로")
     void 제한_중_거부() throws Exception {
         바꾼_지(10);
+        String changeableAt = reload().getNicknameChangedAt().plusDays(30).toString();
 
         patchMe("{\"nickname\":\"초보_탈출\"}")
                 .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.code").value("MEMBER_400_5"));
+                .andExpect(jsonPath("$.code").value("MEMBER_400_5"))
+                .andExpect(jsonPath("$.data.nicknameChangeableAt").value(changeableAt));
 
         assertThat(reload().getNickname()).isEqualTo("kim_초보");
     }
@@ -167,15 +172,87 @@ class NicknameCooldownIntegrationTest {
     }
 
     @Test
-    @DisplayName("확인 API: 제한 중이면 available=false·MEMBER_400_5, 같은 값·대소문자만 다르면 available=true")
+    @DisplayName("다른 에러(중복 409)는 data가 그대로 null이다")
+    void 다른_에러_data_없음() throws Exception {
+        Member other = Member.createBySocial("other@kakao.com");
+        other.assignNickname("Drive_Kim");
+        memberRepository.save(other);
+        처음_회원();
+
+        patchMe("{\"nickname\":\"drive_kim\"}")
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("MEMBER_409_3"))
+                .andExpect(jsonPath("$.data").doesNotExist());
+    }
+
+    @Test
+    @DisplayName("성공 응답: 운전 목표만 바꿔도 현재 닉네임과 다음 변경 가능 시각을 준다")
+    void 성공_응답_목표만() throws Exception {
+        바꾼_지(10);
+        String changeableAt = reload().getNicknameChangedAt().plusDays(30).toString();
+
+        patchMe("{\"drivingGoal\":\"새 목표\"}")
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.nickname").value("kim_초보"))
+                .andExpect(jsonPath("$.data.nicknameChangeableAt").value(changeableAt));
+    }
+
+    @Test
+    @DisplayName("성공 응답: 제한이 없으면 nicknameChangeableAt은 null")
+    void 성공_응답_제한_없음() throws Exception {
+        바꾼_지(31);
+
+        patchMe("{\"drivingGoal\":\"새 목표\"}")
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.nicknameChangeableAt").doesNotExist());
+    }
+
+    @Test
+    @DisplayName(
+            "확인 API: 제한 중이면 available=false·MEMBER_400_5·다음 변경 가능 시각, 같은 값·대소문자만 다르면 available=true")
     void 확인_API_제한_중() throws Exception {
         바꾼_지(10);
+        String changeableAt = reload().getNicknameChangedAt().plusDays(30).toString();
 
         check("초보_탈출")
                 .andExpect(jsonPath("$.data.available").value(false))
-                .andExpect(jsonPath("$.data.reason").value("MEMBER_400_5"));
-        check("kim_초보").andExpect(jsonPath("$.data.available").value(true));
+                .andExpect(jsonPath("$.data.reason").value("MEMBER_400_5"))
+                .andExpect(jsonPath("$.data.nicknameChangeableAt").value(changeableAt));
+        check("kim_초보")
+                .andExpect(jsonPath("$.data.available").value(true))
+                .andExpect(jsonPath("$.data.nicknameChangeableAt").doesNotExist());
         check("KIM_초보").andExpect(jsonPath("$.data.available").value(true));
+    }
+
+    @Test
+    @DisplayName("확인 API: 다른 사유(길이)면 nicknameChangeableAt은 null")
+    void 확인_API_다른_사유() throws Exception {
+        처음_회원();
+
+        check("초")
+                .andExpect(jsonPath("$.data.reason").value("MEMBER_400_2"))
+                .andExpect(jsonPath("$.data.nicknameChangeableAt").doesNotExist());
+    }
+
+    @Test
+    @DisplayName("마이페이지: 제한 중이면 nicknameChangeableAt = 변경 시각 + 30일, 아니면 null")
+    void 마이페이지_변경_가능_시각() throws Exception {
+        바꾼_지(10);
+        String changeableAt = reload().getNicknameChangedAt().plusDays(30).toString();
+
+        mockMvc.perform(get("/api/v1/members/me"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.nicknameChangeableAt").value(changeableAt));
+    }
+
+    @Test
+    @DisplayName("마이페이지: 아직 직접 바꾼 적 없으면 nicknameChangeableAt은 null")
+    void 마이페이지_첫_변경_전() throws Exception {
+        처음_회원();
+
+        mockMvc.perform(get("/api/v1/members/me"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.nicknameChangeableAt").doesNotExist());
     }
 
     @Test

@@ -38,10 +38,11 @@ public class GlobalExceptionHandler {
 
     /** 비즈니스 예외 — 예측된 실패라 WARN 로깅. */
     @ExceptionHandler(BusinessException.class)
-    public ResponseEntity<ApiResponse<Void>> handleBusinessException(BusinessException e) {
+    public ResponseEntity<ApiResponse<Object>> handleBusinessException(BusinessException e) {
         ResponseCode errorCode = e.getErrorCode();
         log.warn("BusinessException: {} - {}", errorCode.getCode(), errorCode.getMessage());
-        return ResponseEntity.status(errorCode.getHttpStatus()).body(ApiResponse.error(errorCode));
+        return ResponseEntity.status(errorCode.getHttpStatus())
+                .body(ApiResponse.error(errorCode, e.getData()));
     }
 
     /**

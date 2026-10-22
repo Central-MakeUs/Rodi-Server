@@ -12,6 +12,7 @@
 | 2026-10-15 | Implemented | develop(#77 머지) 위로 rebase — #77이 V27(`sort_tags` 이름 변경)을 먼저 써서 닉네임 이관 마이그레이션을 **V28**로 변경 |
 | 2026-10-22 | Draft | **닉네임 변경 30일 제한** 추가(이슈 [#80](https://github.com/Central-MakeUs/Rodi-Server/issues/80)) — 바꾼 시각부터 정확히 30일 동안 다시 바꿀 수 없다. 첫 변경·같은 값·대소문자만 바꾸기는 제한에 세지 않는다. 마이페이지에 `nicknameChangeableAt` 추가 |
 | 2026-10-22 | **Approved** | 변경 제한 승인 — 구현 시작 |
+| 2026-10-22 | Approved | 다음 변경 가능 시각을 **PATCH 성공·`MEMBER_400_5` 실패 응답·확인 API·마이페이지** 네 곳에 `nicknameChangeableAt`으로 통일해 준다 — 앱이 확인 API를 안 써도 변경 요청 응답만으로 안내 가능. 실패 응답 data는 `BusinessException.getData()`를 재정의한 전용 예외로(ADR 0013 보완) |
 
 ## 배경 / 목적
 
@@ -51,7 +52,13 @@
    - **같은 값**(지금 닉네임과 똑같음)을 보내면 변경이 아니다. 제한 중에도 200이고 아무것도 바뀌지 않으며, 30일도 다시 시작하지 않는다.
    - **대소문자만 다른 값**(`kim` → `Kim`)은 **바꾸되 변경으로 세지 않는다.** 제한 중에도 바로 바뀌고, 30일을 새로 시작하거나 연장하지 않는다. 중복 판정(대소문자 무시)에서 같은 닉네임으로 보기 때문이다.
    - 제한 중에 다른 닉네임으로 바꾸려 하면 **400 `MEMBER_400_5`**. `drivingGoal`을 함께 보냈어도 **아무것도 저장하지 않는다**(기존 원자성 규칙).
-   - 앱이 "N일 후 변경 가능"을 보여줄 수 있도록 **마이페이지 응답에 `nicknameChangeableAt`** 을 준다(지금 바꿀 수 있으면 `null`). 에러 응답에는 데이터를 담을 수 없어서([ADR 0013](../adr/0013-withdrawal-locked-as-status.md)) 날짜는 조회 응답으로 준다.
+   - 앱이 "N일 후 변경 가능"을 보여줄 수 있도록 다음 변경 가능 시각 **`nicknameChangeableAt`** 을 네 곳에서 같은 이름으로 준다(지금 바꿀 수 있으면 `null`). 앱은 확인 API를 쓰지 않아도 변경 요청 응답만으로 안내할 수 있다.
+     | 응답 | 위치 |
+     |---|---|
+     | PATCH 성공(200) | `data.nicknameChangeableAt` (`data.nickname`과 함께) |
+     | PATCH 실패 `MEMBER_400_5`(400) | `data.nicknameChangeableAt` — 이 에러만 data를 싣는다. 다른 에러는 `data: null` 그대로 |
+     | 확인 API | `data.nicknameChangeableAt` — 사유가 `MEMBER_400_5`일 때만, 그 밖에는 `null` |
+     | 마이페이지 | `data.nicknameChangeableAt` |
    - **확인 API**도 제한 중이면 `available: false`, `reason: MEMBER_400_5`를 준다. 같은 값·대소문자만 다른 값은 제한 중에도 `available: true`다.
    - 탈퇴 후 복구하면 변경 기록은 유지된다. 재가입은 새 회원이라 제한이 없다.
 
@@ -92,8 +99,17 @@
 // Request
 { "nickname": "초보_탈출" }
 
-// Response 200
-{ "isSuccess": true, "code": "COMMON_200", "message": "요청에 성공했습니다.", "data": null }
+// Response 200 — 현재 닉네임과 다음 변경 가능 시각(2026-10-22 추가, 이전엔 data null)
+{
+  "isSuccess": true, "code": "COMMON_200", "message": "요청에 성공했습니다.",
+  "data": { "nickname": "초보_탈출", "nicknameChangeableAt": "2026-11-21T15:00:00" }
+}
+
+// Response 400 — 바꾼 뒤 30일 이내(2026-10-22 추가). 이 에러만 data를 싣는다
+{
+  "isSuccess": false, "code": "MEMBER_400_5", "message": "닉네임은 30일에 한 번만 변경할 수 있어요.",
+  "data": { "nicknameChangeableAt": "2026-11-21T15:00:00" }, "traceId": "..."
+}
 
 // Response 409 — 다른 회원이 사용 중
 { "isSuccess": false, "code": "MEMBER_409_3", "message": "이미 사용 중인 닉네임이에요.", "data": null }
@@ -159,6 +175,9 @@
 | `Member` | `entity` | `nicknameChangedAt`(마지막 사용자 변경 시각)과 `nicknameChangeableAt(now)`(다음 변경 가능 시각, 지금 가능하면 null) — 2026-10-22 |
 | `NicknamePolicy` | `policy` | 변경 제한 기간 상수 `CHANGE_COOLDOWN = 30일` — 2026-10-22 |
 | `MyPageResponse` | `dto` | `nicknameChangeableAt` 추가 — 2026-10-22 |
+| `MemberUpdateResponse` | `dto` | PATCH 성공 응답 — `nickname`·`nicknameChangeableAt` (이전엔 data null) — 2026-10-22 |
+| `NicknameAvailabilityResponse` | `dto` | `nicknameChangeableAt` 추가(사유가 30일 제한일 때만) — 2026-10-22 |
+| `NicknameChangeCooldownException` | `exception` | `MEMBER_400_5` 전용 예외. `getData()`로 `{ nicknameChangeableAt }`을 에러 응답 data에 싣는다 — 2026-10-22 |
 
 - `MemberProfileService.update`가 `NicknameService`로 검증한 뒤 `Member.changeNickname(...)`을 호출한다. 저장 시 UNIQUE 위반(`DataIntegrityViolationException`)은 `MEMBER_409_3`으로 바꾼다. 커밋 시점이 아니라 서비스 안에서 잡을 수 있도록 **변경 직후 flush**한다.
 - 후보 풀(`NicknameAssigner`)은 변경하지 않는다. 대신 **풀 전체가 `NicknamePolicy`를 통과하는지 테스트로 보장**한다.
@@ -340,7 +359,9 @@ CREATE UNIQUE INDEX uq_member_nickname_lower ON member (lower(nickname));
 - [ ] 제한 중 `nickname`과 `drivingGoal`을 같이 보내면 400 `MEMBER_400_5`이고 둘 다 저장되지 않는다.
 - [ ] 제한 중 형식이 틀린 닉네임을 보내도 `MEMBER_400_5`가 먼저 나온다.
 - [ ] 마이페이지 `nicknameChangeableAt`은 제한 중이면 `nicknameChangedAt + 30일`, 아니면 `null`이다.
-- [ ] 확인 API는 제한 중이면 `available: false`·`reason: MEMBER_400_5`, 같은 값·대소문자만 다른 값은 `available: true`다.
+- [ ] 확인 API는 제한 중이면 `available: false`·`reason: MEMBER_400_5`·`nicknameChangeableAt`, 같은 값·대소문자만 다른 값은 `available: true`다. 다른 사유면 `nicknameChangeableAt`은 `null`이다.
+- [ ] PATCH 성공 응답 data에 `nickname`과 `nicknameChangeableAt`이 있다(운전 목표만 바꿔도, 제한이 없으면 `null`).
+- [ ] `MEMBER_400_5` 실패 응답 data에 `nicknameChangeableAt`이 있고, 다른 에러(예: 409 중복)는 `data: null`이다.
 - [ ] Flyway V29 적용 후 기존 회원은 `nickname_changed_at`이 NULL이고 바로 바꿀 수 있다.
 
 **금칙어 로드**

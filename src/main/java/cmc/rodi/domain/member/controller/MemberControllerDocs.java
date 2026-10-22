@@ -4,6 +4,7 @@ import cmc.rodi.domain.member.dto.BlockedMemberItem;
 import cmc.rodi.domain.member.dto.CourseTutorialCompletionResponse;
 import cmc.rodi.domain.member.dto.FilterTagsRequest;
 import cmc.rodi.domain.member.dto.MemberUpdateRequest;
+import cmc.rodi.domain.member.dto.MemberUpdateResponse;
 import cmc.rodi.domain.member.dto.MyPageResponse;
 import cmc.rodi.domain.member.dto.NicknameAvailabilityResponse;
 import cmc.rodi.domain.member.dto.OnboardingFormResponse;
@@ -41,9 +42,10 @@ public interface MemberControllerDocs {
                             + "닉네임: 사용 가능 여부 확인 API와 같은 판정 — 위반 시 400 MEMBER_400_2(길이)·MEMBER_400_3(문자)·"
                             + "MEMBER_400_4(금칙어)·MEMBER_400_5(바꾼 뒤 30일 이내), 중복이면 409 MEMBER_409_3. "
                             + "30일 제한은 첫 변경에는 없고, 같은 값·대소문자만 바꾸기는 제한에 세지 않는다. "
-                            + "다음 변경 가능 시각은 마이페이지 nicknameChangeableAt. "
+                            + "응답 data는 현재 닉네임과 다음 변경 가능 시각(nicknameChangeableAt, 지금 가능하면 null). "
+                            + "MEMBER_400_5 실패 응답에도 data.nicknameChangeableAt을 준다(그 밖의 에러는 data null). "
                             + "하나라도 실패하면 아무것도 저장하지 않는다. JWT 필요.")
-    ApiResponse<Void> updateMe(
+    ApiResponse<MemberUpdateResponse> updateMe(
             @Parameter(hidden = true) Long memberId, MemberUpdateRequest request);
 
     @Operation(

@@ -18,6 +18,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import cmc.rodi.domain.member.dto.CourseTutorialCompletionResponse;
 import cmc.rodi.domain.member.dto.LevelProgressResponse;
 import cmc.rodi.domain.member.dto.MemberUpdateRequest;
+import cmc.rodi.domain.member.dto.MemberUpdateResponse;
 import cmc.rodi.domain.member.dto.MyPageResponse;
 import cmc.rodi.domain.member.dto.NicknameAvailabilityResponse;
 import cmc.rodi.domain.member.dto.OnboardingFormResponse;
@@ -172,6 +173,7 @@ class MemberControllerTest {
                 .thenReturn(
                         new MyPageResponse(
                                 "성난_초보",
+                                LocalDateTime.of(2026, 11, 21, 15, 0),
                                 Level.ROOKIE,
                                 List.of("U_TURN", "INTERSECTION", "PARKING"),
                                 "골목길에 익숙해지기",
@@ -199,6 +201,7 @@ class MemberControllerTest {
                 .thenReturn(
                         new MyPageResponse(
                                 "노련한 여우",
+                                null,
                                 Level.NAVIGATOR,
                                 List.of("U_TURN"),
                                 null,
@@ -217,13 +220,18 @@ class MemberControllerTest {
     @DisplayName("회원 수정: 200 + @CurrentMember의 회원 id로 서비스 위임")
     void 회원_수정() throws Exception {
         authenticate(7L);
+        when(memberProfileService.update(eq(7L), any(MemberUpdateRequest.class)))
+                .thenReturn(
+                        new MemberUpdateResponse("성난_초보", LocalDateTime.of(2026, 11, 21, 15, 0)));
 
         mockMvc.perform(
                         patch("/api/v1/members/me")
                                 .contentType(MediaType.APPLICATION_JSON)
                                 .content("{\"drivingGoal\":\"골목길에 익숙해지기\"}"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.isSuccess").value(true));
+                .andExpect(jsonPath("$.isSuccess").value(true))
+                .andExpect(jsonPath("$.data.nickname").value("성난_초보"))
+                .andExpect(jsonPath("$.data.nicknameChangeableAt").value("2026-11-21T15:00:00"));
 
         verify(memberProfileService).update(eq(7L), any(MemberUpdateRequest.class));
     }

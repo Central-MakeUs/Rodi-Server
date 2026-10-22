@@ -2,6 +2,7 @@ package cmc.rodi.domain.member.service;
 
 import cmc.rodi.domain.member.dto.LevelProgressResponse;
 import cmc.rodi.domain.member.dto.MemberUpdateRequest;
+import cmc.rodi.domain.member.dto.MemberUpdateResponse;
 import cmc.rodi.domain.member.dto.MyPageResponse;
 import cmc.rodi.domain.member.entity.Member;
 import cmc.rodi.domain.member.exception.MemberErrorCode;
@@ -39,6 +40,7 @@ public class MemberProfileService {
         long savedPlaceCount = bookmarkQueryService.countByMember(memberId);
         return new MyPageResponse(
                 member.getNickname(),
+                nicknameService.changeableAt(member, LocalDateTime.now()),
                 member.getLevel(),
                 RecommendationTags.of(member.getLevel()),
                 member.getDrivingGoal(),
@@ -54,7 +56,7 @@ public class MemberProfileService {
      * flush한다.
      */
     @Transactional
-    public void update(Long memberId, MemberUpdateRequest request) {
+    public MemberUpdateResponse update(Long memberId, MemberUpdateRequest request) {
         Member member =
                 memberRepository
                         .findById(memberId)
@@ -73,6 +75,8 @@ public class MemberProfileService {
             member.changeNickname(nickname, now);
             flushNickname();
         }
+        return new MemberUpdateResponse(
+                member.getNickname(), nicknameService.changeableAt(member, now));
     }
 
     private void flushNickname() {

@@ -3,6 +3,7 @@ package cmc.rodi.domain.member.service;
 import cmc.rodi.domain.member.dto.NicknameAvailabilityResponse;
 import cmc.rodi.domain.member.entity.Member;
 import cmc.rodi.domain.member.exception.MemberErrorCode;
+import cmc.rodi.domain.member.exception.NicknameChangeCooldownException;
 import cmc.rodi.domain.member.policy.NicknamePolicy;
 import cmc.rodi.domain.member.policy.NicknameViolation;
 import cmc.rodi.domain.member.repository.MemberRepository;
@@ -36,27 +37,44 @@ public class NicknameService {
                         .findById(memberId)
                         .orElseThrow(() -> new BusinessException(ErrorCode.ENTITY_NOT_FOUND));
         String nickname = nicknamePolicy.normalize(rawNickname);
-        return findViolation(member, nickname, LocalDateTime.now())
-                .map(reason -> NicknameAvailabilityResponse.unavailable(nickname, reason))
+        LocalDateTime now = LocalDateTime.now();
+        return findViolation(member, nickname, now)
+                .map(
+                        reason ->
+                                reason == MemberErrorCode.NICKNAME_CHANGE_COOLDOWN
+                                        ? NicknameAvailabilityResponse.cooldown(
+                                                nickname, reason, changeableAt(member, now))
+                                        : NicknameAvailabilityResponse.unavailable(
+                                                nickname, reason))
                 .orElseGet(() -> NicknameAvailabilityResponse.available(nickname));
     }
 
-    /** 변경용 판정. 통과하면 정규화된 닉네임을, 아니면 사유 코드로 예외를 던진다. */
+    /**
+     * 변경용 판정. 통과하면 정규화된 닉네임을, 아니면 사유 코드로 예외를 던진다. 30일 제한이면 다음 변경 가능 시각을 실은 예외를 던져 에러 응답 data로 내보낸다.
+     */
     @Transactional(readOnly = true)
     public String validate(Member member, String rawNickname, LocalDateTime now) {
         String nickname = nicknamePolicy.normalize(rawNickname);
         findViolation(member, nickname, now)
                 .ifPresent(
                         reason -> {
+                            if (reason == MemberErrorCode.NICKNAME_CHANGE_COOLDOWN) {
+                                throw new NicknameChangeCooldownException(
+                                        changeableAt(member, now));
+                            }
                             throw new BusinessException(reason);
                         });
         return nickname;
     }
 
+    /** 다음 닉네임 변경 가능 시각. 지금 바꿀 수 있으면 null. */
+    public LocalDateTime changeableAt(Member member, LocalDateTime now) {
+        return member.nicknameChangeableAt(now, NicknamePolicy.CHANGE_COOLDOWN);
+    }
+
     private Optional<MemberErrorCode> findViolation(
             Member member, String nickname, LocalDateTime now) {
-        if (!member.isSameNicknameIgnoringCase(nickname)
-                && member.nicknameChangeableAt(now, NicknamePolicy.CHANGE_COOLDOWN) != null) {
+        if (!member.isSameNicknameIgnoringCase(nickname) && changeableAt(member, now) != null) {
             return Optional.of(MemberErrorCode.NICKNAME_CHANGE_COOLDOWN);
         }
         Optional<NicknameViolation> violation = nicknamePolicy.check(nickname);
