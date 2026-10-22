@@ -12,6 +12,7 @@ import cmc.rodi.domain.member.entity.Member;
 import cmc.rodi.domain.member.repository.MemberRepository;
 import cmc.rodi.support.TestcontainersConfiguration;
 import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 import java.time.temporal.ChronoUnit;
 import java.util.List;
 import org.junit.jupiter.api.AfterEach;
@@ -88,7 +89,7 @@ class NicknameCooldownIntegrationTest {
     @DisplayName("제한 중: 다른 닉네임으로 바꾸면 400 MEMBER_400_5, 닉네임 그대로")
     void 제한_중_거부() throws Exception {
         바꾼_지(10);
-        String changeableAt = reload().getNicknameChangedAt().plusDays(30).toString();
+        String changeableAt = iso(reload().getNicknameChangedAt().plusDays(30));
 
         patchMe("{\"nickname\":\"초보_탈출\"}")
                 .andExpect(status().isBadRequest())
@@ -122,6 +123,22 @@ class NicknameCooldownIntegrationTest {
         Member found = reload();
         assertThat(found.getNickname()).isEqualTo("kim_초보");
         assertThat(found.getNicknameChangedAt()).isEqualTo(changedAt);
+    }
+
+    @Test
+    @DisplayName("같은 값은 검사 전에 통과: 지금 닉네임이 현재 규칙에 어긋나도 그대로 보내면 200, 운전 목표도 바뀐다")
+    void 같은_값_검사_생략() throws Exception {
+        처음_회원();
+        me.assignNickname("미친"); // 금칙어(정확 일치) — 규칙이 나중에 바뀐 상황
+        memberRepository.flush();
+
+        patchMe("{\"nickname\":\"미친\",\"drivingGoal\":\"새 목표\"}").andExpect(status().isOk());
+        check("미친").andExpect(jsonPath("$.data.available").value(true));
+
+        Member found = reload();
+        assertThat(found.getNickname()).isEqualTo("미친");
+        assertThat(found.getNicknameChangedAt()).isNull();
+        assertThat(found.getDrivingGoal()).isEqualTo("새 목표");
     }
 
     @Test
@@ -189,7 +206,7 @@ class NicknameCooldownIntegrationTest {
     @DisplayName("성공 응답: 운전 목표만 바꿔도 현재 닉네임과 다음 변경 가능 시각을 준다")
     void 성공_응답_목표만() throws Exception {
         바꾼_지(10);
-        String changeableAt = reload().getNicknameChangedAt().plusDays(30).toString();
+        String changeableAt = iso(reload().getNicknameChangedAt().plusDays(30));
 
         patchMe("{\"drivingGoal\":\"새 목표\"}")
                 .andExpect(status().isOk())
@@ -212,7 +229,7 @@ class NicknameCooldownIntegrationTest {
             "확인 API: 제한 중이면 available=false·MEMBER_400_5·다음 변경 가능 시각, 같은 값·대소문자만 다르면 available=true")
     void 확인_API_제한_중() throws Exception {
         바꾼_지(10);
-        String changeableAt = reload().getNicknameChangedAt().plusDays(30).toString();
+        String changeableAt = iso(reload().getNicknameChangedAt().plusDays(30));
 
         check("초보_탈출")
                 .andExpect(jsonPath("$.data.available").value(false))
@@ -238,7 +255,7 @@ class NicknameCooldownIntegrationTest {
     @DisplayName("마이페이지: 제한 중이면 nicknameChangeableAt = 변경 시각 + 30일, 아니면 null")
     void 마이페이지_변경_가능_시각() throws Exception {
         바꾼_지(10);
-        String changeableAt = reload().getNicknameChangedAt().plusDays(30).toString();
+        String changeableAt = iso(reload().getNicknameChangedAt().plusDays(30));
 
         mockMvc.perform(get("/api/v1/members/me"))
                 .andExpect(status().isOk())
@@ -280,5 +297,13 @@ class NicknameCooldownIntegrationTest {
 
     private static LocalDateTime now() {
         return LocalDateTime.now().truncatedTo(ChronoUnit.MICROS);
+    }
+
+    /**
+     * 응답 JSON과 같은 형식 — Jackson은 LocalDateTime을 ISO_LOCAL_DATE_TIME으로 쓴다(toString()과 소수 자릿수가 다를 수
+     * 있다).
+     */
+    private static String iso(LocalDateTime value) {
+        return value.format(DateTimeFormatter.ISO_LOCAL_DATE_TIME);
     }
 }

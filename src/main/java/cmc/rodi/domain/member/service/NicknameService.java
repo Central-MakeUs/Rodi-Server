@@ -74,6 +74,11 @@ public class NicknameService {
 
     private Optional<MemberErrorCode> findViolation(
             Member member, String nickname, LocalDateTime now) {
+        // 지금 닉네임과 똑같으면 변경이 아니다 — 제한·형식·금칙어·중복 검사 전에 통과시킨다. 금칙어 파일이 나중에 바뀌어 기존 닉네임이 걸리게
+        // 되어도, 닉네임을 그대로 함께 보낸 수정(예: 운전 목표 변경)이 막히지 않는다.
+        if (nickname.equals(member.getNickname())) {
+            return Optional.empty();
+        }
         if (!member.isSameNicknameIgnoringCase(nickname) && changeableAt(member, now) != null) {
             return Optional.of(MemberErrorCode.NICKNAME_CHANGE_COOLDOWN);
         }
