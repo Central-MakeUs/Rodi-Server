@@ -3,6 +3,7 @@ package cmc.rodi.domain.member.policy;
 import cmc.rodi.global.common.validation.GraphemeSize;
 import cmc.rodi.global.common.validation.GraphemeSizeValidator;
 import java.text.Normalizer;
+import java.time.Duration;
 import java.util.Optional;
 import java.util.regex.Pattern;
 import lombok.RequiredArgsConstructor;
@@ -19,6 +20,9 @@ public class NicknamePolicy {
 
     public static final int MIN_LENGTH = 2;
     public static final int MAX_LENGTH = 10;
+
+    /** 닉네임을 바꾼 뒤 다시 바꿀 수 있기까지의 기간 — 바꾼 시각부터 정확히 30일(스펙 020, 이슈 #80). */
+    public static final Duration CHANGE_COOLDOWN = Duration.ofDays(30);
 
     /** 완성형 한글·영문·숫자 덩어리를 _ 하나로 잇는다 — _의 처음·끝·연속과 공백·자모·이모지가 모두 여기서 걸린다. */
     private static final Pattern FORMAT = Pattern.compile("^[가-힣A-Za-z0-9]+(_[가-힣A-Za-z0-9]+)*$");

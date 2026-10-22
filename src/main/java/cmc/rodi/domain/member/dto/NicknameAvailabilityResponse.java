@@ -13,7 +13,7 @@ public record NicknameAvailabilityResponse(
         @Schema(
                         description =
                                 "사용 불가 사유 코드(가능하면 null). MEMBER_400_2 길이 · MEMBER_400_3 문자 ·"
-                                        + " MEMBER_400_4 금칙어 · MEMBER_409_3 중복",
+                                        + " MEMBER_400_4 금칙어 · MEMBER_400_5 30일 변경 제한 · MEMBER_409_3 중복",
                         example = "MEMBER_409_3")
                 String reason,
         @Schema(description = "사용 불가 안내 문구(가능하면 null)", example = "이미 사용 중인 닉네임이에요.")

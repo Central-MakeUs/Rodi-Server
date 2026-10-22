@@ -40,6 +40,13 @@ public class Member extends BaseEntity {
     @Column(length = 30)
     private String nickname;
 
+    /**
+     * 사용자가 마지막으로 닉네임을 직접 바꾼 시각(스펙 020 변경 제한). 가입 때 자동 부여는 기록하지 않아 첫 변경은 제한이 없고, 대소문자만 바꾼 것도 기록하지
+     * 않는다.
+     */
+    @Column(name = "nickname_changed_at")
+    private LocalDateTime nicknameChangedAt;
+
     @Column(length = 255)
     private String email;
 
@@ -107,9 +114,31 @@ public class Member extends BaseEntity {
         this.nickname = nickname;
     }
 
-    /** 사용자가 고른 닉네임으로 바꾼다. 형식·금칙어·중복 판정은 {@code NicknameService}가 끝낸 값이어야 한다. */
-    public void changeNickname(String nickname) {
+    /**
+     * 사용자가 고른 닉네임으로 바꾼다. 형식·금칙어·중복·변경 제한 판정은 {@code NicknameService}가 끝낸 값이어야 한다.
+     *
+     * <p>지금 닉네임과 대소문자만 다르거나 같으면 변경으로 세지 않아 변경 시각을 남기지 않는다(30일 제한을 새로 시작·연장하지 않는다).
+     */
+    public void changeNickname(String nickname, LocalDateTime now) {
+        boolean counted = !isSameNicknameIgnoringCase(nickname);
         this.nickname = nickname;
+        if (counted) {
+            this.nicknameChangedAt = now;
+        }
+    }
+
+    /** 지금 닉네임과 영문 대소문자를 무시하고 같은지 — 중복 판정과 같은 기준이며, 같으면 변경 제한에 세지 않는다. */
+    public boolean isSameNicknameIgnoringCase(String candidate) {
+        return nickname != null && nickname.equalsIgnoreCase(candidate);
+    }
+
+    /** 다음 닉네임 변경 가능 시각 — 마지막 변경 시각 + {@code cooldown}. 지금 바꿀 수 있으면(아직 바꾼 적 없거나 기간이 지남) null. */
+    public LocalDateTime nicknameChangeableAt(LocalDateTime now, Duration cooldown) {
+        if (nicknameChangedAt == null) {
+            return null;
+        }
+        LocalDateTime changeableAt = nicknameChangedAt.plus(cooldown);
+        return now.isBefore(changeableAt) ? changeableAt : null;
     }
 
     /**
