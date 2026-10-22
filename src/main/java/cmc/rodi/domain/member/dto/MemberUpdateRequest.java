@@ -30,7 +30,7 @@ public class MemberUpdateRequest {
     @Schema(
             description =
                     "닉네임. 생략하면 그대로. 2~10자, 한글·영문·숫자·_(처음·끝·연속 불가), 금칙어·중복(영문 대소문자 무시) 불가."
-                            + " 위반 시 MEMBER_400_2~4·MEMBER_409_3",
+                            + " 바꾼 뒤 30일 동안 다시 바꿀 수 없다(첫 변경·같은 값·대소문자만 바꾸기는 제외). 위반 시 MEMBER_400_2~5·MEMBER_409_3",
             example = "초보_탈출")
     private String nickname;
 

@@ -70,13 +70,20 @@ class NicknameChangeIntegrationTest {
     }
 
     @Test
-    @DisplayName("정규화: 앞뒤 공백을 지우고, NFD 한글은 NFC로 저장한다")
-    void 정규화_저장() throws Exception {
+    @DisplayName("정규화: 앞뒤 공백을 지우고 저장한다")
+    void 정규화_공백_제거() throws Exception {
         patchMe("{\"nickname\":\"  초보_탈출 \"}").andExpect(status().isOk());
-        assertThat(reload().getNickname()).isEqualTo("초보_탈출");
 
+        assertThat(reload().getNickname()).isEqualTo("초보_탈출");
+    }
+
+    @Test
+    @DisplayName("정규화: NFD 한글은 NFC로 저장한다")
+    void 정규화_NFC() throws Exception {
         String nfd = Normalizer.normalize("주차왕", Normalizer.Form.NFD);
+
         patchMe("{\"nickname\":\"" + nfd + "\"}").andExpect(status().isOk());
+
         assertThat(reload().getNickname()).isEqualTo("주차왕").hasSize(3);
     }
 
@@ -141,7 +148,7 @@ class NicknameChangeIntegrationTest {
     void 본인_닉네임() throws Exception {
         patchMe("{\"nickname\":\"차근차근_토끼\"}").andExpect(status().isOk());
 
-        me.changeNickname("kim_초보");
+        me.assignNickname("kim_초보");
         memberRepository.flush();
         patchMe("{\"nickname\":\"KIM_초보\"}").andExpect(status().isOk());
         assertThat(reload().getNickname()).isEqualTo("KIM_초보");

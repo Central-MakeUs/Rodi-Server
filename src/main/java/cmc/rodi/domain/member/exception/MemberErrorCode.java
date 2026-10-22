@@ -20,7 +20,8 @@ public enum MemberErrorCode implements ResponseCode {
             "MEMBER_400_3",
             "닉네임은 한글·영문·숫자·_만 사용할 수 있어요. (_는 처음·끝·연속 사용 불가)"),
     NICKNAME_PROHIBITED_WORD(HttpStatus.BAD_REQUEST, "MEMBER_400_4", "사용할 수 없는 단어가 포함되어 있어요."),
-    NICKNAME_DUPLICATED(HttpStatus.CONFLICT, "MEMBER_409_3", "이미 사용 중인 닉네임이에요.");
+    NICKNAME_DUPLICATED(HttpStatus.CONFLICT, "MEMBER_409_3", "이미 사용 중인 닉네임이에요."),
+    NICKNAME_CHANGE_COOLDOWN(HttpStatus.BAD_REQUEST, "MEMBER_400_5", "닉네임은 30일에 한 번만 변경할 수 있어요.");
 
     private final HttpStatus httpStatus;
     private final String code;

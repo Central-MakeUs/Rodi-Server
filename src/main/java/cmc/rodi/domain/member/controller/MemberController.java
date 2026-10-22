@@ -4,6 +4,7 @@ import cmc.rodi.domain.member.dto.BlockedMemberItem;
 import cmc.rodi.domain.member.dto.CourseTutorialCompletionResponse;
 import cmc.rodi.domain.member.dto.FilterTagsRequest;
 import cmc.rodi.domain.member.dto.MemberUpdateRequest;
+import cmc.rodi.domain.member.dto.MemberUpdateResponse;
 import cmc.rodi.domain.member.dto.MyPageResponse;
 import cmc.rodi.domain.member.dto.NicknameAvailabilityResponse;
 import cmc.rodi.domain.member.dto.OnboardingFormResponse;
@@ -68,10 +69,9 @@ public class MemberController implements MemberControllerDocs {
 
     @Override
     @PatchMapping("/me")
-    public ApiResponse<Void> updateMe(
+    public ApiResponse<MemberUpdateResponse> updateMe(
             @CurrentMember Long memberId, @Valid @RequestBody MemberUpdateRequest request) {
-        memberProfileService.update(memberId, request);
-        return ApiResponse.success(null);
+        return ApiResponse.success(memberProfileService.update(memberId, request));
     }
 
     @Override

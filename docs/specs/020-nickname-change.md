@@ -10,6 +10,10 @@
 | 2026-10-08 | Implemented | 구현 완료 — V28·후보 풀 이관, `ProhibitedWords`·`NicknamePolicy`, `NicknameService`·확인 API, PATCH 닉네임. 허용 목록은 **위치 기반**(덮인 일치만 무시)으로 정정, 부분 수정은 **setter 호출 여부로 생략/null 구분**(구현 노트) |
 | 2026-10-08 | Implemented | 스펙 번호 019 → **020** — #74의 `019-refinements-1.md`가 먼저 머지되어 번호 충돌을 피함 |
 | 2026-10-15 | Implemented | develop(#77 머지) 위로 rebase — #77이 V27(`sort_tags` 이름 변경)을 먼저 써서 닉네임 이관 마이그레이션을 **V28**로 변경 |
+| 2026-10-22 | Draft | **닉네임 변경 30일 제한** 추가(이슈 [#80](https://github.com/Central-MakeUs/Rodi-Server/issues/80)) — 바꾼 시각부터 정확히 30일 동안 다시 바꿀 수 없다. 첫 변경·같은 값·대소문자만 바꾸기는 제한에 세지 않는다. 마이페이지에 `nicknameChangeableAt` 추가 |
+| 2026-10-22 | **Approved** | 변경 제한 승인 — 구현 시작 |
+| 2026-10-22 | Approved | 다음 변경 가능 시각을 **PATCH 성공·`MEMBER_400_5` 실패 응답·확인 API·마이페이지** 네 곳에 `nicknameChangeableAt`으로 통일해 준다 — 앱이 확인 API를 안 써도 변경 요청 응답만으로 안내 가능. 실패 응답 data는 `BusinessException.getData()`를 재정의한 전용 예외로(ADR 0013 보완) |
+| 2026-10-22 | Implemented | 변경 제한 구현 완료 — V29, `Member` 변경 시각·다음 변경 가능 시각, 판정 맨 앞 제한 검사, `NicknameChangeCooldownException`, 응답 네 곳 `nicknameChangeableAt`(구현 노트) |
 
 ## 배경 / 목적
 
@@ -21,7 +25,6 @@
 
 ### 범위 밖
 
-- 변경 횟수 제한(쿨다운) — 두지 않는다.
 - 기존 닉네임의 금칙어 소급 검사 — 후보 풀만 존재하므로 불필요하다.
 - 운영 중 금칙어 즉시 추가(관리 화면·DB 테이블) — 재배포로 반영한다.
 - 닉네임 외 텍스트(후기·운전 목표 등)의 금칙어 필터링.
@@ -41,9 +44,24 @@
    - 자모 단독(ㅋㅋ·ㅅㅂ), 이모지, 그 밖의 특수문자는 거부한다.
 4. **금칙어**: 정규화한 닉네임이 금칙어에 걸리면 거부한다(판정 방식은 [도메인 모델](#금칙어-판정)).
 5. **중복 불가**: 다른 회원이 쓰고 있는 닉네임이면 거부한다. 영문은 **대소문자를 무시**하고 비교한다(`Drive_Kim`과 `drive_kim`은 같은 닉네임). **본인의 현재 닉네임**은 허용한다(변경 없음으로 처리). 본인 닉네임의 대소문자만 바꾸는 것(`kim` → `Kim`)도 허용한다.
-6. **판정 순서와 사유**: 형식 → 금칙어 → 중복 순으로 검사하고, **처음 걸린 사유 하나**를 돌려준다. 두 API가 같은 판정 로직과 사유 코드를 쓴다.
+6. **판정 순서와 사유**: (지금 닉네임과 같으면 모든 검사 전에 통과 · 대소문자만 다르면 변경 제한만 건너뜀) → **변경 제한** → 형식 → 금칙어 → 중복 순으로 검사하고, **처음 걸린 사유 하나**를 돌려준다. 두 API가 같은 판정 로직과 사유 코드를 쓴다. 변경 제한을 맨 앞에 두는 이유: 어차피 바꿀 수 없는데 형식 오류를 먼저 알려주면 헛수고가 된다.
 7. **부분 수정**: `PATCH /members/me`는 **보낸 필드만 수정**한다. 필드를 생략하면 그대로 두고, `drivingGoal`을 `null`이나 빈 문자열로 보내면 운전 목표를 지운다.
 8. **기존 닉네임 이관**: 기존 회원 닉네임과 후보 풀의 공백을 `_`로 바꾼다. 신규 가입자는 `_` 형식 닉네임을 받는다.
+9. **변경 제한(30일)** — 2026-10-22 추가
+   - 닉네임을 바꾸면 **바꾼 시각부터 정확히 30일** 동안 다시 바꿀 수 없다(예: 10/22 15:00에 바꾸면 11/21 15:00부터 가능). 날짜 단위로 자르지 않는다.
+   - **첫 변경은 바로 가능**하다. 가입 때 자동 부여된 닉네임을 처음 바꾸는 것은 제한하지 않는다. 기존 회원도 모두 바로 한 번 바꿀 수 있다.
+   - **같은 값**(지금 닉네임과 똑같음)을 보내면 변경이 아니다. 제한 중에도 200이고 아무것도 바뀌지 않으며, 30일도 다시 시작하지 않는다.
+   - **대소문자만 다른 값**(`kim` → `Kim`)은 **바꾸되 변경으로 세지 않는다.** 제한 중에도 바로 바뀌고, 30일을 새로 시작하거나 연장하지 않는다. 중복 판정(대소문자 무시)에서 같은 닉네임으로 보기 때문이다.
+   - 제한 중에 다른 닉네임으로 바꾸려 하면 **400 `MEMBER_400_5`**. `drivingGoal`을 함께 보냈어도 **아무것도 저장하지 않는다**(기존 원자성 규칙).
+   - 앱이 "N일 후 변경 가능"을 보여줄 수 있도록 다음 변경 가능 시각 **`nicknameChangeableAt`** 을 네 곳에서 같은 이름으로 준다(지금 바꿀 수 있으면 `null`). 앱은 확인 API를 쓰지 않아도 변경 요청 응답만으로 안내할 수 있다.
+     | 응답 | 위치 |
+     |---|---|
+     | PATCH 성공(200) | `data.nicknameChangeableAt` (`data.nickname`과 함께) |
+     | PATCH 실패 `MEMBER_400_5`(400) | `data.nicknameChangeableAt` — 이 에러만 data를 싣는다. 다른 에러는 `data: null` 그대로 |
+     | 확인 API | `data.nicknameChangeableAt` — 사유가 `MEMBER_400_5`일 때만, 그 밖에는 `null` |
+     | 마이페이지 | `data.nicknameChangeableAt` |
+   - **확인 API**도 제한 중이면 `available: false`, `reason: MEMBER_400_5`를 준다. 같은 값·대소문자만 다른 값은 제한 중에도 `available: true`다.
+   - 탈퇴 후 복구하면 변경 기록은 유지된다. 재가입은 새 회원이라 제한이 없다.
 
 ### 비기능 요구사항
 
@@ -71,6 +89,7 @@
 | 허용되지 않은 문자·`_` 위치 | `MEMBER_400_3` | 400 | 닉네임은 한글·영문·숫자·_만 사용할 수 있어요. (_는 처음·끝·연속 사용 불가) |
 | 금칙어 | `MEMBER_400_4` | 400 | 사용할 수 없는 단어가 포함되어 있어요. |
 | 중복 | `MEMBER_409_3` | 409 | 이미 사용 중인 닉네임이에요. |
+| 변경 제한(30일) | `MEMBER_400_5` | 400 | 닉네임은 30일에 한 번만 변경할 수 있어요. |
 
 - `MEMBER_400_1`(자기 차단)·`MEMBER_409_2`(이미 온보딩)가 쓰이고 있고, `MEMBER_409_1`은 [ADR 0013](../adr/0013-withdrawal-locked-as-status.md)에서 제거돼 재사용하지 않는다.
 - 형식 위반을 Bean Validation(`COMMON_400` + 필드 맵)이 아니라 **도메인 에러 코드**로 주는 이유: 확인 API와 사유를 맞추고, 앱이 코드만으로 안내 문구를 고를 수 있게 하기 위해서다.
@@ -81,8 +100,17 @@
 // Request
 { "nickname": "초보_탈출" }
 
-// Response 200
-{ "isSuccess": true, "code": "COMMON_200", "message": "요청에 성공했습니다.", "data": null }
+// Response 200 — 현재 닉네임과 다음 변경 가능 시각(2026-10-22 추가, 이전엔 data null)
+{
+  "isSuccess": true, "code": "COMMON_200", "message": "요청에 성공했습니다.",
+  "data": { "nickname": "초보_탈출", "nicknameChangeableAt": "2026-11-21T15:00:00" }
+}
+
+// Response 400 — 바꾼 뒤 30일 이내(2026-10-22 추가). 이 에러만 data를 싣는다
+{
+  "isSuccess": false, "code": "MEMBER_400_5", "message": "닉네임은 30일에 한 번만 변경할 수 있어요.",
+  "data": { "nicknameChangeableAt": "2026-11-21T15:00:00" }, "traceId": "..."
+}
 
 // Response 409 — 다른 회원이 사용 중
 { "isSuccess": false, "code": "MEMBER_409_3", "message": "이미 사용 중인 닉네임이에요.", "data": null }
@@ -133,7 +161,7 @@
 
 ## 도메인 모델
 
-스키마 변경은 닉네임 값 이관(V28)뿐이다. 새 테이블·컬럼은 없다.
+스키마 변경은 닉네임 값 이관(V28)과 변경 시각 컬럼 추가(V29, 2026-10-22)다. 새 테이블은 없다.
 
 ### 구성요소 (`domain/member`)
 
@@ -144,7 +172,13 @@
 | `NicknameService` | `service` | `NicknamePolicy` + 대소문자 무시 중복 조회(본인 제외) + 본인 예외를 묶어 두 API에 제공한다. |
 | `MemberUpdateRequest` | `dto` | 필드 생략과 `null`을 구분할 수 있게 바꾼다([구현 노트](#구현-노트)). |
 | `NicknameAvailabilityResponse` | `dto` | `nickname`·`available`·`reason`·`message` |
-| `MemberErrorCode` | `exception` | 위 사유 코드 4개 추가 |
+| `MemberErrorCode` | `exception` | 위 사유 코드 4개 추가. 변경 제한 `MEMBER_400_5` 추가(2026-10-22) |
+| `Member` | `entity` | `nicknameChangedAt`(마지막 사용자 변경 시각)과 `nicknameChangeableAt(now)`(다음 변경 가능 시각, 지금 가능하면 null) — 2026-10-22 |
+| `NicknamePolicy` | `policy` | 변경 제한 기간 상수 `CHANGE_COOLDOWN = 30일` — 2026-10-22 |
+| `MyPageResponse` | `dto` | `nicknameChangeableAt` 추가 — 2026-10-22 |
+| `MemberUpdateResponse` | `dto` | PATCH 성공 응답 — `nickname`·`nicknameChangeableAt` (이전엔 data null) — 2026-10-22 |
+| `NicknameAvailabilityResponse` | `dto` | `nicknameChangeableAt` 추가(사유가 30일 제한일 때만) — 2026-10-22 |
+| `NicknameChangeCooldownException` | `exception` | `MEMBER_400_5` 전용 예외. `getData()`로 `{ nicknameChangeableAt }`을 에러 응답 data에 싣는다 — 2026-10-22 |
 
 - `MemberProfileService.update`가 `NicknameService`로 검증한 뒤 `Member.changeNickname(...)`을 호출한다. 저장 시 UNIQUE 위반(`DataIntegrityViolationException`)은 `MEMBER_409_3`으로 바꾼다. 커밋 시점이 아니라 서비스 안에서 잡을 수 있도록 **변경 직후 flush**한다.
 - 후보 풀(`NicknameAssigner`)은 변경하지 않는다. 대신 **풀 전체가 `NicknamePolicy`를 통과하는지 테스트로 보장**한다.
@@ -237,6 +271,32 @@
 
 운영 중 미탐·오탐이 발견되면 파일을 고쳐 재배포한다.
 
+### 변경 제한 (2026-10-22 추가)
+
+```
+요청 닉네임 → 정규화(NFC·strip)
+  지금 닉네임과 같음              → 변경 없음(200). 30일 제한·형식·금칙어·중복 검사 전에 통과,
+                                    닉네임·nicknameChangedAt 모두 그대로
+  지금 닉네임과 대소문자만 다름    → 30일 제한 없이 형식·금칙어·중복 검사 후 바꿈. nicknameChangedAt은 그대로
+  그 밖(실제 변경)
+    now < nicknameChangedAt + 30일 → MEMBER_400_5
+    형식 → 금칙어 → 중복 검증 통과 → 바꾸고 nicknameChangedAt = now
+```
+
+- **같은 값을 검사 전에 통과시키는 이유**: 금칙어 파일이 나중에 바뀌어 기존 닉네임이 새 규칙에 걸리게 되어도, 앱이 닉네임을 그대로 함께 보내는 수정(예: 운전 목표 변경)이 막히지 않게 하기 위해서다. 확인 API도 같은 값은 `available: true`다.
+- 대소문자만 다른 값은 실제로 저장값이 바뀌므로 형식·금칙어·중복 검사를 그대로 거친다(대소문자만 바꿔 금칙어·중복이 새로 생기지는 않지만, 같은 검증 경로를 탄다).
+- `nicknameChangedAt`이 `null`(아직 직접 바꾼 적 없음)이면 제한이 없다.
+- 30일은 `Duration.ofDays(30)` — 바꾼 시각에 그대로 더한다.
+
+### 마이그레이션 V29 — 닉네임 변경 시각 (2026-10-22 추가)
+
+```sql
+ALTER TABLE member ADD COLUMN nickname_changed_at TIMESTAMP;
+```
+
+- NULL 허용. 기존 회원은 모두 NULL이라 **바로 한 번 바꿀 수 있다**(첫 변경 허용 규칙과 같다).
+- 가입 시 자동 부여(`assignNickname`)는 이 값을 채우지 않는다.
+
 ### 마이그레이션 V28 — 닉네임 공백을 `_`로 + 대소문자 무시 유니크
 
 > V26(`widen_text_columns_for_graphemes`)이 현재 최대 번호다.
@@ -292,6 +352,22 @@ CREATE UNIQUE INDEX uq_member_nickname_lower ON member (lower(nickname));
 - [x] 후보 풀 990개 전부가 `_` 형식이고, 전부 `NicknamePolicy`를 통과한다(형식·금칙어).
 - [x] 신규 가입 시 `_` 형식 닉네임이 부여된다.
 
+**변경 제한 (2026-10-22 추가)**
+
+- [x] 처음 바꾸는 회원(`nicknameChangedAt` 없음)은 바로 바꿀 수 있고, 바꾼 뒤 `nicknameChangedAt`이 기록된다.
+- [x] 바꾼 뒤 30일 이내에 다른 닉네임으로 바꾸면 400 `MEMBER_400_5`이고 닉네임은 그대로다.
+- [x] 바꾼 시각 + 30일 정각부터는 다시 바꿀 수 있다(1초 전은 거부).
+- [x] 제한 중 같은 닉네임을 보내면 200, 아무것도 바뀌지 않고 `nicknameChangedAt`도 그대로다.
+- [x] 같은 닉네임은 형식·금칙어·중복 검사 전에 통과한다 — 지금 닉네임이 현재 규칙에 어긋나도 그대로 보내면 200이고, 함께 보낸 운전 목표도 바뀐다(리뷰 반영).
+- [x] 제한 중 대소문자만 바꾸면(`kim` → `Kim`) 200, 닉네임은 바뀌고 `nicknameChangedAt`은 그대로다.
+- [x] 제한 중 `nickname`과 `drivingGoal`을 같이 보내면 400 `MEMBER_400_5`이고 둘 다 저장되지 않는다.
+- [x] 제한 중 형식이 틀린 닉네임을 보내도 `MEMBER_400_5`가 먼저 나온다.
+- [x] 마이페이지 `nicknameChangeableAt`은 제한 중이면 `nicknameChangedAt + 30일`, 아니면 `null`이다.
+- [x] 확인 API는 제한 중이면 `available: false`·`reason: MEMBER_400_5`·`nicknameChangeableAt`, 같은 값·대소문자만 다른 값은 `available: true`다. 다른 사유면 `nicknameChangeableAt`은 `null`이다.
+- [x] PATCH 성공 응답 data에 `nickname`과 `nicknameChangeableAt`이 있다(운전 목표만 바꿔도, 제한이 없으면 `null`).
+- [x] `MEMBER_400_5` 실패 응답 data에 `nicknameChangeableAt`이 있고, 다른 에러(예: 409 중복)는 `data: null`이다.
+- [x] Flyway V29 적용 후 기존 회원은 `nickname_changed_at`이 NULL이고 바로 바꿀 수 있다.
+
 **금칙어 로드**
 
 - [x] 주석(`#`)·빈 줄은 무시되고, 정규화 결과가 빈 항목은 로드되지 않는다.
@@ -307,6 +383,15 @@ CREATE UNIQUE INDEX uq_member_nickname_lower ON member (lower(nickname));
 - **금칙어 가공 중 조정**: 영어 사전 대조로 `twat`(sweetwater)을 정확 일치로, 허용 목록에 `prodig`·`aphrodi`(rodi)·`badminton`(admin)·`최후장`(후장)·`자지러`(자지)를 더했다. `뒤져`(뒤지다=찾다)는 정확 일치로 뒀다.
 - **예시 닉네임**: 중복 예시였던 `Rodi_Kim`은 사칭 금칙어 `rodi`에 먼저 걸려 `Drive_Kim`으로 바꿨다.
 
+### 변경 제한(30일) — 2026-10-22, #80
+
+- **규칙은 엔티티에**: `Member.changeNickname(nickname, now)`가 대소문자 무시로 같은지 보고, 다를 때만 `nicknameChangedAt`을 기록한다. 다음 변경 가능 시각은 `Member.nicknameChangeableAt(now, cooldown)` — 기간은 `NicknamePolicy.CHANGE_COOLDOWN`(30일) 한 곳에 둔다.
+- **판정 위치**: 변경 제한은 `NicknameService.findViolation`의 맨 앞에서 본다. PATCH와 확인 API가 같은 판정을 쓰므로 둘 다 자동으로 적용된다.
+- **시각**: 서비스가 `LocalDateTime.now()`를 마이크로초로 잘라 넘긴다(Postgres `TIMESTAMP` 정밀도). 저장 전후 값이 같아 "같은 값이면 변경 시각 그대로" 검증이 흔들리지 않는다. 30일 경계(정각 허용·1초 전 거부)는 엔티티 단위 테스트에서 시각을 직접 넣어 확인한다.
+- **에러 응답 data**: 공통 예외 구조를 넓히지 않고 `BusinessException.getData()`(기본 `null`)만 추가했다. 데이터를 싣는 건 이를 재정의한 `NicknameChangeCooldownException` 하나뿐이고, 다른 에러는 그대로 `data: null`이다(ADR 0013 보완 기록).
+- **PATCH 성공 응답 변경**: `data`가 `null`에서 `{ nickname, nicknameChangeableAt }`으로 바뀌었다. `data`를 무시하던 앱은 그대로지만, `data == null`로 성공을 판단하는 코드가 있다면 앱 팀 확인이 필요하다.
+- **기존 테스트 조정**: 한 테스트 안에서 닉네임을 두 번 바꾸던 정규화 테스트는 두 번째 변경이 제한에 걸려 둘로 나눴다. 본인 닉네임 테스트는 사전 상태를 자동 부여(`assignNickname`)로 만들었다.
+
 ## 미해결 질문
 
 없음.
@@ -316,3 +401,4 @@ CREATE UNIQUE INDEX uq_member_nickname_lower ON member (lower(nickname));
 - **PATCH는 보낸 필드만 수정한다**(2026-10-08). 필드 생략과 `null`을 구분하고, `drivingGoal`의 `null`/빈값 삭제 동작은 유지한다. 닉네임만 바꾸는 요청이 운전 목표를 지우는 사고를 막는다.
 - **금칙어 목록은 스펙에 싣지 않는다**(2026-10-08). 분류 기준·출처 표기만 정하고, 단어는 구현 PR에서 파일로 검토한다. 직접 작성 항목에 표기 변형도 넣는다.
 - **중복은 대소문자를 무시한다**(2026-10-08). 사칭 방지가 목적이며, V28에서 유니크 기준을 `lower(nickname)`으로 바꾼다.
+- **닉네임 변경은 30일에 한 번**(2026-10-22, 처음엔 제한 없음으로 결정했다가 변경). 바꾼 시각부터 정확히 30일, 첫 변경은 바로 가능, 같은 값·대소문자만 바꾸기는 제한에 세지 않음, 제한 중 거부는 `MEMBER_400_5`, 다음 변경 가능 시각은 마이페이지 `nicknameChangeableAt`으로 준다.
