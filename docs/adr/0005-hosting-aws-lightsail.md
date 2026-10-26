@@ -2,7 +2,7 @@
 
 ## 상태 (Status)
 
-Accepted (2026-07-02, CI/CD 파이프라인 추가 2026-07-03, develop 자동 배포 2026-07-09)
+Accepted (2026-07-02, CI/CD 파이프라인 추가 2026-07-03, develop 자동 배포 2026-07-09) — **"develop 자동 배포" 절은 [ADR 0017](0017-dev-server-raspberry-pi-and-tailscale-deploy.md)로 대체**(2026-10-26, develop은 Raspberry Pi 개발 서버로 배포)
 
 ## 배경
 
@@ -30,13 +30,15 @@ MVP 백엔드를 배포할 호스팅을 정해야 한다. 제약과 요구는 �
 배포 자동화는 **GitHub Actions**로 구성한다 (레포가 GitHub, 무료, 통합).
 
 - **CI (`ci.yml`)**: `main`·`develop` 대상 PR에서 `./gradlew build`(컴파일·테스트·Spotless 검증). 브랜치 보호의 필수 통과 조건.
-- **CD (`cd.yml`)**: `main`·`develop` push 시 `test → build-push → deploy` 순 실행. **두 브랜치 모두 같은 단일 `app`에 배포**(별도 스테이징 없음 — 아래 "develop 자동 배포" 참조).
+- **CD (`cd.yml`)**: `main` push 시 `test → build-push → deploy` 순 실행. (2026-10-26까지는 `develop`도 같은 `app`에 배포했다 — 아래 "develop 자동 배포", 현재는 [ADR 0017](0017-dev-server-raspberry-pi-and-tailscale-deploy.md)의 `cd-dev.yml`이 pi2로 배포)
   - **이미지 빌드 → GHCR push** (`ghcr.io/central-makeus/rodi-server`, 태그 git SHA + 브랜치명(`main`/`develop`)으로 롤백·구분). 인증은 Actions 내장 `GITHUB_TOKEN`.
   - **배포**: Lightsail에 SSH → `compose.prod.yaml`·`Caddyfile` 전송 후 `docker compose pull app && up -d app`. concurrency 그룹(`cd-deploy`)을 하나로 두어 두 브랜치 배포가 같은 컨테이너를 동시에 안 건드리게 직렬화. 배포 브랜치·커밋·PR 메타데이터를 env로 주입해 Discord 기동 알림에 표시.
 - **시크릿**: `SSH_HOST`·`SSH_KEY`(GitHub Secrets). GHCR는 `GITHUB_TOKEN`.
 - 빌드를 러너에서 수행하므로 1GB 서버는 실행만 담당(서버 부하↓).
 
 ## develop 자동 배포
+
+> **Superseded** — 2026-10-26 [ADR 0017](0017-dev-server-raspberry-pi-and-tailscale-deploy.md)로 대체. `develop`은 이제 Raspberry Pi 개발 서버(pi2)로 배포되고, Lightsail에는 `main`만 배포된다. 아래는 당시 기록이다.
 
 미완성 기능도 프론트와 빨리 연동하려면 `develop`에 올린 변경이 곧바로 배포돼야 한다.
 
