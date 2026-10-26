@@ -1,18 +1,20 @@
 name: CD
 
-# main·develop push 시: 테스트 → 이미지 빌드/GHCR push → Lightsail 단일 app 재배포
-# (별도 스테이징 없음 — 서버 메모리 제약. 어느 브랜치를 push하든 같은 app에 배포되며 나중 push가 반영됨)
+# main push 시: 테스트 → 이미지 빌드/GHCR push → Lightsail(운영) app 재배포
+# develop 은 개발 서버(Raspberry Pi pi2)로 따로 배포된다 — cd-dev.yml, 스펙 023
 on:
   push:
-    branches: [main, develop]
+    branches: [main]
   workflow_dispatch: {}   # 수동 재배포/롤백용
 
 concurrency:
-  group: cd-deploy          # main·develop 배포를 한 그룹으로 직렬화(같은 app을 동시에 안 건드리게)
+  group: cd-deploy          # 운영 배포를 직렬화(같은 app을 동시에 안 건드리게)
   cancel-in-progress: false   # 배포는 중간에 취소하지 않음
 
 jobs:
   test:
+    # 수동 실행을 다른 브랜치에서 해도 운영에 배포되지 않게(test가 건너뛰면 이후 잡도 건너뜀)
+    if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
