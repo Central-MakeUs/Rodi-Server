@@ -7,7 +7,7 @@
 | 2026-10-23 | Draft | 최초 작성 — 이슈 [#82](https://github.com/Central-MakeUs/Rodi-Server/issues/82). `develop`→pi2 / `main`→Lightsail 분리, `dev` 프로필, ARM64 이미지, 배포 연결 방식(Tailscale 추천), 내부 API 프로필 게이팅 |
 | 2026-10-26 | Draft | 미해결 질문 결정 — Tailscale+SSH 확정, Tailscale 인증은 **OIDC(Workload Identity Federation)**, `@DevOnly`는 만들되 즉시 탈퇴 API 적용은 Cloudflare Tunnel 이후, pi2 `0.0.0.0:8080`, 카카오·애플 env 지원·JWT 분리·Discord 같은 웹훅. 네트워크 실측값 반영(pi `192.168.0.11`, pi2 `192.168.0.5`, 같은 공유기·DHCP 예약) |
 | 2026-10-26 | **Approved** | 승인 — Issue #82 브랜치에서 구현 |
-| 2026-10-26 | Approved | 구현 반영 — 호스트 키 검증을 첫 배포부터 적용(러너 OpenSSH + `known_hosts` 고정, Variable `PI2_SSH_HOST_KEY`; appleboy 대신), 배포 스크립트 `deploy/deploy-dev.sh`(헬스체크 실패 시 직전 성공 태그로 **자동 롤백**), `workflow_dispatch`의 `image_tag`로 수동 재배포·롤백, 복구 절차 문서화. 사용자 설정 상태 갱신(pi DB 개방·확인 완료). 로컬 검증 완료, 실배포 검증은 머지 후 |
+| 2026-10-26 | Approved | 구현 반영 — 호스트 키 검증을 첫 배포부터 적용(러너 OpenSSH + `known_hosts` 고정, Secret `PI2_SSH_HOST_KEY`; appleboy 대신), 배포 스크립트 `deploy/deploy-dev.sh`(헬스체크 실패 시 직전 성공 태그로 **자동 롤백**), `workflow_dispatch`의 `image_tag`로 수동 재배포·롤백, 복구 절차 문서화. 사용자 설정 상태 갱신(pi DB 개방·확인 완료). 로컬 검증 완료, 실배포 검증은 머지 후 |
 
 ## 배경 / 목적
 
@@ -67,7 +67,7 @@ GitHub-hosted runner는 pi2의 사설 IP(`192.168.35.100`)에 직접 닿지 못�
 - 워크플로가 `tailscale/github-action@v4`로 **임시(ephemeral) 노드**로 tailnet에 들어온다(태그 `tag:ci`). 잡이 끝나면 노드가 사라진다.
 - **인증은 OIDC(Workload Identity Federation)**. GitHub가 잡마다 발급하는 OIDC 토큰을 Tailscale이 검증하므로 장기 비밀값(OAuth Client Secret)을 두지 않는다. Tailscale 쪽 subject를 `repo:Central-MakeUs/Rodi-Server:ref:refs/heads/develop`로 묶어 **이 레포의 develop 실행만** 접속할 수 있다. deploy 잡에 `id-token: write`가 필요하고, 잡에 `environment:`를 붙이지 않는다(붙이면 subject 형식이 바뀐다).
 - Tailscale ACL로 `tag:ci`는 **`tag:server`(pi2)의 TCP 22만** 접근하게 제한한다.
-- SSH는 Tailscale SSH가 아닌 **pi2의 OpenSSH + 배포 전용 키**(사용자 `deploy`, docker 그룹)를 쓴다. 러너 기본 `ssh`/`scp`로 접속하고(서드파티 action에 키를 넘기지 않음), **`known_hosts`를 레포 변수 `PI2_SSH_HOST_KEY`(pi2 공개 호스트 키)로 고정해 첫 배포부터 호스트 키를 검증**한다(`StrictHostKeyChecking yes`). 변수가 없으면 배포 전에 실패한다.
+- SSH는 Tailscale SSH가 아닌 **pi2의 OpenSSH + 배포 전용 키**(사용자 `deploy`, docker 그룹)를 쓴다. 러너 기본 `ssh`/`scp`로 접속하고(서드파티 action에 키를 넘기지 않음), **`known_hosts`를 레포 시크릿 `PI2_SSH_HOST_KEY`(pi2 공개 호스트 키)로 고정해 첫 배포부터 호스트 키를 검증**한다(`StrictHostKeyChecking yes`). 값이 없으면 배포 전에 실패한다.
 
 ### 2. 이미지 빌드 — ARM 호스티드 러너에서 네이티브 빌드
 
@@ -182,7 +182,7 @@ Claude가 대신할 수 없는 설정이다. **PR 머지 전까지** 끝내야 d
 | 3 | DB 확인 | pi2에서 `psql -h 192.168.0.11` 접속(`place` 118건), 맥북에서는 5432 차단, `flyway_schema_history` 최신 29·전부 성공 | **완료** |
 | 4 | pi2 준비 | `deploy` 사용자(docker 그룹)·`/opt/rodi-app` 소유권, 배포 SSH 키 등록, `/opt/rodi-app/.env`(`chmod 600`, `deploy/.env.dev.example` 참고), Wi-Fi 절전 끄기(`802-11-wireless.powersave 2`) | **`.env` 미작성** — 코드 머지 전 `.env.dev.example` 기준으로 작성 |
 | 5 | Tailscale | pi2 태그 `tag:server`(Tailscale IP `100.81.233.83`). ACL: `tag:ci` → `tag:server` TCP 22만. OIDC credential: Issuer GitHub, Subject `repo:Central-MakeUs/Rodi-Server:ref:refs/heads/develop`, scope `auth_keys` 쓰기, 태그 `tag:ci` | 완료 |
-| 6 | GitHub | Secrets `TS_OAUTH_CLIENT_ID`·`TS_AUDIENCE`·`PI2_SSH_KEY`. Variables `PI2_HOST=100.81.233.83`·`PI2_SSH_USER=deploy`·**`PI2_SSH_HOST_KEY`**(pi2의 `cat /etc/ssh/ssh_host_ed25519_key.pub` 출력 한 줄 — 지문 `SHA256:wmEh…n0PE`과 일치 확인). `TS_OAUTH_SECRET`은 쓰지 않는다 | **`PI2_SSH_HOST_KEY` 추가 필요** |
+| 6 | GitHub | Repository **Secrets**(전부 Secrets, Variables 사용 안 함): `TS_OAUTH_CLIENT_ID`·`TS_AUDIENCE`·`PI2_SSH_KEY`·`PI2_HOST`(`100.81.233.83`)·`PI2_SSH_USER`(`deploy`)·**`PI2_SSH_HOST_KEY`**(pi2의 `cat /etc/ssh/ssh_host_ed25519_key.pub` 출력 한 줄 — 지문 `SHA256:wmEh…n0PE`과 일치 확인). `TS_OAUTH_SECRET`은 쓰지 않는다 | **`PI2_SSH_HOST_KEY` 추가 필요** |
 | 7 | 카카오 | 허용 IP에 집 공인 IP 추가(pi2에서 `curl -s ifconfig.me`). 가정 회선은 바뀔 수 있음 | 첫 배포 후 |
 | 8 | (선택) 안정성 | 간헐 멈춤 원인 점검(`journalctl -b -1 -p err`, `vcgencmd get_throttled`), 하드웨어 watchdog | 선택 |
 

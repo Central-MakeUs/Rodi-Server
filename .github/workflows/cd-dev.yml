@@ -86,7 +86,7 @@ jobs:
       id-token: write        # Tailscale OIDC(Workload Identity Federation) 토큰 발급
     env:
       IMAGE_TAG: ${{ inputs.image_tag || format('dev-{0}', github.sha) }}
-      PI2_HOST: ${{ vars.PI2_HOST }}
+      PI2_HOST: ${{ secrets.PI2_HOST }}
     steps:
       - uses: actions/checkout@v4
 
@@ -98,16 +98,16 @@ jobs:
           audience: ${{ secrets.TS_AUDIENCE }}
           tags: tag:ci
 
-      # 호스트 키 검증: known_hosts 를 레포 변수(pi2 공개 호스트 키)로 고정 → 다른 서버면 접속 거부
+      # 호스트 키 검증: known_hosts 를 레포 시크릿(pi2 공개 호스트 키)으로 고정 → 다른 서버면 접속 거부
       - name: Set up SSH
         env:
           PI2_SSH_KEY: ${{ secrets.PI2_SSH_KEY }}
-          PI2_SSH_HOST_KEY: ${{ vars.PI2_SSH_HOST_KEY }}
-          PI2_SSH_USER: ${{ vars.PI2_SSH_USER }}
+          PI2_SSH_HOST_KEY: ${{ secrets.PI2_SSH_HOST_KEY }}
+          PI2_SSH_USER: ${{ secrets.PI2_SSH_USER }}
         run: |
-          : "${PI2_HOST:?vars.PI2_HOST 미설정}" "${PI2_SSH_USER:?vars.PI2_SSH_USER 미설정}"
+          : "${PI2_HOST:?secrets.PI2_HOST 미설정}" "${PI2_SSH_USER:?secrets.PI2_SSH_USER 미설정}"
           : "${PI2_SSH_KEY:?secrets.PI2_SSH_KEY 미설정}"
-          : "${PI2_SSH_HOST_KEY:?vars.PI2_SSH_HOST_KEY 미설정 — pi2의 /etc/ssh/ssh_host_ed25519_key.pub 내용}"
+          : "${PI2_SSH_HOST_KEY:?secrets.PI2_SSH_HOST_KEY 미설정 — pi2의 /etc/ssh/ssh_host_ed25519_key.pub 내용}"
           install -m 700 -d ~/.ssh
           printf '%s\n' "$PI2_SSH_KEY" > ~/.ssh/pi2 && chmod 600 ~/.ssh/pi2
           printf '%s %s\n' "$PI2_HOST" "$PI2_SSH_HOST_KEY" > ~/.ssh/known_hosts

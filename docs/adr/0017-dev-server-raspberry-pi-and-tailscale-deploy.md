@@ -19,7 +19,7 @@ Accepted (2026-10-26) — [ADR 0005](0005-hosting-aws-lightsail.md)의 "develop 
 2. **연결은 Tailscale + SSH**: 배포 잡만 Tailscale에 **임시(ephemeral) 노드**로 들어와 pi2에 SSH로 배포한다. 인바운드 포트는 열지 않는다.
    - 인증은 **OIDC(Workload Identity Federation)**. 장기 비밀값(OAuth Client Secret)을 두지 않고, Tailscale 쪽 subject를 `repo:Central-MakeUs/Rodi-Server:ref:refs/heads/develop`로 묶는다.
    - ACL로 `tag:ci`는 `tag:server`(pi2)의 TCP 22만 접근한다.
-   - SSH는 러너 기본 OpenSSH로 하고, `known_hosts`를 레포 변수(pi2 공개 호스트 키)로 고정해 **첫 배포부터 호스트 키를 검증**한다.
+   - SSH는 러너 기본 OpenSSH로 하고, `known_hosts`를 레포 시크릿(pi2 공개 호스트 키)으로 고정해 **첫 배포부터 호스트 키를 검증**한다.
 3. **ARM64 이미지**: ARM 호스티드 러너(`ubuntu-24.04-arm`, public 레포 무료)에서 네이티브로 빌드한다. Dockerfile은 그대로 쓴다. 태그는 `dev-<sha>`·`develop`으로 운영(`<sha>`·`main`)과 접두어를 나눠, 아키텍처가 다른 이미지가 같은 태그를 덮지 않게 한다.
 4. **배포 실패 시 자동 롤백**: pi2의 배포 스크립트(`deploy/deploy-dev.sh`)가 마지막으로 헬스체크를 통과한 태그를 기록해 둔다. 새 이미지가 헬스체크를 통과하지 못하면 그 태그로 되돌린 뒤 잡을 실패로 끝낸다(서비스는 살리고, 실패는 숨기지 않는다).
 5. **내부 API는 프로필로 게이팅**: `@DevOnly`(= `@Profile({"local","dev"})`)를 붙인 빈은 운영에서 만들어지지 않는다. 관리자 API는 운영에도 필요하므로 대상이 아니다(권한으로 막을 대상).
