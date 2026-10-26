@@ -1,0 +1,14 @@
+# 개발 서버(Raspberry Pi pi2) 프로필 — 스펙 023. develop 머지 시 자동 배포된다.
+# prod와 거의 같지만 프로필 그룹으로 합치지 않는다(@Profile("prod") 분기가 생기면 개발 서버까지 운영으로 취급되므로).
+spring:
+  datasource:
+    url: ${DB_URL}
+    username: ${DB_USERNAME}
+    password: ${DB_PASSWORD}
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    show-sql: false
+server:
+  # 추후 Cloudflare Tunnel(HTTPS 종단) 뒤에서 X-Forwarded-* 헤더를 신뢰 → https 스킴 인식
+  forward-headers-strategy: framework
