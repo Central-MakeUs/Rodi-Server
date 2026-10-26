@@ -24,7 +24,7 @@
 | [0002](0002-place-joined-inheritance.md) | Place 상속 전략 — JOINED | Accepted |
 | [0003](0003-region-hierarchy-and-postgis.md) | 지역 처리 — 계층 region 테이블 + PostGIS | Accepted |
 | [0004](0004-member-soft-delete.md) | 회원 탈퇴 — soft delete + PII 익명화 | Accepted |
-| [0005](0005-hosting-aws-lightsail.md) | 배포 인프라 및 CI/CD | Accepted |
+| [0005](0005-hosting-aws-lightsail.md) | 배포 인프라 및 CI/CD | Accepted (develop 자동 배포는 0017로 대체) |
 | [0006](0006-code-quality-tools.md) | 코드 품질·의존성 도구 | Accepted |
 | [0007](0007-flyway-db-migration.md) | DB 스키마 마이그레이션 — Flyway | Accepted |
 | [0008](0008-social-login.md) | 소셜 로그인 전략 | Accepted |
@@ -36,3 +36,4 @@
 | [0014](0014-nickname-validation-and-profanity-filter.md) | 닉네임 검증 — 형식 규칙 + 리소스 금칙어(포함/정확 일치 분리) | Accepted |
 | [0015](0015-server-side-grid-marker-clustering.md) | 지도 마커 클러스터링 — 서버 고정 그리드 | Accepted |
 | [0016](0016-filter-param-and-sort-tags.md) | 홈 유형 필터 분리 — 저장 태그는 정렬(sort_tags), 필터는 요청 파라미터 | Accepted |
+| [0017](0017-dev-server-raspberry-pi-and-tailscale-deploy.md) | 개발 서버 분리 — Raspberry Pi(pi2) + Tailscale OIDC 배포 | Accepted |
