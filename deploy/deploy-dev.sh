@@ -25,9 +25,10 @@ echo "▶ 배포: $IMAGE_TAG (직전 성공: ${prev:-없음})"
 if [[ "${PULL:-true}" == "true" ]]; then
     compose pull app
 fi
-# --wait: 컨테이너 헬스체크가 healthy가 될 때까지 대기, 실패·타임아웃이면 0이 아닌 값
-if compose up -d --wait --wait-timeout "$WAIT_TIMEOUT" app; then
-    compose exec -T app curl -fsS http://localhost:8080/actuator/health   # pi2 호스트에 curl이 없어도 되게 컨테이너 안에서
+# --wait: 컨테이너 헬스체크가 healthy가 될 때까지 대기, 실패·타임아웃이면 0이 아닌 값.
+# 이어서 헬스 응답을 직접 확인(pi2 호스트에 curl이 없어도 되게 컨테이너 안에서) — 둘 중 하나라도 실패하면 롤백 경로로
+if compose up -d --wait --wait-timeout "$WAIT_TIMEOUT" app \
+    && compose exec -T app curl -fsS http://localhost:8080/actuator/health; then
     echo
     echo "$IMAGE_TAG" >"$STATE_FILE"
     # 디스크(16GB USB) 보호: 현재·직전 태그만 남기고 이 레포 이미지 정리
