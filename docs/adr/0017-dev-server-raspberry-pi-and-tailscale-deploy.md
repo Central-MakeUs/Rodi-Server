@@ -2,7 +2,7 @@
 
 ## 상태 (Status)
 
-Accepted (2026-10-26) — [ADR 0005](0005-hosting-aws-lightsail.md)의 "develop 자동 배포" 절을 대체한다(나머지 0005 결정은 유지).
+Accepted (2026-10-26, 외부 공개 추가 2026-10-26) — [ADR 0005](0005-hosting-aws-lightsail.md)의 "develop 자동 배포" 절을 대체한다(나머지 0005 결정은 유지).
 
 ## 배경
 
@@ -23,6 +23,7 @@ Accepted (2026-10-26) — [ADR 0005](0005-hosting-aws-lightsail.md)의 "develop 
 3. **ARM64 이미지**: ARM 호스티드 러너(`ubuntu-24.04-arm`, public 레포 무료)에서 네이티브로 빌드한다. Dockerfile은 그대로 쓴다. 태그는 `dev-<sha>`·`develop`으로 운영(`<sha>`·`main`)과 접두어를 나눠, 아키텍처가 다른 이미지가 같은 태그를 덮지 않게 한다.
 4. **배포 실패 시 자동 롤백**: pi2의 배포 스크립트(`deploy/deploy-dev.sh`)가 마지막으로 헬스체크를 통과한 태그를 기록해 둔다. 새 이미지가 헬스체크를 통과하지 못하면 그 태그로 되돌린 뒤 잡을 실패로 끝낸다(서비스는 살리고, 실패는 숨기지 않는다).
 5. **내부 API는 프로필로 게이팅**: `@DevOnly`(= `@Profile({"local","dev"})`)를 붙인 빈은 운영에서 만들어지지 않는다. 관리자 API는 운영에도 필요하므로 대상이 아니다(권한으로 막을 대상).
+6. **외부 공개는 Cloudflare Tunnel**: 모바일 앱이 개발 서버에 붙을 수 있게 `dev-api.stillstar.store`를 Cloudflare Tunnel로 연다. pi2의 `cloudflared`가 Cloudflare로 **아웃바운드** 연결을 맺고, HTTPS는 Cloudflare가 종단한다. app 포트는 `127.0.0.1:8080`에만 바인딩해 pi2 밖(LAN 포함)에서 직접 닿지 않는다. 공유기 포트포워딩·인증서 관리가 필요 없고 집 공인 IP가 드러나지 않는다.
 
 ## 결과
 
@@ -35,7 +36,7 @@ Accepted (2026-10-26) — [ADR 0005](0005-hosting-aws-lightsail.md)의 "develop 
 
 ### 부정적
 
-- Tailscale(외부 서비스)에 의존한다. Tailscale 장애 시 개발 서버 배포만 멈춘다(운영 영향 없음).
+- Tailscale·Cloudflare(외부 서비스)에 의존한다. Tailscale 장애 시 개발 서버 배포가, Cloudflare 장애 시 개발 서버 외부 접근이 멈춘다(운영 영향 없음).
 - 가정용 회선·전원·Wi-Fi에 의존해 가용성이 낮다(pi2 간헐 멈춤 이력). 개발 서버 용도라 감수한다.
 - 공인 IP가 바뀌면 카카오 허용 IP를 다시 등록해야 한다.
 - 레포가 private으로 바뀌면 ARM 러너가 유료가 된다 → `ubuntu-latest` + QEMU로 바꾸고, 빌드 스테이지를 `FROM --platform=$BUILDPLATFORM`으로 고쳐 Gradle만 네이티브로 돌린다.
@@ -61,6 +62,7 @@ CI가 서버에 접속하지 않아 가장 단순하다. 그러나 Actions가 �
 
 ## 참조
 
+- 인프라 구성도: [docs/infra.md](../infra.md)
 - 스펙: [023 Pi 개발 서버 배포](../specs/023-pi-dev-server-deploy.md) · 이슈 [#82](https://github.com/Central-MakeUs/Rodi-Server/issues/82)
 - [ADR 0005](0005-hosting-aws-lightsail.md) (운영 인프라 — "develop 자동 배포" 절은 이 ADR로 대체)
 - 워크플로: [cd-dev.yml](../../.github/workflows/cd-dev.yml) · [cd.yml](../../.github/workflows/cd.yml)

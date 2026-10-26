@@ -103,9 +103,9 @@ jobs:
         env:
           PI2_SSH_KEY: ${{ secrets.PI2_SSH_KEY }}
           PI2_SSH_HOST_KEY: ${{ secrets.PI2_SSH_HOST_KEY }}
-          PI2_SSH_USER: ${{ secrets.PI2_SSH_USER }}
+          PI2_SSH_USER: ${{ vars.PI2_SSH_USER }}   # 비밀값이 아니라 Variable — Secret이면 로그의 "deploy" 단어가 전부 *** 로 가려진다
         run: |
-          : "${PI2_HOST:?secrets.PI2_HOST 미설정}" "${PI2_SSH_USER:?secrets.PI2_SSH_USER 미설정}"
+          : "${PI2_HOST:?secrets.PI2_HOST 미설정}" "${PI2_SSH_USER:?vars.PI2_SSH_USER 미설정}"
           : "${PI2_SSH_KEY:?secrets.PI2_SSH_KEY 미설정}"
           : "${PI2_SSH_HOST_KEY:?secrets.PI2_SSH_HOST_KEY 미설정 — pi2의 /etc/ssh/ssh_host_ed25519_key.pub 내용}"
           install -m 700 -d ~/.ssh
