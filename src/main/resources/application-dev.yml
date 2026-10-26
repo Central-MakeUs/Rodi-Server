@@ -10,5 +10,5 @@ spring:
       ddl-auto: validate
     show-sql: false
 server:
-  # 추후 Cloudflare Tunnel(HTTPS 종단) 뒤에서 X-Forwarded-* 헤더를 신뢰 → https 스킴 인식
+  # Cloudflare Tunnel(dev-api.stillstar.store, HTTPS 종단) 뒤에서 X-Forwarded-* 헤더를 신뢰 → https 스킴 인식
   forward-headers-strategy: framework

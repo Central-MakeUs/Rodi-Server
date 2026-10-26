@@ -9,6 +9,7 @@
 | 2026-10-26 | **Approved** | 승인 — Issue #82 브랜치에서 구현 |
 | 2026-10-26 | Approved | 구현 반영 — 호스트 키 검증을 첫 배포부터 적용(러너 OpenSSH + `known_hosts` 고정, Secret `PI2_SSH_HOST_KEY`; appleboy 대신), 배포 스크립트 `deploy/deploy-dev.sh`(헬스체크 실패 시 직전 성공 태그로 **자동 롤백**), `workflow_dispatch`의 `image_tag`로 수동 재배포·롤백, 복구 절차 문서화. 사용자 설정 상태 갱신(pi DB 개방·확인 완료). 로컬 검증 완료, 실배포 검증은 머지 후 |
 | 2026-10-26 | Approved | Cloudflare Tunnel(`dev-api.stillstar.store`) 구성 완료 → pi2 app 포트 바인딩을 `127.0.0.1:8080`으로 전환(결정 사항 3). 운영 compose는 변경 없음 |
+| 2026-10-26 | **Implemented** | 첫 실배포 성공(develop `f909983`, test·build-push·deploy 전 단계). 사용자 설정 완료 반영(pi2 `.env`, `PI2_SSH_HOST_KEY`, Cloudflare Tunnel). `PI2_SSH_USER`는 Variable로 이동(Secret이면 로그의 "deploy"가 가려짐). 인프라 구성도 [docs/infra.md](../infra.md) 추가 |
 
 ## 배경 / 목적
 
@@ -112,7 +113,7 @@ spring:
       ddl-auto: validate
     show-sql: false
 server:
-  forward-headers-strategy: framework   # 추후 Cloudflare Tunnel(HTTPS 종단) 뒤에서 https 스킴 인식
+  forward-headers-strategy: framework   # Cloudflare Tunnel(HTTPS 종단) 뒤에서 https 스킴 인식
 ```
 
 - `prod`와 내용이 거의 같지만 프로필 그룹(`dev`가 `prod`를 포함)으로 합치지 않는다. 앞으로 `@Profile("prod")` 같은 분기가 생기면 개발 서버까지 운영으로 취급되기 때문이다. 10줄 정도의 중복은 감수한다.
@@ -181,11 +182,12 @@ Claude가 대신할 수 없는 설정이다. **PR 머지 전까지** 끝내야 d
 | 1 | 네트워크 | pi·pi2·맥북을 **같은 공유기**(`192.168.0.x`)로 모으고 DHCP 예약 — pi `192.168.0.11`, pi2 `192.168.0.5`. 포트포워딩 없음 | 완료 |
 | 2 | pi DB 개방 | 바인딩 `192.168.0.11:5432:5432`, `DOCKER-USER` 체인으로 5432는 `192.168.0.5`만 허용(systemd `rodi-db-firewall`), pg_hba `scram-sha-256` 확인 | **완료** |
 | 3 | DB 확인 | pi2에서 `psql -h 192.168.0.11` 접속(`place` 118건), 맥북에서는 5432 차단, `flyway_schema_history` 최신 29·전부 성공 | **완료** |
-| 4 | pi2 준비 | `deploy` 사용자(docker 그룹)·`/opt/rodi-app` 소유권, 배포 SSH 키 등록, `/opt/rodi-app/.env`(`chmod 600`, `deploy/.env.dev.example` 참고), Wi-Fi 절전 끄기(`802-11-wireless.powersave 2`) | **`.env` 미작성** — 코드 머지 전 `.env.dev.example` 기준으로 작성 |
+| 4 | pi2 준비 | `deploy` 사용자(docker 그룹)·`/opt/rodi-app` 소유권, 배포 SSH 키 등록, `/opt/rodi-app/.env`(`chmod 600`, `deploy/.env.dev.example` 참고), Wi-Fi 절전 끄기(`802-11-wireless.powersave 2`) | **완료** (첫 배포 성공으로 확인, Wi-Fi 절전은 별도 확인) |
 | 5 | Tailscale | pi2 태그 `tag:server`(Tailscale IP `100.81.233.83`). ACL: `tag:ci` → `tag:server` TCP 22만. OIDC credential: Issuer GitHub, Subject `repo:Central-MakeUs/Rodi-Server:ref:refs/heads/develop`, scope `auth_keys` 쓰기, 태그 `tag:ci` | 완료 |
-| 6 | GitHub | Repository **Secrets**(전부 Secrets, Variables 사용 안 함): `TS_OAUTH_CLIENT_ID`·`TS_AUDIENCE`·`PI2_SSH_KEY`·`PI2_HOST`(`100.81.233.83`)·`PI2_SSH_USER`(`deploy`)·**`PI2_SSH_HOST_KEY`**(pi2의 `cat /etc/ssh/ssh_host_ed25519_key.pub` 출력 한 줄 — 지문 `SHA256:wmEh…n0PE`과 일치 확인). `TS_OAUTH_SECRET`은 쓰지 않는다 | **`PI2_SSH_HOST_KEY` 추가 필요** |
-| 7 | 카카오 | 허용 IP에 집 공인 IP 추가(pi2에서 `curl -s ifconfig.me`). 가정 회선은 바뀔 수 있음 | 첫 배포 후 |
-| 8 | (선택) 안정성 | 간헐 멈춤 원인 점검(`journalctl -b -1 -p err`, `vcgencmd get_throttled`), 하드웨어 watchdog | 선택 |
+| 6 | GitHub | Repository **Secrets**: `TS_OAUTH_CLIENT_ID`·`TS_AUDIENCE`·`PI2_SSH_KEY`·`PI2_HOST`(`100.81.233.83`)·**`PI2_SSH_HOST_KEY`**(pi2의 `cat /etc/ssh/ssh_host_ed25519_key.pub` 출력 한 줄 — 지문 `SHA256:wmEh…n0PE`과 일치 확인). **Variable**: `PI2_SSH_USER`(`deploy`) — Secret이면 Actions 로그의 "deploy" 단어가 전부 `***`로 가려져 Variable로 둔다. `TS_OAUTH_SECRET`은 쓰지 않는다 | **완료** (`PI2_SSH_USER` Variable 이동은 #84 머지 전) |
+| 7 | Cloudflare Tunnel | `dev-api.stillstar.store` → pi2 `cloudflared` → `localhost:8080`(app은 `127.0.0.1` 바인딩) | **완료** |
+| 8 | 카카오 | 허용 IP에 집 공인 IP 추가(pi2에서 `curl -s ifconfig.me`). 가정 회선은 바뀔 수 있음 | 첫 배포 후 |
+| 9 | (선택) 안정성 | 간헐 멈춤 원인 점검(`journalctl -b -1 -p err`, `vcgencmd get_throttled`), 하드웨어 watchdog | 선택 |
 
 > `tag:server`는 범용 이름이라, 나중에 pi 등 다른 기기에도 같은 태그를 붙이면 CI가 그 기기의 22번에도 닿는다. 그때는 ACL 대상을 기기별 태그로 좁힌다.
 
@@ -226,9 +228,9 @@ Claude가 대신할 수 없는 설정이다. **PR 머지 전까지** 끝내야 d
 
 **워크플로**
 - [x] `cd.yml`은 `main` push에서만 실행되고, `develop` push에서는 실행되지 않는다.
-- [ ] `develop` push 시 `cd-dev.yml`의 test → build-push가 통과하고, GHCR에 `dev-<sha>` arm64 이미지가 올라간다.
+- [x] `develop` push 시 `cd-dev.yml`의 test → build-push가 통과하고, GHCR에 `dev-<sha>` arm64 이미지가 올라간다.
 - [x] deploy 잡이 `id-token: write` 외에 불필요한 권한을 갖지 않고, `TS_OAUTH_SECRET`을 참조하지 않는다.
-- [ ] (사용자 설정 완료 후) deploy 잡이 Tailscale 접속 → 22번 도달·SSH 사전 점검 → 배포 → 헬스체크 통과로 성공한다. 사전 점검이 실패하면 배포 스텝 전에 멈추고, 헬스체크가 실패하면 잡이 실패하며 로그에 컨테이너 로그가 남는다.
+- [x] (사용자 설정 완료 후) deploy 잡이 Tailscale 접속 → 22번 도달·SSH 사전 점검 → 배포 → 헬스체크 통과로 성공한다. 사전 점검이 실패하면 배포 스텝 전에 멈추고, 헬스체크가 실패하면 잡이 실패하며 로그에 컨테이너 로그가 남는다.
 - [x] `main` push의 `cd.yml` 실행 내용(스텝·이미지·서버 스크립트)은 바뀌지 않는다.
 
 ## 결정 사항

@@ -12,7 +12,7 @@
 | 인증 | OAuth2 Client + JWT |
 | API 문서 | SpringDoc OpenAPI (Swagger UI) |
 | 품질 | Spotless, SonarCloud, JaCoCo, CodeRabbit |
-| 인프라 | Docker Compose, Caddy, GitHub Actions, AWS Lightsail |
+| 인프라 | Docker Compose, GitHub Actions, GHCR · 운영: AWS Lightsail, Caddy · 개발: Raspberry Pi, Tailscale, Cloudflare Tunnel |
 
 ## 로컬 실행
 
@@ -48,4 +48,6 @@ DDD + package-by-feature로 시작, 도메인이 복잡해지면 feature 단위�
 - 기능 개발: `feat/#이슈번호-기능` → `develop` PR → 리뷰·CI 통과 후 머지
 - 개발 서버: `develop` 머지 시 **ARM64 이미지 빌드 → GHCR → Raspberry Pi(pi2) 자동 배포** (Tailscale OIDC + SSH, 실패 시 자동 롤백)
 - 릴리즈: `develop` → `main` PR → 머지 시 **GitHub Actions가 이미지 빌드 → GHCR → Lightsail 자동 배포**
+- 서버 주소: 운영 `https://api.stillstar.store` · 개발 `https://dev-api.stillstar.store`
+- 인프라 구성도·접근 제어·설정값: [docs/infra.md](docs/infra.md)
 - 배포 인프라 결정: [ADR 0005](docs/adr/0005-hosting-aws-lightsail.md)(운영) · [ADR 0017](docs/adr/0017-dev-server-raspberry-pi-and-tailscale-deploy.md)(개발 서버)

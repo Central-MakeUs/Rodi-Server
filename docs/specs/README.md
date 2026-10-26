@@ -44,4 +44,4 @@
 | [닉네임 변경·검증](020-nickname-change.md) | 닉네임 변경(PATCH)·사용 가능 여부 확인·형식(2~10자, `_`)·금칙어(LDNOOBW+직접 작성)·중복 검증, 공백→`_` 이관·**변경 30일 제한** | Implemented |
 | [지도 마커 클러스터링](021-marker-clustering.md) | 검색 한 번에 확대 단계별 묶음(서버 고정 그리드)·확대·축소는 앱이 단계 선택·탭 확대 범위·유형 필터(practiceTypes)·좌표 API deprecated | Implemented |
 | [레벨별 연습 기록](022-level-practice-record.md) | 연습 기록을 (회원, 장소, 레벨)마다 저장·레벨별 목록 조회(019에서 분리, 추후 구현) | Deferred |
-| [Pi 개발 서버 배포](023-pi-dev-server-deploy.md) | develop→pi2(ARM64·Tailscale OIDC+SSH)/main→Lightsail 분리·`dev` 프로필·pi2 compose·내부 API `@DevOnly` 게이팅(적용은 터널 이후)·자동 롤백 | Approved |
+| [Pi 개발 서버 배포](023-pi-dev-server-deploy.md) | develop→pi2(ARM64·Tailscale OIDC+SSH)/main→Lightsail 분리·`dev` 프로필·pi2 compose·내부 API `@DevOnly` 게이팅·자동 롤백·Cloudflare Tunnel(`dev-api`) | Implemented |
