@@ -28,7 +28,7 @@ services:
       JAVA_OPTS: "-Xms256m -Xmx640m -XX:+ExitOnOutOfMemoryError"
     mem_limit: 1g            # 힙 640MB + 메타스페이스·스레드·코드캐시
     ports:
-      - "0.0.0.0:8080:8080"  # 같은 LAN에서 API·Swagger 테스트용. 공유기 포트포워딩 금지. Cloudflare Tunnel 구성 시 127.0.0.1 전환 검토
+      - "127.0.0.1:8080:8080"  # pi2 자신만 접근. 외부는 Cloudflare Tunnel(dev-api.stillstar.store)로만 — cloudflared는 pi2 호스트(또는 network_mode: host)에서 localhost:8080으로 프록시해야 함
     healthcheck:
       test: ["CMD", "curl", "-fsS", "-o", "/dev/null", "http://localhost:8080/actuator/health"]
       interval: 15s

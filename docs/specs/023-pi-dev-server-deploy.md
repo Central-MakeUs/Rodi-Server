@@ -8,6 +8,7 @@
 | 2026-10-26 | Draft | 미해결 질문 결정 — Tailscale+SSH 확정, Tailscale 인증은 **OIDC(Workload Identity Federation)**, `@DevOnly`는 만들되 즉시 탈퇴 API 적용은 Cloudflare Tunnel 이후, pi2 `0.0.0.0:8080`, 카카오·애플 env 지원·JWT 분리·Discord 같은 웹훅. 네트워크 실측값 반영(pi `192.168.0.11`, pi2 `192.168.0.5`, 같은 공유기·DHCP 예약) |
 | 2026-10-26 | **Approved** | 승인 — Issue #82 브랜치에서 구현 |
 | 2026-10-26 | Approved | 구현 반영 — 호스트 키 검증을 첫 배포부터 적용(러너 OpenSSH + `known_hosts` 고정, Secret `PI2_SSH_HOST_KEY`; appleboy 대신), 배포 스크립트 `deploy/deploy-dev.sh`(헬스체크 실패 시 직전 성공 태그로 **자동 롤백**), `workflow_dispatch`의 `image_tag`로 수동 재배포·롤백, 복구 절차 문서화. 사용자 설정 상태 갱신(pi DB 개방·확인 완료). 로컬 검증 완료, 실배포 검증은 머지 후 |
+| 2026-10-26 | Approved | Cloudflare Tunnel(`dev-api.stillstar.store`) 구성 완료 → pi2 app 포트 바인딩을 `127.0.0.1:8080`으로 전환(결정 사항 3). 운영 compose는 변경 없음 |
 
 ## 배경 / 목적
 
@@ -136,7 +137,7 @@ services:
       JAVA_OPTS: "-Xms256m -Xmx640m -XX:+ExitOnOutOfMemoryError"
     mem_limit: 1g
     ports:
-      - "0.0.0.0:8080:8080"    # 같은 LAN의 맥북에서 API·Swagger 테스트용. 포트포워딩 없음. Cloudflare Tunnel 구성 시 127.0.0.1 전환 검토
+      - "127.0.0.1:8080:8080"  # 외부는 Cloudflare Tunnel(dev-api.stillstar.store)로만. 2026-10-26까지는 0.0.0.0(LAN 테스트용)
     healthcheck:               # curl -fsS http://localhost:8080/actuator/health (JRE 이미지에 curl 포함 확인)
       interval: 15s
       timeout: 5s
@@ -234,7 +235,7 @@ Claude가 대신할 수 없는 설정이다. **PR 머지 전까지** 끝내야 d
 
 1. **배포 연결**: Tailscale + SSH. CI는 배포할 때만 tailnet에 들어오고(ephemeral), 인증은 OIDC, 접근은 `tag:server`의 TCP 22로 제한한다.
 2. **즉시 탈퇴 게이팅**: `@DevOnly`와 테스트만 이번에 만든다. 실제 적용은 개발 서버 Cloudflare Tunnel 이후에 한다(그전까지 기존 동작과 인증 유지).
-3. **pi2 8080**: `0.0.0.0:8080`(LAN 테스트용, 포트포워딩 없음). 터널 구성 시 `127.0.0.1` 전환을 검토한다.
+3. **pi2 8080**: 처음엔 `0.0.0.0:8080`(LAN 테스트용, 포트포워딩 없음)으로 열었고, Cloudflare Tunnel(`dev-api.stillstar.store`, HTTPS) 구성 후 **`127.0.0.1:8080`으로 전환**했다. 외부 접근은 터널로만 하고, LAN의 다른 기기에서 8080으로 직접 접근하지 않는다. 배포 헬스체크는 컨테이너 내부(`healthcheck`·`compose exec ... curl`)에서 하므로 바인딩과 무관하다.
 4. **외부 연동**: 카카오·애플 env 지원(값은 pi2 `.env`), JWT 시크릿 분리, Discord 같은 웹훅(`[dev]` 라벨로 구분).
 
 ## 미해결 질문
