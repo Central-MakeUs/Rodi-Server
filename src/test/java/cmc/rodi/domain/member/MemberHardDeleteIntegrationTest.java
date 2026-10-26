@@ -2,6 +2,8 @@ package cmc.rodi.domain.member;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import cmc.rodi.domain.member.entity.DrivingPeriod;
 import cmc.rodi.domain.member.entity.Level;
@@ -25,6 +27,7 @@ import cmc.rodi.domain.review.repository.ReviewRepository;
 import cmc.rodi.domain.review.service.ReviewService;
 import cmc.rodi.global.auth.entity.SocialAccount;
 import cmc.rodi.global.auth.entity.SocialProvider;
+import cmc.rodi.global.auth.jwt.TokenProvider;
 import cmc.rodi.global.auth.repository.SocialAccountRepository;
 import cmc.rodi.global.auth.service.RefreshTokenService;
 import cmc.rodi.global.exception.BusinessException;
@@ -40,12 +43,16 @@ import org.locationtech.jts.geom.Coordinate;
 import org.locationtech.jts.geom.GeometryFactory;
 import org.locationtech.jts.geom.PrecisionModel;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.annotation.Import;
+import org.springframework.http.HttpHeaders;
+import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.transaction.annotation.Transactional;
 
 /** 즉시 탈퇴(내부 테스트용) — CASCADE 없는 테이블까지 지워지고 소셜 식별자가 풀려 재가입이 가능해진다. */
 @SpringBootTest
+@AutoConfigureMockMvc
 @Transactional
 @Import(TestcontainersConfiguration.class)
 class MemberHardDeleteIntegrationTest {
@@ -64,6 +71,8 @@ class MemberHardDeleteIntegrationTest {
     @Autowired ReviewRepository reviewRepository;
     @Autowired MemberPracticeRepository memberPracticeRepository;
     @Autowired RefreshTokenService refreshTokenService;
+    @Autowired TokenProvider tokenProvider;
+    @Autowired MockMvc mockMvc;
 
     @PersistenceContext EntityManager em;
 
@@ -151,5 +160,33 @@ class MemberHardDeleteIntegrationTest {
                 .isInstanceOf(BusinessException.class)
                 .extracting(e -> ((BusinessException) e).getErrorCode())
                 .isEqualTo(ErrorCode.ENTITY_NOT_FOUND);
+    }
+
+    // 스펙 023: @DevOnly 적용은 Cloudflare Tunnel 이후라, 그전까지 기존 인증 동작을 보장한다
+    @Test
+    @DisplayName("미인증: 토큰 없이 즉시 탈퇴 호출 시 401, 아무도 지워지지 않는다")
+    void 미인증_401() throws Exception {
+        Member member = memberRepository.save(Member.createBySocial("hard-noauth@kakao.com"));
+
+        mockMvc.perform(delete("/api/v1/members/me/hard")).andExpect(status().isUnauthorized());
+
+        assertThat(memberRepository.findById(member.getId())).isPresent();
+    }
+
+    @Test
+    @DisplayName("토큰의 본인 계정만 지워지고 다른 회원은 남는다")
+    void 본인만_삭제() throws Exception {
+        Member me = memberRepository.save(Member.createBySocial("hard-me@kakao.com"));
+        Member other = memberRepository.save(Member.createBySocial("hard-other@kakao.com"));
+
+        mockMvc.perform(
+                        delete("/api/v1/members/me/hard")
+                                .header(
+                                        HttpHeaders.AUTHORIZATION,
+                                        "Bearer " + tokenProvider.createAccessToken(me.getId())))
+                .andExpect(status().isOk());
+
+        assertThat(memberRepository.findById(me.getId())).isEmpty();
+        assertThat(memberRepository.findById(other.getId())).isPresent();
     }
 }
