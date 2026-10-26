@@ -9,3 +9,11 @@ build
 docs
 .claude
 *.md
+# bootJar는 src/main만 쓴다 — 테스트·로컬 전용 코드가 바뀌어도 이미지 레이어 캐시가 깨지지 않게(최종 이미지엔 jar만 들어감)
+src/test
+src/dev
+# 배포·로컬 설정은 이미지에 불필요
+deploy
+db
+.github
+compose.yaml
