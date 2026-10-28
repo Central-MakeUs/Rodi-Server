@@ -133,34 +133,61 @@ public class Review extends BaseEntity {
             boolean verifiedVisit) {
         this.place = place;
         this.member = member;
-        this.recommended = recommended;
-        this.difficulty = difficulty;
-        this.congestion = congestion;
         this.practiceMethod = practiceMethod;
         this.content = blankToNull(content);
-        this.caution = blankToNull(caution);
-        if (courseIssues != null) {
-            this.courseIssues.addAll(courseIssues);
-        }
-        this.courseIssueDetail = blankToNull(courseIssueDetail);
+        rate(recommended, difficulty, congestion, caution, courseIssues, courseIssueDetail);
         this.memberLevel = memberLevel;
         this.verifiedVisit = verifiedVisit;
     }
 
-    /** 후기 내용 교체(전체 수정). 레벨·작성자·대상 장소는 바뀌지 않는다. 내용을 비워 보내면 지워진다(PUT은 전체 교체). */
+    /**
+     * 후기 내용 교체(전체 수정). 레벨·작성자·대상 장소는 바뀌지 않는다. 내용을 비워 보내면 지워진다(PUT은 전체 교체). 추천↔비추천을 바꾸면 반대쪽 평가 값은
+     * 지워진다.
+     */
     public void update(
             boolean recommended,
             Difficulty difficulty,
             Congestion congestion,
             PracticeMethod practiceMethod,
             String content,
-            String caution) {
-        this.recommended = recommended;
-        this.difficulty = difficulty;
-        this.congestion = congestion;
+            String caution,
+            Collection<CourseIssue> courseIssues,
+            String courseIssueDetail) {
         this.practiceMethod = practiceMethod;
         this.content = blankToNull(content);
-        this.caution = blankToNull(caution);
+        rate(recommended, difficulty, congestion, caution, courseIssues, courseIssueDetail);
+    }
+
+    /**
+     * 1단계 평가(스펙 024). 추천해요는 난이도·혼잡도·주의사항을, 별로에요는 코스 문제 항목을 받고 <b>반대쪽 값은 버린다</b> — 화면에서 선택을 바꿔도 앱이
+     * 이전 값을 지워 보낼 필요가 없고, 저장된 후기는 항상 한쪽 값만 가진다. 기타 직접 입력은 {@link CourseIssue#OTHER}를 골랐을 때만 남긴다.
+     */
+    private void rate(
+            boolean recommended,
+            Difficulty difficulty,
+            Congestion congestion,
+            String caution,
+            Collection<CourseIssue> courseIssues,
+            String courseIssueDetail) {
+        this.recommended = recommended;
+        this.courseIssues.clear(); // 컬렉션 참조는 유지한다 — Hibernate가 추적하는 PersistentSet이다
+        if (recommended) {
+            this.difficulty = difficulty;
+            this.congestion = congestion;
+            this.caution = blankToNull(caution);
+            this.courseIssueDetail = null;
+            return;
+        }
+        this.difficulty = null;
+        this.congestion = null;
+        this.caution = null;
+        if (courseIssues != null) {
+            this.courseIssues.addAll(courseIssues);
+        }
+        this.courseIssueDetail =
+                this.courseIssues.contains(CourseIssue.OTHER)
+                        ? blankToNull(courseIssueDetail)
+                        : null;
     }
 
     public boolean isOwnedBy(Long memberId) {

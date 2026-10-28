@@ -125,6 +125,8 @@ class MemberHardDeleteIntegrationTest {
                         Congestion.NORMAL,
                         PracticeMethod.SOLO,
                         "지워질 후기",
+                        null,
+                        null,
                         null));
         em.flush();
 

@@ -75,12 +75,14 @@ class ReviewDetailIntegrationTest {
                         course.getId(),
                         member.getId(),
                         new ReviewRequest(
-                                false,
+                                true,
                                 Difficulty.HARD,
                                 Congestion.CROWDED,
                                 PracticeMethod.ACCOMPANIED,
                                 "퇴근시간엔 정체가 심했어요.",
-                                "주말 오후엔 자전거 통행이 많습니다."))
+                                "주말 오후엔 자전거 통행이 많습니다.",
+                                null,
+                                null))
                 .reviewId();
     }
 
@@ -95,7 +97,7 @@ class ReviewDetailIntegrationTest {
         ReviewDetailResponse detail = reviewQueryService.getReview(reviewId, me.getId());
 
         // 목록 응답에는 없어서 수정 화면을 못 채우던 값들 — 여기서 빠지면 이 API의 존재 이유가 사라진다
-        assertThat(detail.recommended()).isFalse();
+        assertThat(detail.recommended()).isTrue();
         assertThat(detail.difficulty()).isEqualTo(Difficulty.HARD);
         assertThat(detail.congestion()).isEqualTo(Congestion.CROWDED);
         assertThat(detail.practiceMethod()).isEqualTo(PracticeMethod.ACCOMPANIED);

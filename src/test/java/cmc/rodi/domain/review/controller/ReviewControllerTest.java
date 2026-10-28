@@ -1,5 +1,6 @@
 package cmc.rodi.domain.review.controller;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.verify;
@@ -14,7 +15,9 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import cmc.rodi.domain.review.dto.ReviewCreateResponse;
 import cmc.rodi.domain.review.dto.ReviewDetailResponse;
 import cmc.rodi.domain.review.dto.ReviewListRequest;
+import cmc.rodi.domain.review.dto.ReviewRequest;
 import cmc.rodi.domain.review.entity.Congestion;
+import cmc.rodi.domain.review.entity.CourseIssue;
 import cmc.rodi.domain.review.entity.Difficulty;
 import cmc.rodi.domain.review.entity.PracticeMethod;
 import cmc.rodi.domain.review.service.ReviewQueryService;
@@ -34,6 +37,7 @@ import java.util.List;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
@@ -262,6 +266,8 @@ class ReviewControllerTest {
                                 true,
                                 Difficulty.EASY,
                                 Congestion.NORMAL,
+                                List.of(),
+                                null,
                                 PracticeMethod.SOLO,
                                 null,
                                 null,
@@ -301,6 +307,158 @@ class ReviewControllerTest {
         mockMvc.perform(get("/api/v1/reviews/report-form"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.questionId").value("REVIEW_REPORT_REASON"));
+
+        verify(reviewQueryService, org.mockito.Mockito.never()).getReview(any(), any());
+    }
+
+    private org.springframework.test.web.servlet.ResultActions postReview(String body)
+            throws Exception {
+        return mockMvc.perform(
+                post("/api/v1/places/1/reviews")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(body));
+    }
+
+    private ReviewRequest capturedCreateRequest() {
+        ArgumentCaptor<ReviewRequest> captor = ArgumentCaptor.forClass(ReviewRequest.class);
+        verify(reviewService).create(eq(1L), eq(7L), captor.capture());
+        return captor.getValue();
+    }
+
+    @Test
+    @DisplayName("별로에요 — 코스 문제 항목만으로 작성되고, 반대쪽 값·OTHER 없는 직접 입력은 버려지며 중복 코드는 합쳐진다")
+    void 별로에요_작성() throws Exception {
+        authenticate(7L);
+        when(reviewService.create(eq(1L), eq(7L), any())).thenReturn(new ReviewCreateResponse(42L));
+
+        postReview(
+                        """
+                        {
+                          "isRecommended": false,
+                          "difficulty": "HARD",
+                          "courseIssues": ["CONSTRUCTION", "ROAD_INFO_MISMATCH", "CONSTRUCTION"],
+                          "courseIssueDetail": "이건 기타가 아니라 버려진다",
+                          "practiceMethod": "SOLO"
+                        }
+                        """)
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.reviewId").value(42));
+
+        ReviewRequest request = capturedCreateRequest();
+        assertThat(request.courseIssues())
+                .containsExactly(CourseIssue.CONSTRUCTION, CourseIssue.ROAD_INFO_MISMATCH);
+        assertThat(request.courseIssueDetail()).isNull();
+    }
+
+    @Test
+    @DisplayName("별로에요 + 기타 — 직접 입력은 앞뒤 공백을 잘라 넘기고, 30자(이모지 포함 글자 수)까지 허용한다")
+    void 별로에요_기타_입력() throws Exception {
+        authenticate(7L);
+        when(reviewService.create(eq(1L), eq(7L), any())).thenReturn(new ReviewCreateResponse(42L));
+        String thirty = "👨‍👩‍👧‍👦".repeat(10) + "가".repeat(20);
+
+        postReview(
+                        """
+                        {
+                          "isRecommended": false,
+                          "courseIssues": ["OTHER"],
+                          "courseIssueDetail": "  %s  ",
+                          "practiceMethod": "SOLO"
+                        }
+                        """
+                                .formatted(thirty))
+                .andExpect(status().isOk());
+
+        assertThat(capturedCreateRequest().courseIssueDetail()).isEqualTo(thirty);
+    }
+
+    @Test
+    @DisplayName("분기 검증 — 추천해요 난이도·혼잡도 누락, 별로에요 문제 항목 누락·빈 배열, 기타 입력 누락·공백·31자, 없는 코드는 400")
+    void 분기_검증() throws Exception {
+        authenticate(7L);
+        String[] invalid = {
+            // 추천해요인데 혼잡도 없음
+            """
+            {"isRecommended": true, "difficulty": "EASY", "practiceMethod": "SOLO"}
+            """,
+            // 추천해요인데 난이도 없음(문제 항목을 보내도 대신하지 못한다)
+            """
+            {"isRecommended": true, "congestion": "NORMAL", "courseIssues": ["OTHER"], "practiceMethod": "SOLO"}
+            """,
+            // 별로에요인데 문제 항목 없음(난이도로 대신하지 못한다)
+            """
+            {"isRecommended": false, "difficulty": "EASY", "congestion": "NORMAL", "practiceMethod": "SOLO"}
+            """,
+            """
+            {"isRecommended": false, "courseIssues": [], "practiceMethod": "SOLO"}
+            """,
+            // 기타인데 직접 입력 없음·공백뿐
+            """
+            {"isRecommended": false, "courseIssues": ["OTHER"], "practiceMethod": "SOLO"}
+            """,
+            """
+            {"isRecommended": false, "courseIssues": ["OTHER"], "courseIssueDetail": "   ", "practiceMethod": "SOLO"}
+            """,
+            // 기타 직접 입력 31자
+            """
+            {"isRecommended": false, "courseIssues": ["OTHER"], "courseIssueDetail": "%s", "practiceMethod": "SOLO"}
+            """
+                    .formatted("가".repeat(31)),
+            // 폼에 없는 코드·null 원소
+            """
+            {"isRecommended": false, "courseIssues": ["UNKNOWN"], "practiceMethod": "SOLO"}
+            """,
+            """
+            {"isRecommended": false, "courseIssues": [null], "practiceMethod": "SOLO"}
+            """,
+        };
+        for (String body : invalid) {
+            postReview(body).andExpect(status().isBadRequest());
+        }
+        verify(reviewService, org.mockito.Mockito.never()).create(any(), any(), any());
+    }
+
+    @Test
+    @DisplayName("추천해요로 보낸 문제 항목은 무시되어 검증에도 걸리지 않는다")
+    void 추천해요_문제_항목_무시() throws Exception {
+        authenticate(7L);
+        when(reviewService.create(eq(1L), eq(7L), any())).thenReturn(new ReviewCreateResponse(31L));
+
+        postReview(
+                        """
+                        {
+                          "isRecommended": true,
+                          "difficulty": "EASY",
+                          "congestion": "NORMAL",
+                          "courseIssues": ["OTHER"],
+                          "courseIssueDetail": "%s",
+                          "practiceMethod": "SOLO"
+                        }
+                        """
+                                .formatted("가".repeat(31)))
+                .andExpect(status().isOk());
+
+        assertThat(capturedCreateRequest().courseIssueDetail()).isNull();
+    }
+
+    @Test
+    @DisplayName("코스 문제 항목 폼 — 후기 상세({reviewId})가 아니라 폼 조회로 매칭된다")
+    void 코스_문제_항목_폼() throws Exception {
+        authenticate(7L);
+        when(reviewService.getCourseIssueForm())
+                .thenReturn(
+                        new FormResponse(
+                                "REVIEW_COURSE_ISSUE",
+                                FormType.MULTI_SELECT,
+                                "해당 코스에 어떤 문제가 있나요?",
+                                null,
+                                true,
+                                List.of(FormOption.of("CONSTRUCTION", "공사", 1))));
+
+        mockMvc.perform(get("/api/v1/reviews/course-issue-form"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.questionId").value("REVIEW_COURSE_ISSUE"))
+                .andExpect(jsonPath("$.data.type").value("MULTI_SELECT"));
 
         verify(reviewQueryService, org.mockito.Mockito.never()).getReview(any(), any());
     }

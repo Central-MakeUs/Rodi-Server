@@ -120,6 +120,12 @@ public class ReviewController implements ReviewControllerDocs {
     }
 
     @Override
+    @GetMapping("/reviews/course-issue-form")
+    public ApiResponse<FormResponse> getCourseIssueForm() {
+        return ApiResponse.success(reviewService.getCourseIssueForm());
+    }
+
+    @Override
     @PostMapping("/reviews/{reviewId}/report")
     public ApiResponse<Void> report(
             @PathVariable Long reviewId,

@@ -8,6 +8,7 @@ import cmc.rodi.domain.practice.repository.MemberPracticeRepository;
 import cmc.rodi.domain.review.dto.ReviewCreateResponse;
 import cmc.rodi.domain.review.dto.ReviewReportRequest;
 import cmc.rodi.domain.review.dto.ReviewRequest;
+import cmc.rodi.domain.review.entity.CourseIssue;
 import cmc.rodi.domain.review.entity.ReportReason;
 import cmc.rodi.domain.review.entity.Review;
 import cmc.rodi.domain.review.exception.ReviewErrorCode;
@@ -31,6 +32,9 @@ public class ReviewService {
 
     /** 신고 사유 폼의 문항 식별자(클라이언트가 응답을 구분하는 키). */
     private static final String REPORT_QUESTION_ID = "REVIEW_REPORT_REASON";
+
+    /** 코스 문제 항목 폼의 문항 식별자. */
+    private static final String COURSE_ISSUE_QUESTION_ID = "REVIEW_COURSE_ISSUE";
 
     /** 이 인원수에게 신고되면 후기를 비공개 처리한다. */
     static final int HIDE_THRESHOLD = 5;
@@ -65,6 +69,8 @@ public class ReviewService {
                         .practiceMethod(request.practiceMethod())
                         .content(request.content())
                         .caution(request.caution())
+                        .courseIssues(request.courseIssues())
+                        .courseIssueDetail(request.courseIssueDetail())
                         .memberLevel(member.getLevel()) // 작성 시점 레벨 스냅샷
                         // 현재 레벨에서 인증받았을 때만 배지가 붙는다 — 레벨이 오르면 다시 인증해야 한다
                         .verifiedVisit(
@@ -88,7 +94,9 @@ public class ReviewService {
                 request.congestion(),
                 request.practiceMethod(),
                 request.content(),
-                request.caution());
+                request.caution(),
+                request.courseIssues(),
+                request.courseIssueDetail());
     }
 
     /** 후기 삭제. 본인 후기면 레벨과 무관하게 삭제한다(좋아요·신고는 FK CASCADE로 함께 제거). */
@@ -99,7 +107,6 @@ public class ReviewService {
         reviewRepository.delete(review);
     }
 
-    /** 좋아요 등록(멱등). 없는 후기면 404. 본인 후기도 누를 수 있다. */
     /** 신고 사유 폼. 선택지 문구·순서·직접입력 여부를 서버가 정의해 내려준다(앱 배포 없이 문구 변경 가능). 저장이 없어 조회 트랜잭션도 열지 않는다. */
     public FormResponse getReportForm() {
         return new FormResponse(
@@ -111,6 +118,20 @@ public class ReviewService {
                 Arrays.stream(ReportReason.values())
                         .sorted(Comparator.comparingInt(ReportReason::getOrder))
                         .map(ReportReason::toOption)
+                        .toList());
+    }
+
+    /** 코스 문제 항목 폼('별로에요' 후기, 스펙 024). 신고 사유 폼과 같은 구조이며 복수 선택이다. */
+    public FormResponse getCourseIssueForm() {
+        return new FormResponse(
+                COURSE_ISSUE_QUESTION_ID,
+                FormType.MULTI_SELECT,
+                "해당 코스에 어떤 문제가 있나요?",
+                null, // 화면에 부연 설명 없음
+                true,
+                Arrays.stream(CourseIssue.values())
+                        .sorted(Comparator.comparingInt(CourseIssue::getOrder))
+                        .map(CourseIssue::toOption)
                         .toList());
     }
 

@@ -7,6 +7,7 @@
 | 2026-10-27 | Draft | 최초 작성 — 이슈 [#85](https://github.com/Central-MakeUs/Rodi-Server/issues/85), 화면 RV-03(후기 상세정보 1/2) 개편. 문제 항목은 **저장만**(운영 참고용), 선택지는 **서버 폼**으로 내려준다. **선택지 구성은 미결정**(미해결 질문 1) |
 | 2026-10-28 | Draft | 미해결 질문 답변 반영 — ① 선택지는 **시안 그대로** 확정(코드 이름 확정) ② 요약 `levelReviewCount`를 **난이도를 표시한 후기 수**로 재정의 ③ 기존 비추천 후기는 그대로 둔다(운영 데이터 확인 중) ④ 운영 확인 방법은 미정(추후 관리자 페이지 가능성) |
 | 2026-10-28 | **Approved** | 승인 — 구현 착수. 커밋을 ①DB·도메인(V30·`CourseIssue`·`Review`) ②작성·수정 분기·문제 항목 폼·상세 ③요약 `levelReviewCount` 재정의 세 단계로 나눠 검토받는다 |
+| 2026-10-28 | **Implemented** | 구현 완료 — ①V30·`CourseIssue`·`Review` 필드 ②분기 규칙(`Review.rate`)·요청 검증·문제 항목 폼·상세 응답·요약 `levelReviewCount`. ③을 ②에 합쳤다 — 별로에요 후기에서 난이도가 빠지는 순간 분포 합계와 `levelReviewCount`가 어긋나 따로 커밋하면 중간 상태가 틀린다 |
 
 ## 배경 / 목적
 
@@ -212,34 +213,34 @@ ALTER TABLE review
 ## 완료 조건 (Acceptance Criteria)
 
 **폼**
-- [ ] `GET /reviews/course-issue-form`이 `MULTI_SELECT` 폼을 order 오름차순으로 반환하고, `OTHER`만 `requiresTextInput: true`·`textInputMaxLength: 30`이다.
+- [x] `GET /reviews/course-issue-form`이 `MULTI_SELECT` 폼을 order 오름차순으로 반환하고, `OTHER`만 `requiresTextInput: true`·`textInputMaxLength: 30`이다.
 
 **작성**
-- [ ] 별로에요 + `courseIssues` 1개 이상이면 작성이 성공하고, 문제 항목이 저장되며 난이도·혼잡도는 `null`이다.
-- [ ] 별로에요로 `difficulty`·`congestion`·`caution`을 함께 보내도 성공하고, 세 값은 저장되지 않는다.
-- [ ] 추천해요로 `courseIssues`를 보내도 성공하고, 문제 항목은 저장되지 않는다.
-- [ ] 별로에요 + `courseIssues` 누락·빈 배열은 400.
-- [ ] 추천해요 + 난이도 또는 혼잡도 누락은 400(기존 동작 유지).
-- [ ] `OTHER` 선택 + `courseIssueDetail` 누락·공백뿐은 400, 31자는 400, 30자(이모지 포함 grapheme 기준)는 성공.
-- [ ] `OTHER`가 없으면 `courseIssueDetail`은 저장되지 않는다.
-- [ ] 같은 코드를 두 번 보내면 하나만 저장된다.
+- [x] 별로에요 + `courseIssues` 1개 이상이면 작성이 성공하고, 문제 항목이 저장되며 난이도·혼잡도는 `null`이다.
+- [x] 별로에요로 `difficulty`·`congestion`·`caution`을 함께 보내도 성공하고, 세 값은 저장되지 않는다.
+- [x] 추천해요로 `courseIssues`를 보내도 성공하고, 문제 항목은 저장되지 않는다.
+- [x] 별로에요 + `courseIssues` 누락·빈 배열은 400.
+- [x] 추천해요 + 난이도 또는 혼잡도 누락은 400(기존 동작 유지).
+- [x] `OTHER` 선택 + `courseIssueDetail` 누락·공백뿐은 400, 31자는 400, 30자(이모지 포함 grapheme 기준)는 성공.
+- [x] `OTHER`가 없으면 `courseIssueDetail`은 저장되지 않는다.
+- [x] 같은 코드를 두 번 보내면 하나만 저장된다.
 
 **수정·상세·삭제**
-- [ ] 별로에요 후기를 추천해요로 수정하면 문제 항목·직접 입력이 지워지고 난이도·혼잡도가 저장된다. 반대 방향도 같다.
-- [ ] 상세 조회에 `courseIssues`(폼 order 순)·`courseIssueDetail`이 내려가고, 추천해요 후기는 `courseIssues: []`.
-- [ ] 후기를 삭제하면 문제 항목 행도 함께 지워진다.
+- [x] 별로에요 후기를 추천해요로 수정하면 문제 항목·직접 입력이 지워지고 난이도·혼잡도가 저장된다. 반대 방향도 같다.
+- [x] 상세 조회에 `courseIssues`(폼 order 순)·`courseIssueDetail`이 내려가고, 추천해요 후기는 `courseIssues: []`.
+- [x] 후기를 삭제하면 문제 항목 행도 함께 지워진다.
 
 **노출·집계**
-- [ ] 후기 목록·내 후기 목록·요약 응답에 문제 항목이 나가지 않는다.
-- [ ] 별로에요 후기는 난이도 분포와 `levelReviewCount`에 잡히지 않고, 비추천 수·`totalReviewCount`·`levelCounts`에는 잡힌다.
-- [ ] `levelReviewCount`는 항상 `difficultyCounts` 합계와 같다.
-- [ ] 선택 레벨 후기가 모두 새 별로에요 후기면 `levelReviewCount: 0`이고 `topDifficulty`가 생략된다.
+- [x] 후기 목록·내 후기 목록·요약 응답에 문제 항목이 나가지 않는다.
+- [x] 별로에요 후기는 난이도 분포와 `levelReviewCount`에 잡히지 않고, 비추천 수·`totalReviewCount`·`levelCounts`에는 잡힌다.
+- [x] `levelReviewCount`는 항상 `difficultyCounts` 합계와 같다.
+- [x] 선택 레벨 후기가 모두 새 별로에요 후기면 `levelReviewCount: 0`이고 `topDifficulty`가 생략된다.
 
 **DB**
-- [ ] V30 후 추천 후기에 난이도·혼잡도 `NULL`을 넣으면 DB가 거부한다(`ck_review_recommended_ratings`).
-- [ ] `review_course_issue.issue`에 enum 밖의 값을 넣으면 DB가 거부한다.
-- [ ] 기존 후기(추천·비추천 모두)가 V30 적용 후 그대로 조회된다.
-- [ ] 관련 테스트 통과 (`./gradlew test`).
+- [x] V30 후 추천 후기에 난이도·혼잡도 `NULL`을 넣으면 DB가 거부한다(`ck_review_recommended_ratings`).
+- [x] `review_course_issue.issue`에 enum 밖의 값을 넣으면 DB가 거부한다.
+- [x] 기존 후기(추천·비추천 모두)가 V30 적용 후 그대로 조회된다.
+- [x] 관련 테스트 통과 (`./gradlew test`).
 
 ## 미해결 질문
 
