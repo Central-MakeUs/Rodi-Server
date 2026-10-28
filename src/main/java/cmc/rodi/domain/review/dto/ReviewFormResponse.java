@@ -61,6 +61,10 @@ public record ReviewFormResponse(
             @Schema(description = "조건 문항 코드") String question,
             @Schema(description = "이 중 하나라도 고르면 노출") List<String> anyOf) {}
 
+    /**
+     * 후기 작성 화면 정의를 만든다. 1단계 제목에 코스명이 들어가며, 추천해요 쪽 문항(난이도·혼잡도·주의사항)과 별로에요 쪽 문항(코스 문제 항목)은 {@code
+     * isRecommended} 선택값으로 갈린다. 문구는 시안 그대로다.
+     */
     public static ReviewFormResponse of(String placeName) {
         ShowWhen recommendedOnly = new ShowWhen("isRecommended", List.of(RECOMMENDED));
         ShowWhen notRecommendedOnly = new ShowWhen("isRecommended", List.of(NOT_RECOMMENDED));

@@ -39,6 +39,10 @@ public record ReviewDetailResponse(
                 boolean verifiedVisit,
         @Schema(description = "작성 시각") LocalDateTime createdAt) {
 
+    /**
+     * 후기 엔티티를 상세 응답으로 바꾼다. 코스 문제 항목은 폼과 같은 order 순으로 정렬해 수정 화면이 그대로 채울 수 있게 하고, 수정 가능 여부는 조회자의 현재
+     * 레벨로 판정한다.
+     */
     public static ReviewDetailResponse of(Review review, Level currentLevel) {
         return new ReviewDetailResponse(
                 review.getId(),

@@ -46,6 +46,7 @@ public record ReviewRequest(
                 @GraphemeSize(max = CourseIssue.TEXT_INPUT_MAX_LENGTH)
                 String courseIssueDetail) {
 
+    /** 입력 정리: 문제 항목 중복을 합치고, 직접 입력은 별로에요 + 기타일 때만 앞뒤 공백을 잘라 남긴다(검증보다 먼저 실행된다). */
     public ReviewRequest {
         // 같은 코드가 여러 번 와도 하나로 본다.
         courseIssues = courseIssues == null ? null : courseIssues.stream().distinct().toList();

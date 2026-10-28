@@ -27,10 +27,12 @@ public enum CourseIssue {
     private final String label;
     private final int order;
 
+    /** 직접 입력을 받는 항목인지. 기타({@link #OTHER})만 해당한다. */
     public boolean requiresTextInput() {
         return this == OTHER;
     }
 
+    /** 폼 선택지로 바꾼다. 직접 입력 항목은 안내 문구·최대 길이를 함께 싣는다. */
     public FormOption toOption() {
         return requiresTextInput()
                 ? FormOption.withTextInput(
