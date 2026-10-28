@@ -68,6 +68,8 @@ class MyReviewListIntegrationTest {
                                 Congestion.NORMAL,
                                 PracticeMethod.SOLO,
                                 content,
+                                null,
+                                null,
                                 null))
                 .reviewId();
     }

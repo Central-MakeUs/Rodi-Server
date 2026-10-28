@@ -6,6 +6,7 @@ import cmc.rodi.domain.place.entity.Place;
 import cmc.rodi.domain.place.repository.PlaceRepository;
 import cmc.rodi.domain.practice.repository.MemberPracticeRepository;
 import cmc.rodi.domain.review.dto.ReviewCreateResponse;
+import cmc.rodi.domain.review.dto.ReviewFormResponse;
 import cmc.rodi.domain.review.dto.ReviewReportRequest;
 import cmc.rodi.domain.review.dto.ReviewRequest;
 import cmc.rodi.domain.review.entity.ReportReason;
@@ -65,6 +66,8 @@ public class ReviewService {
                         .practiceMethod(request.practiceMethod())
                         .content(request.content())
                         .caution(request.caution())
+                        .courseIssues(request.courseIssues())
+                        .courseIssueDetail(request.courseIssueDetail())
                         .memberLevel(member.getLevel()) // 작성 시점 레벨 스냅샷
                         // 현재 레벨에서 인증받았을 때만 배지가 붙는다 — 레벨이 오르면 다시 인증해야 한다
                         .verifiedVisit(
@@ -88,7 +91,9 @@ public class ReviewService {
                 request.congestion(),
                 request.practiceMethod(),
                 request.content(),
-                request.caution());
+                request.caution(),
+                request.courseIssues(),
+                request.courseIssueDetail());
     }
 
     /** 후기 삭제. 본인 후기면 레벨과 무관하게 삭제한다(좋아요·신고는 FK CASCADE로 함께 제거). */
@@ -99,7 +104,6 @@ public class ReviewService {
         reviewRepository.delete(review);
     }
 
-    /** 좋아요 등록(멱등). 없는 후기면 404. 본인 후기도 누를 수 있다. */
     /** 신고 사유 폼. 선택지 문구·순서·직접입력 여부를 서버가 정의해 내려준다(앱 배포 없이 문구 변경 가능). 저장이 없어 조회 트랜잭션도 열지 않는다. */
     public FormResponse getReportForm() {
         return new FormResponse(
@@ -112,6 +116,15 @@ public class ReviewService {
                         .sorted(Comparator.comparingInt(ReportReason::getOrder))
                         .map(ReportReason::toOption)
                         .toList());
+    }
+
+    /** 후기 작성 폼(스펙 024). 작성·수정 화면 공용이며 1단계 제목에 코스명이 들어간다. 없는 장소면 404(작성과 같은 판정). */
+    public ReviewFormResponse getReviewForm(Long placeId) {
+        Place place =
+                placeRepository
+                        .findById(placeId)
+                        .orElseThrow(() -> new BusinessException(ErrorCode.ENTITY_NOT_FOUND));
+        return ReviewFormResponse.of(place.getName());
     }
 
     /**

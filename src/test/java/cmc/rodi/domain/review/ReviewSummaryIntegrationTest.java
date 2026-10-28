@@ -12,11 +12,13 @@ import cmc.rodi.domain.review.dto.ReviewListRequest;
 import cmc.rodi.domain.review.dto.ReviewRequest;
 import cmc.rodi.domain.review.dto.ReviewSummaryResponse;
 import cmc.rodi.domain.review.entity.Congestion;
+import cmc.rodi.domain.review.entity.CourseIssue;
 import cmc.rodi.domain.review.entity.Difficulty;
 import cmc.rodi.domain.review.entity.PracticeMethod;
 import cmc.rodi.domain.review.service.ReviewQueryService;
 import cmc.rodi.domain.review.service.ReviewService;
 import cmc.rodi.support.TestcontainersConfiguration;
+import java.util.List;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.locationtech.jts.geom.Coordinate;
@@ -65,7 +67,15 @@ class ReviewSummaryIntegrationTest {
                 course.getId(),
                 member.getId(),
                 new ReviewRequest(
-                        recommended, difficulty, congestion, PracticeMethod.SOLO, "후기 내용", null));
+                        recommended,
+                        difficulty,
+                        congestion,
+                        PracticeMethod.SOLO,
+                        "후기 내용",
+                        null,
+                        // 별로에요는 문제 항목을 받고 난이도·혼잡도는 버려진다(스펙 024)
+                        recommended ? null : List.of(CourseIssue.CONSTRUCTION),
+                        null));
     }
 
     private ReviewSummaryResponse summary(Long placeId, Long memberId, String level) {
@@ -82,19 +92,20 @@ class ReviewSummaryIntegrationTest {
 
         writeReview(course, rookie1, true, Difficulty.VERY_EASY, Congestion.QUIET);
         writeReview(course, rookie1, true, Difficulty.VERY_EASY, Congestion.NORMAL); // 같은 사람 2건
-        writeReview(course, rookie2, false, Difficulty.HARD, Congestion.CROWDED);
+        writeReview(course, rookie2, false, null, null); // 별로에요 — 난이도 없음
         writeReview(course, owner, true, Difficulty.NORMAL, Congestion.NORMAL);
 
         ReviewSummaryResponse rookie = summary(course.getId(), rookie1.getId(), null);
         assertThat(rookie.level()).isEqualTo("ROOKIE");
-        assertThat(rookie.levelReviewCount()).isEqualTo(3); // 난이도 분포의 모수 = 루키 3건
+        // 난이도 분포의 모수 = 루키 중 난이도를 표시한 2건(별로에요 1건 제외)
+        assertThat(rookie.levelReviewCount()).isEqualTo(2);
         assertThat(rookie.totalReviewCount()).isEqualTo(4); // 추천 수의 모수 = 전체 4건
         assertThat(rookie.recommendCount()).isEqualTo(3); // 오너 후기까지 합산
         assertThat(rookie.notRecommendCount()).isEqualTo(1);
         assertThat(rookie.difficultyCounts())
                 .hasSize(5)
                 .containsEntry(Difficulty.VERY_EASY, 2L)
-                .containsEntry(Difficulty.HARD, 1L)
+                .containsEntry(Difficulty.HARD, 0L)
                 .containsEntry(Difficulty.EASY, 0L)
                 .containsEntry(Difficulty.NORMAL, 0L)
                 .containsEntry(Difficulty.VERY_HARD, 0L);
@@ -157,12 +168,30 @@ class ReviewSummaryIntegrationTest {
         Member me = seedMember("b1@kakao.com", Level.SEED);
         Member noisy = seedMember("b2@kakao.com", Level.SEED);
         writeReview(course, me, true, Difficulty.EASY, Congestion.QUIET);
-        writeReview(course, noisy, false, Difficulty.HARD, Congestion.CROWDED);
+        writeReview(course, noisy, true, Difficulty.HARD, Congestion.CROWDED);
 
         long before = summary(course.getId(), me.getId(), null).levelReviewCount();
         memberBlockService.block(me.getId(), noisy.getId());
 
         assertThat(summary(course.getId(), me.getId(), null).levelReviewCount()).isEqualTo(before);
-        assertThat(summary(course.getId(), me.getId(), null).notRecommendCount()).isEqualTo(1);
+        assertThat(summary(course.getId(), me.getId(), null).recommendCount()).isEqualTo(2);
+    }
+
+    @Test
+    @DisplayName(
+            "선택 레벨 후기가 모두 별로에요면 levelReviewCount는 0, topDifficulty는 생략, levelCounts·비추천 수에는 잡힌다")
+    void 별로에요만_있는_레벨() {
+        Course course = seedCourse();
+        Member seed = seedMember("n1@kakao.com", Level.SEED);
+        writeReview(course, seed, false, null, null);
+        writeReview(course, seed, false, null, null);
+
+        ReviewSummaryResponse summary = summary(course.getId(), seed.getId(), null);
+        assertThat(summary.levelReviewCount()).isZero();
+        assertThat(summary.topDifficulty()).isNull();
+        assertThat(summary.difficultyCounts().values()).containsOnly(0L);
+        assertThat(summary.totalReviewCount()).isEqualTo(2);
+        assertThat(summary.notRecommendCount()).isEqualTo(2);
+        assertThat(summary.levelCounts()).containsEntry(Level.SEED, 2L);
     }
 }

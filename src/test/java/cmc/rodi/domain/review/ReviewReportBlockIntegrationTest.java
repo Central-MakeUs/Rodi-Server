@@ -92,6 +92,8 @@ class ReviewReportBlockIntegrationTest {
                                 Congestion.QUIET,
                                 PracticeMethod.SOLO,
                                 "후기 내용",
+                                null,
+                                null,
                                 null))
                 .reviewId();
     }

@@ -15,7 +15,10 @@ import java.util.Map;
 @JsonInclude(JsonInclude.Include.NON_NULL)
 public record ReviewSummaryResponse(
         @Schema(description = "적용된 레벨 필터(전체면 ALL)", example = "ROOKIE") String level,
-        @Schema(description = "선택 레벨 기준 후기 수(난이도 분포의 모수)") long levelReviewCount,
+        @Schema(
+                        description =
+                                "선택 레벨에서 난이도를 표시한 후기 수(난이도 분포의 모수 = difficultyCounts 합계). 별로에요 후기는 난이도가 없어 빠진다")
+                long levelReviewCount,
         @Schema(description = "전체 레벨 후기 수(추천 수의 모수)") long totalReviewCount,
         @Schema(description = "가장 많이 선택된 난이도(선택 레벨 기준). 후기가 없으면 키 자체가 생략된다")
                 TopDifficulty topDifficulty,
