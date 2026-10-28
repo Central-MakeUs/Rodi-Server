@@ -6,9 +6,9 @@ import cmc.rodi.domain.place.entity.Place;
 import cmc.rodi.domain.place.repository.PlaceRepository;
 import cmc.rodi.domain.practice.repository.MemberPracticeRepository;
 import cmc.rodi.domain.review.dto.ReviewCreateResponse;
+import cmc.rodi.domain.review.dto.ReviewFormResponse;
 import cmc.rodi.domain.review.dto.ReviewReportRequest;
 import cmc.rodi.domain.review.dto.ReviewRequest;
-import cmc.rodi.domain.review.entity.CourseIssue;
 import cmc.rodi.domain.review.entity.ReportReason;
 import cmc.rodi.domain.review.entity.Review;
 import cmc.rodi.domain.review.exception.ReviewErrorCode;
@@ -32,9 +32,6 @@ public class ReviewService {
 
     /** 신고 사유 폼의 문항 식별자(클라이언트가 응답을 구분하는 키). */
     private static final String REPORT_QUESTION_ID = "REVIEW_REPORT_REASON";
-
-    /** 코스 문제 항목 폼의 문항 식별자. */
-    private static final String COURSE_ISSUE_QUESTION_ID = "REVIEW_COURSE_ISSUE";
 
     /** 이 인원수에게 신고되면 후기를 비공개 처리한다. */
     static final int HIDE_THRESHOLD = 5;
@@ -121,18 +118,13 @@ public class ReviewService {
                         .toList());
     }
 
-    /** 코스 문제 항목 폼('별로에요' 후기, 스펙 024). 신고 사유 폼과 같은 구조이며 복수 선택이다. */
-    public FormResponse getCourseIssueForm() {
-        return new FormResponse(
-                COURSE_ISSUE_QUESTION_ID,
-                FormType.MULTI_SELECT,
-                "해당 코스에 어떤 문제가 있나요?",
-                null, // 화면에 부연 설명 없음
-                true,
-                Arrays.stream(CourseIssue.values())
-                        .sorted(Comparator.comparingInt(CourseIssue::getOrder))
-                        .map(CourseIssue::toOption)
-                        .toList());
+    /** 후기 작성 폼(스펙 024). 작성·수정 화면 공용이며 1단계 제목에 코스명이 들어간다. 없는 장소면 404(작성과 같은 판정). */
+    public ReviewFormResponse getReviewForm(Long placeId) {
+        Place place =
+                placeRepository
+                        .findById(placeId)
+                        .orElseThrow(() -> new BusinessException(ErrorCode.ENTITY_NOT_FOUND));
+        return ReviewFormResponse.of(place.getName());
     }
 
     /**

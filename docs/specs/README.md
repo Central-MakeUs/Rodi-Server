@@ -45,4 +45,4 @@
 | [지도 마커 클러스터링](021-marker-clustering.md) | 검색 한 번에 확대 단계별 묶음(서버 고정 그리드)·확대·축소는 앱이 단계 선택·탭 확대 범위·유형 필터(practiceTypes)·좌표 API deprecated | Implemented |
 | [레벨별 연습 기록](022-level-practice-record.md) | 연습 기록을 (회원, 장소, 레벨)마다 저장·레벨별 목록 조회(019에서 분리, 추후 구현) | Deferred |
 | [Pi 개발 서버 배포](023-pi-dev-server-deploy.md) | develop→pi2(ARM64·Tailscale OIDC+SSH)/main→Lightsail 분리·`dev` 프로필·pi2 compose·내부 API `@DevOnly` 게이팅·자동 롤백·Cloudflare Tunnel(`dev-api`) | Implemented |
-| [후기 코스 문제 항목](024-review-course-issue.md) | 별로에요 선택 시 난이도·혼잡도 대신 코스 문제 항목(복수·기타 30자) 입력·문제 항목 폼·저장만(노출 없음) | Implemented |
+| [후기 코스 문제 항목 · 후기 작성 폼](024-review-course-issue.md) | 별로에요 선택 시 난이도·혼잡도 대신 코스 문제 항목(복수·기타 30자) 입력·저장만(노출 없음) · 후기 작성 화면 전체 폼(`/places/{placeId}/review-form`) | Implemented |

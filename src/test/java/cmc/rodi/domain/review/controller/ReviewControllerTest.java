@@ -14,6 +14,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import cmc.rodi.domain.review.dto.ReviewCreateResponse;
 import cmc.rodi.domain.review.dto.ReviewDetailResponse;
+import cmc.rodi.domain.review.dto.ReviewFormResponse;
 import cmc.rodi.domain.review.dto.ReviewListRequest;
 import cmc.rodi.domain.review.dto.ReviewRequest;
 import cmc.rodi.domain.review.entity.Congestion;
@@ -31,6 +32,8 @@ import cmc.rodi.global.common.notification.DiscordNotifier;
 import cmc.rodi.global.common.pagination.CursorPage;
 import cmc.rodi.global.config.SecurityConfig;
 import cmc.rodi.global.config.WebConfig;
+import cmc.rodi.global.exception.BusinessException;
+import cmc.rodi.global.exception.ErrorCode;
 import cmc.rodi.global.exception.GlobalExceptionHandler;
 import java.time.LocalDateTime;
 import java.util.List;
@@ -442,24 +445,43 @@ class ReviewControllerTest {
     }
 
     @Test
-    @DisplayName("코스 문제 항목 폼 — 후기 상세({reviewId})가 아니라 폼 조회로 매칭된다")
-    void 코스_문제_항목_폼() throws Exception {
+    @DisplayName("후기 작성 폼 — 값이 없는 속성은 생략하고, showWhen·직접 입력 선택지를 그대로 내려준다")
+    void 후기_작성_폼() throws Exception {
         authenticate(7L);
-        when(reviewService.getCourseIssueForm())
-                .thenReturn(
-                        new FormResponse(
-                                "REVIEW_COURSE_ISSUE",
-                                FormType.MULTI_SELECT,
-                                "해당 코스에 어떤 문제가 있나요?",
-                                null,
-                                true,
-                                List.of(FormOption.of("CONSTRUCTION", "공사", 1))));
+        when(reviewService.getReviewForm(1L)).thenReturn(ReviewFormResponse.of("북악 코스"));
 
-        mockMvc.perform(get("/api/v1/reviews/course-issue-form"))
+        mockMvc.perform(get("/api/v1/places/1/review-form"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.questionId").value("REVIEW_COURSE_ISSUE"))
-                .andExpect(jsonPath("$.data.type").value("MULTI_SELECT"));
+                .andExpect(jsonPath("$.data.title").value("후기 남기기"))
+                .andExpect(jsonPath("$.data.placeName").value("북악 코스"))
+                .andExpect(jsonPath("$.data.steps[0].title").value("북악 코스의 연습은 어떠셨나요?"))
+                .andExpect(jsonPath("$.data.steps[0].questions[0].code").value("isRecommended"))
+                .andExpect(jsonPath("$.data.steps[0].questions[0].showWhen").doesNotExist())
+                .andExpect(jsonPath("$.data.steps[0].questions[0].options[0].code").value("false"))
+                .andExpect(
+                        jsonPath("$.data.steps[0].questions[1].showWhen.question")
+                                .value("isRecommended"))
+                .andExpect(jsonPath("$.data.steps[0].questions[1].showWhen.anyOf[0]").value("true"))
+                // 주의사항은 길이 제한이 없어 maxLength를 생략한다
+                .andExpect(jsonPath("$.data.steps[0].questions[3].maxLength").doesNotExist())
+                .andExpect(
+                        jsonPath("$.data.steps[0].questions[4].options[4].textInputMaxLength")
+                                .value(30))
+                .andExpect(
+                        jsonPath("$.data.steps[0].questions[4].options[0].textInputMaxLength")
+                                .doesNotExist())
+                // 2단계는 시안에 제목이 없다
+                .andExpect(jsonPath("$.data.steps[1].title").doesNotExist())
+                .andExpect(jsonPath("$.data.steps[1].questions[1].maxLength").value(150));
+    }
 
-        verify(reviewQueryService, org.mockito.Mockito.never()).getReview(any(), any());
+    @Test
+    @DisplayName("후기 작성 폼 — 없는 장소면 404")
+    void 후기_작성_폼_없는_장소() throws Exception {
+        authenticate(7L);
+        when(reviewService.getReviewForm(999L))
+                .thenThrow(new BusinessException(ErrorCode.ENTITY_NOT_FOUND));
+
+        mockMvc.perform(get("/api/v1/places/999/review-form")).andExpect(status().isNotFound());
     }
 }

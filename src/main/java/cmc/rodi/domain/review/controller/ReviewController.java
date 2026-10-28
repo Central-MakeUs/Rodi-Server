@@ -3,6 +3,7 @@ package cmc.rodi.domain.review.controller;
 import cmc.rodi.domain.review.dto.MyReviewItem;
 import cmc.rodi.domain.review.dto.ReviewCreateResponse;
 import cmc.rodi.domain.review.dto.ReviewDetailResponse;
+import cmc.rodi.domain.review.dto.ReviewFormResponse;
 import cmc.rodi.domain.review.dto.ReviewItem;
 import cmc.rodi.domain.review.dto.ReviewListRequest;
 import cmc.rodi.domain.review.dto.ReviewReportRequest;
@@ -51,6 +52,12 @@ public class ReviewController implements ReviewControllerDocs {
             @CurrentMember Long memberId,
             @Valid @RequestBody ReviewRequest request) {
         return ApiResponse.success(reviewService.create(placeId, memberId, request));
+    }
+
+    @Override
+    @GetMapping("/places/{placeId}/review-form")
+    public ApiResponse<ReviewFormResponse> getReviewForm(@PathVariable Long placeId) {
+        return ApiResponse.success(reviewService.getReviewForm(placeId));
     }
 
     @Override
@@ -117,12 +124,6 @@ public class ReviewController implements ReviewControllerDocs {
     @GetMapping("/reviews/report-form")
     public ApiResponse<FormResponse> getReportForm() {
         return ApiResponse.success(reviewService.getReportForm());
-    }
-
-    @Override
-    @GetMapping("/reviews/course-issue-form")
-    public ApiResponse<FormResponse> getCourseIssueForm() {
-        return ApiResponse.success(reviewService.getCourseIssueForm());
     }
 
     @Override

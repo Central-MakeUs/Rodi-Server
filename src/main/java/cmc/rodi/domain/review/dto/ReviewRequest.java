@@ -37,7 +37,7 @@ public record ReviewRequest(
         @Schema(
                         description =
                                 "코스 문제 항목 코드(별로에요일 때 1개 이상 필수, 복수 선택, 추천해요면 무시)."
-                                        + " 코스 문제 항목 폼(GET /reviews/course-issue-form)의 code 값")
+                                        + " 후기 작성 폼(GET /places/{placeId}/review-form) courseIssues 문항의 선택지 code 값")
                 List<@NotNull CourseIssue> courseIssues,
         @Schema(
                         description =

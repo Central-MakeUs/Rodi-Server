@@ -3,6 +3,7 @@ package cmc.rodi.domain.review.controller;
 import cmc.rodi.domain.review.dto.MyReviewItem;
 import cmc.rodi.domain.review.dto.ReviewCreateResponse;
 import cmc.rodi.domain.review.dto.ReviewDetailResponse;
+import cmc.rodi.domain.review.dto.ReviewFormResponse;
 import cmc.rodi.domain.review.dto.ReviewItem;
 import cmc.rodi.domain.review.dto.ReviewReportRequest;
 import cmc.rodi.domain.review.dto.ReviewRequest;
@@ -48,29 +49,17 @@ public interface ReviewControllerDocs {
             }
             """;
 
-    /** 코스 문제 항목 폼의 실제 응답(신고 사유 폼과 같은 이유로 엔드포인트에서 예시를 준다). */
-    String COURSE_ISSUE_FORM_EXAMPLE =
-            """
-            {
-              "isSuccess": true,
-              "code": "COMMON_200",
-              "message": "요청에 성공했습니다.",
-              "data": {
-                "questionId": "REVIEW_COURSE_ISSUE",
-                "type": "MULTI_SELECT",
-                "title": "해당 코스에 어떤 문제가 있나요?",
-                "required": true,
-                "options": [
-                  { "code": "VEHICLE_RESTRICTED", "label": "차량 진입이 제한된 장소예요", "order": 1, "requiresTextInput": false },
-                  { "code": "ROAD_INFO_MISMATCH", "label": "도로 정보가 실제와 달라요", "order": 2, "requiresTextInput": false },
-                  { "code": "CONSTRUCTION", "label": "공사·통제 등으로 현재 주행할 수 없어요", "order": 3, "requiresTextInput": false },
-                  { "code": "NOT_FOR_PRACTICE", "label": "연습 코스로 적합하지 않아요", "order": 4, "requiresTextInput": false },
-                  { "code": "OTHER", "label": "기타", "order": 5, "requiresTextInput": true,
-                    "textInputPlaceholder": "이유를 작성해주세요.", "textInputMaxLength": 30 }
-                ]
-              }
-            }
-            """;
+    @Operation(
+            summary = "후기 작성 폼 조회",
+            description =
+                    "후기 작성·수정 화면 정의를 반환한다. 단계(steps) → 문항(questions) → 선택지(options) 구조이고, 문항 code는"
+                            + " 작성 요청의 필드명, 선택지 code는 제출 값이다(추천 여부는 \"true\"/\"false\" 문자열 → boolean으로 제출)."
+                            + " 1단계 제목에 코스명이 들어가며 placeName으로 따로도 준다."
+                            + " 흐름 규칙: 기본 선택값이 없어 처음엔 추천 여부만 보이고, showWhen 문항은 조건 선택지를 골랐을 때만 노출된다"
+                            + "(추천해요 → 난이도·혼잡도·주의사항, 별로에요 → 코스 문제 항목). 숨겨진 문항은 required여도 입력하지 않는다."
+                            + " 코스 문제 항목의 OTHER(기타)는 requiresTextInput=true이며 입력값은 courseIssueDetail로 보낸다."
+                            + " 수정 화면 값은 후기 상세로 채운다. 없는 장소면 404. JWT 필요.")
+    ApiResponse<ReviewFormResponse> getReviewForm(@Parameter(description = "장소 id") Long placeId);
 
     @Operation(
             summary = "후기 작성",
@@ -197,25 +186,6 @@ public interface ReviewControllerDocs {
                             examples =
                                     @ExampleObject(name = "신고 사유 폼", value = REPORT_FORM_EXAMPLE)))
     ApiResponse<FormResponse> getReportForm();
-
-    @Operation(
-            summary = "코스 문제 항목 폼 조회",
-            description =
-                    "후기 1단계에서 별로에요를 골랐을 때 그릴 코스 문제 항목을 내려준다(복수 선택, order 오름차순)."
-                            + " code가 후기 작성 요청 courseIssues의 값이다."
-                            + " OTHER(기타)는 requiresTextInput=true이며 placeholder·최대 길이(30자)가 함께 온다. JWT 필요.")
-    @io.swagger.v3.oas.annotations.responses.ApiResponse(
-            responseCode = "200",
-            useReturnTypeSchema = true,
-            content =
-                    @Content(
-                            mediaType = "application/json",
-                            schema = @Schema(ref = "#/components/schemas/ApiResponseFormResponse"),
-                            examples =
-                                    @ExampleObject(
-                                            name = "코스 문제 항목 폼",
-                                            value = COURSE_ISSUE_FORM_EXAMPLE)))
-    ApiResponse<FormResponse> getCourseIssueForm();
 
     @Operation(
             summary = "후기 신고",

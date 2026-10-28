@@ -1,6 +1,8 @@
 package cmc.rodi.domain.review;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.assertj.core.api.Assertions.tuple;
 
 import cmc.rodi.domain.member.entity.Level;
 import cmc.rodi.domain.member.entity.Member;
@@ -8,6 +10,9 @@ import cmc.rodi.domain.member.repository.MemberRepository;
 import cmc.rodi.domain.place.entity.Course;
 import cmc.rodi.domain.place.repository.CourseRepository;
 import cmc.rodi.domain.review.dto.ReviewDetailResponse;
+import cmc.rodi.domain.review.dto.ReviewFormResponse;
+import cmc.rodi.domain.review.dto.ReviewFormResponse.Question;
+import cmc.rodi.domain.review.dto.ReviewFormResponse.Step;
 import cmc.rodi.domain.review.dto.ReviewRequest;
 import cmc.rodi.domain.review.entity.Congestion;
 import cmc.rodi.domain.review.entity.CourseIssue;
@@ -18,8 +23,9 @@ import cmc.rodi.domain.review.repository.ReviewRepository;
 import cmc.rodi.domain.review.service.ReviewQueryService;
 import cmc.rodi.domain.review.service.ReviewService;
 import cmc.rodi.global.common.form.FormOption;
-import cmc.rodi.global.common.form.FormResponse;
 import cmc.rodi.global.common.form.FormType;
+import cmc.rodi.global.exception.BusinessException;
+import cmc.rodi.global.exception.ErrorCode;
 import cmc.rodi.support.TestcontainersConfiguration;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.PersistenceContext;
@@ -34,7 +40,7 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.annotation.Import;
 import org.springframework.transaction.annotation.Transactional;
 
-/** '별로에요' 코스 문제 항목(스펙 024) — 추천 여부에 따른 저장 분기, 수정 시 반대쪽 값 삭제, 상세 응답, 문제 항목 폼. */
+/** '별로에요' 코스 문제 항목(스펙 024) — 추천 여부에 따른 저장 분기, 수정 시 반대쪽 값 삭제, 상세 응답, 후기 작성 폼. */
 @SpringBootTest
 @Transactional
 @Import(TestcontainersConfiguration.class)
@@ -269,15 +275,55 @@ class ReviewCourseIssueIntegrationTest {
     }
 
     @Test
-    @DisplayName("코스 문제 항목 폼 — 복수 선택, 시안 5개 order 순, 기타만 직접 입력(30자)")
-    void 문제_항목_폼() {
-        FormResponse form = reviewService.getCourseIssueForm();
+    @DisplayName("후기 작성 폼 — 2단계·문항 7개, 추천 여부에 따른 showWhen, 시안 문구, 제목에 코스명")
+    void 후기_작성_폼() {
+        Course course = seedCourse();
 
-        assertThat(form.questionId()).isEqualTo("REVIEW_COURSE_ISSUE");
-        assertThat(form.type()).isEqualTo(FormType.MULTI_SELECT);
-        assertThat(form.title()).isEqualTo("해당 코스에 어떤 문제가 있나요?");
-        assertThat(form.required()).isTrue();
-        assertThat(form.options())
+        ReviewFormResponse form = reviewService.getReviewForm(course.getId());
+
+        assertThat(form.title()).isEqualTo("후기 남기기");
+        assertThat(form.placeName()).isEqualTo("문제 코스");
+        assertThat(form.steps()).extracting(Step::order).containsExactly(1, 2);
+        assertThat(form.steps().get(0).title()).isEqualTo("문제 코스의 연습은 어떠셨나요?");
+        assertThat(form.steps().get(1).title()).isNull();
+        assertThat(form.steps().stream().flatMap(step -> step.questions().stream()))
+                .extracting(Question::code, Question::order)
+                .containsExactly(
+                        tuple("isRecommended", 1),
+                        tuple("difficulty", 2),
+                        tuple("congestion", 3),
+                        tuple("caution", 4),
+                        tuple("courseIssues", 5),
+                        tuple("practiceMethod", 6),
+                        tuple("content", 7));
+
+        List<Question> step1 = form.steps().get(0).questions();
+        assertThat(step1.get(0).showWhen()).isNull();
+        assertThat(step1.get(0).options())
+                .extracting(FormOption::code, FormOption::label)
+                .containsExactly(tuple("false", "별로에요"), tuple("true", "추천해요"));
+        // 추천해요 쪽 문항
+        assertThat(step1.subList(1, 4))
+                .allSatisfy(
+                        q -> {
+                            assertThat(q.showWhen().question()).isEqualTo("isRecommended");
+                            assertThat(q.showWhen().anyOf()).containsExactly("true");
+                        });
+        assertThat(step1.get(1).options())
+                .extracting(FormOption::label)
+                .containsExactly("매우 쉬움", "쉬움", "보통", "어려움", "매우 어려움");
+        assertThat(step1.get(2).options())
+                .extracting(FormOption::label)
+                .containsExactly("한산해요", "보통이에요", "복잡해요");
+        assertThat(step1.get(3).type()).isEqualTo(FormType.TEXT);
+        assertThat(step1.get(3).required()).isFalse();
+        assertThat(step1.get(3).maxLength()).isNull();
+        // 별로에요 쪽 문항
+        Question issues = step1.get(4);
+        assertThat(issues.type()).isEqualTo(FormType.MULTI_SELECT);
+        assertThat(issues.required()).isTrue();
+        assertThat(issues.showWhen().anyOf()).containsExactly("false");
+        assertThat(issues.options())
                 .extracting(FormOption::code)
                 .containsExactly(
                         "VEHICLE_RESTRICTED",
@@ -285,7 +331,7 @@ class ReviewCourseIssueIntegrationTest {
                         "CONSTRUCTION",
                         "NOT_FOR_PRACTICE",
                         "OTHER");
-        assertThat(form.options())
+        assertThat(issues.options())
                 .filteredOn(FormOption::requiresTextInput)
                 .singleElement()
                 .satisfies(
@@ -294,5 +340,22 @@ class ReviewCourseIssueIntegrationTest {
                             assertThat(other.textInputMaxLength()).isEqualTo(30);
                             assertThat(other.textInputPlaceholder()).isEqualTo("이유를 작성해주세요.");
                         });
+
+        List<Question> step2 = form.steps().get(1).questions();
+        assertThat(step2).allSatisfy(q -> assertThat(q.showWhen()).isNull());
+        assertThat(step2.get(0).options())
+                .extracting(FormOption::code, FormOption::label)
+                .containsExactly(tuple("SOLO", "혼자 연습"), tuple("ACCOMPANIED", "동승자와 연습"));
+        assertThat(step2.get(1).maxLength()).isEqualTo(150);
+        assertThat(step2.get(1).required()).isFalse();
+    }
+
+    @Test
+    @DisplayName("후기 작성 폼 — 없는 장소면 ENTITY_NOT_FOUND")
+    void 후기_작성_폼_없는_장소() {
+        assertThatThrownBy(() -> reviewService.getReviewForm(Long.MAX_VALUE))
+                .isInstanceOf(BusinessException.class)
+                .extracting(e -> ((BusinessException) e).getErrorCode())
+                .isEqualTo(ErrorCode.ENTITY_NOT_FOUND);
     }
 }
