@@ -7,6 +7,8 @@
 | 2026-11-08 | Draft | 최초 작성 — 코스 신고 API·신고 폼 API 신규, 스펙 024의 '별로에요' 코스 문제 항목 저장처를 **후기 → 신고**로 이관 |
 | 2026-11-08 | **Approved** | 승인 — 이슈 [#87](https://github.com/Central-MakeUs/Rodi-Server/issues/87). 기존 주차장 후기는 그대로 둔다. 커밋을 ①V31·신고 도메인 ②코스 신고·신고 폼 API ③후기 문제 항목 이관(V32)·주차장 차단 단계로 나눠 검토받는다 |
 | 2026-11-08 | **Implemented** | ①V31·`CourseReport` ②신고·신고 폼 API ③V32 이관·후기 동기화·주차장 차단. 정정 — 기존 주차장 후기를 **별로에요로 수정**하면 신고를 둘 코스가 없어 400 `REVIEW_400_2`(추천해요 수정은 허용). V32 이관은 임시 PostGIS DB에 데이터를 넣어 확인했다 |
+| 2026-11-08 | Approved | **Swagger 스키마 충돌 수정 추가** — 프론트의 Dev·Prod Swagger 비교에서 Dev 온보딩 폼 스키마가 후기 작성 폼(스펙 024) 것으로 덮어써진 문제가 확인돼 이 PR에 포함한다. 후기 폼 단계·문항 스키마 이름 분리, 조건부 노출(`ShowWhen`)은 공용 타입으로 합친다. Prod 대비 기존 API 응답·문서 변화 없음 |
+| 2026-11-08 | **Implemented** | Swagger 스키마 충돌 수정 — 공용 `ShowWhen`, `ReviewFormStep`·`ReviewFormQuestion`. #86 이전 develop(`6d20ca5`, Lightsail 배포분)과 생성 문서·온보딩 폼 직렬화 결과를 비교해 온보딩 스키마·응답 JSON이 같음을 확인했다 |
 
 ## 배경 / 목적
 
@@ -176,6 +178,49 @@
 
 `docs/erd.md`: `course_report`·`course_report_issue` 추가, `review_course_issue`·`review.course_issue_detail` 제거, 스펙 024 문서에 저장처 변경 기록.
 
+## Swagger 스키마 충돌 수정
+
+### 배경
+
+프론트가 Dev·Prod Swagger를 비교하다 **Dev의 온보딩 폼(`GET /members/me/onboarding-form`) 스키마에서 규칙 속성이 빠진 것**을 발견했다.
+
+| 위치 | Prod엔 있고 Dev엔 없는 속성 | Dev에 대신 붙은 속성 |
+|------|------------------------|-------------------|
+| 단계 `Step` | `skippable`, `description` | — |
+| 문항 `Question` | `description`, `maxSelect` | — |
+| 선택지 | `exclusive`, `skipsFollowUps` | `requiresTextInput`, `textInputPlaceholder`, `textInputMaxLength` |
+
+### 원인
+
+springdoc은 스키마 이름을 **클래스 단순 이름**으로 만든다. 스펙 024(#86)의 `ReviewFormResponse`가 온보딩 폼(`OnboardingFormResponse`)을 본떠 같은 이름의 중첩 record `Step`·`Question`·`ShowWhen`을 두면서 이름이 겹쳤고, 문서에 이름당 하나만 남아 후기 폼 정의가 온보딩 정의를 덮어썼다. **실제 응답 JSON은 정상이고 문서만 틀렸다.** Prod에는 후기 폼이 아직 없어 충돌이 없었다.
+
+### 해결
+
+**Prod에 배포된 기존 API의 응답·문서를 바꾸지 않는 범위에서 최대한 재사용한다.**
+
+| 구조 | 온보딩 | 후기 폼 | 처리 |
+|------|--------|---------|------|
+| `ShowWhen` | question, anyOf | question, anyOf (완전히 같음) | **공용 `global.common.form.ShowWhen`으로 합친다.** 스키마 이름이 그대로 `ShowWhen`이라 온보딩 문서는 Prod와 같다 |
+| `Step` | + `skippable`, `description` | 공통 필드만 | 후기 폼만 스키마 이름을 **`ReviewFormStep`**으로 분리 |
+| `Question` | + `description`, `maxSelect`, 선택지 `Option` | 공통 필드만, 선택지 `FormOption` | 후기 폼만 **`ReviewFormQuestion`**으로 분리 |
+| 선택지 | `Option`(exclusive·skipsFollowUps) | `FormOption`(requiresTextInput·textInput*) | 그대로(이미 서로 다른 이름) |
+
+- 온보딩 쪽 이름(`Step`·`Question`·`Option`·`ShowWhen`)은 Prod에서 쓰는 그대로 둔다.
+- 후기 폼은 Prod에 없는 신규 API라 이름을 바꿔도 기존 계약에 영향이 없다.
+- 두 폼 모두 **응답 JSON은 바뀌지 않는다**(스키마 이름·클래스 위치만 바뀜).
+
+### 검토했지만 하지 않은 것 — 단계·문항까지 공용화
+
+`FormOption`처럼 `FormStep`·`FormQuestion`을 두고 필드를 합집합으로 합치면 중복이 더 줄지만 이번엔 하지 않는다.
+
+- **Prod 온보딩 응답이 바뀐다.** 선택지를 `FormOption` 하나로 합치면 온보딩 선택지마다 `"requiresTextInput": false`가 붙는다(이 필드는 신고·미방문 폼에서 항상 내려가 생략으로 바꾸기 어렵다). 스키마 이름도 `Step`→`FormStep` 등으로 바뀌어 프론트가 다시 대조해야 한다.
+- **문서가 덜 정확해진다.** 후기 폼 문서에 온보딩 전용 필드(`skippable`·`maxSelect`·`exclusive`)가 보인다.
+- 서버 폼이 하나 더 생기면 그때 공용 단계·문항 구조로 묶는 리팩터링을 따로 검토한다.
+
+### 재발 방지
+
+`OpenApiSchemaTest`에서 생성된 문서를 `$ref`대로 따라가, 온보딩 폼 단계·문항·선택지에 `skippable`·`maxSelect`·`exclusive`가 있고 후기 폼은 `ReviewFormStep`을 참조하는지 확인한다(수정 전 코드에서 실패함을 확인).
+
 ## 완료 조건 (Acceptance Criteria)
 
 - [x] `GET /courses/report-form`이 위 예시와 같고, 후기 폼의 `courseIssues` 문항 제목·선택지와 동일하다(같은 메서드로 생성)
@@ -191,6 +236,9 @@
 - [x] 주차장 후기 작성·폼 조회 400 `REVIEW_400_2`
 - [x] V32: 기존 `review_course_issue` 데이터가 `course_report`로 이관되고 옛 테이블·컬럼이 삭제된다
 - [x] Swagger 신고 폼 예시, `docs/erd.md`·스펙 024 갱신
+- [x] Swagger: 온보딩 폼 스키마가 Prod와 같다(`skippable`·`description`·`maxSelect`·`exclusive`·`skipsFollowUps` 노출, `requiresTextInput` 없음)
+- [x] Swagger: 후기 폼은 `ReviewFormStep`·`ReviewFormQuestion`, 두 폼이 공용 `ShowWhen`을 참조한다
+- [x] 온보딩·후기 폼 응답 JSON 변화 없음
 - [x] `./gradlew test` 통과
 
 ## 미해결 질문

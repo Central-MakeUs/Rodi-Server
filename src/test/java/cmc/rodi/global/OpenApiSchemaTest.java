@@ -156,6 +156,61 @@ class OpenApiSchemaTest {
         return examples.toString();
     }
 
+    @Test
+    @DisplayName("온보딩 폼과 후기 작성 폼의 단계·문항 스키마는 이름이 겹치지 않는다")
+    void 폼_스키마_이름_충돌_없음() throws Exception {
+        JsonNode apiDocs = objectMapper.readTree(fetchApiDocs());
+
+        // springdoc은 클래스 단순 이름으로 스키마를 만든다. 두 폼이 둘 다 Step·Question이면 한쪽이 덮어써
+        // 온보딩 문서에서 skippable·maxSelect·exclusive가 사라지고 후기 선택지(FormOption)가 대신 붙었다.
+        JsonNode onboardingStep =
+                schemaOf(
+                        apiDocs,
+                        propertyOf(apiDocs, "OnboardingFormResponse", "steps").path("items"));
+        JsonNode onboardingQuestion =
+                schemaOf(
+                        apiDocs, onboardingStep.path("properties").path("questions").path("items"));
+        JsonNode onboardingOption =
+                schemaOf(
+                        apiDocs,
+                        onboardingQuestion.path("properties").path("options").path("items"));
+        assertThat(onboardingStep.path("properties").has("skippable")).isTrue();
+        assertThat(onboardingQuestion.path("properties").has("maxSelect")).isTrue();
+        assertThat(onboardingOption.path("properties").has("exclusive")).isTrue();
+        assertThat(onboardingOption.path("properties").has("requiresTextInput")).isFalse();
+
+        JsonNode reviewStepRef = propertyOf(apiDocs, "ReviewFormResponse", "steps").path("items");
+        assertThat(reviewStepRef.path("$ref").asText()).endsWith("/ReviewFormStep");
+        JsonNode reviewQuestion =
+                schemaOf(
+                        apiDocs,
+                        schemaOf(apiDocs, reviewStepRef)
+                                .path("properties")
+                                .path("questions")
+                                .path("items"));
+        assertThat(reviewQuestion.path("properties").has("maxSelect")).isFalse();
+
+        // 조건부 노출은 두 폼이 같은 공용 ShowWhen을 쓴다(Prod와 같은 이름)
+        assertThat(onboardingQuestion.path("properties").path("showWhen").path("$ref").asText())
+                .isEqualTo("#/components/schemas/ShowWhen");
+        assertThat(reviewQuestion.path("properties").path("showWhen").path("$ref").asText())
+                .isEqualTo("#/components/schemas/ShowWhen");
+    }
+
+    private static JsonNode propertyOf(JsonNode apiDocs, String schema, String property) {
+        return apiDocs.path("components")
+                .path("schemas")
+                .path(schema)
+                .path("properties")
+                .path(property);
+    }
+
+    /** {@code $ref}를 따라가 스키마 본문을 돌려준다. */
+    private static JsonNode schemaOf(JsonNode apiDocs, JsonNode ref) {
+        String name = ref.path("$ref").asText().replace("#/components/schemas/", "");
+        return apiDocs.path("components").path("schemas").path(name);
+    }
+
     private String fetchApiDocs() throws Exception {
         return mockMvc.perform(get("/v3/api-docs"))
                 .andExpect(status().isOk())

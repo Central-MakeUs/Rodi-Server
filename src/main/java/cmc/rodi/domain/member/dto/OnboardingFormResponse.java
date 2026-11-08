@@ -9,6 +9,7 @@ import cmc.rodi.domain.member.entity.RoadExperience;
 import cmc.rodi.domain.member.entity.SoloDrivingRange;
 import cmc.rodi.domain.member.entity.SoloParkingLevel;
 import cmc.rodi.global.common.form.FormType;
+import cmc.rodi.global.common.form.ShowWhen;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import io.swagger.v3.oas.annotations.media.Schema;
 import java.util.List;
@@ -59,11 +60,6 @@ public record OnboardingFormResponse(@Schema(description = "단계(order 오름�
             @Schema(description = "노출 순서(1부터)") int order,
             @Schema(description = "단독으로만 고를 수 있는지(true일 때만)") Boolean exclusive,
             @Schema(description = "고르면 후속 문항을 건너뛰는지(true일 때만)") Boolean skipsFollowUps) {}
-
-    /** {@code question} 문항에서 {@code anyOf} 중 하나라도 골랐을 때만 보인다. */
-    public record ShowWhen(
-            @Schema(description = "조건 문항 코드") String question,
-            @Schema(description = "이 중 하나라도 고르면 노출") List<String> anyOf) {}
 
     public static OnboardingFormResponse of() {
         ShowWhen soloOnly = new ShowWhen("roadExperiences", List.of(RoadExperience.SOLO.name()));
