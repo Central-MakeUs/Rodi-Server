@@ -11,6 +11,7 @@
 | 2026-10-29 | Draft | **요구사항 정정** — 요청은 문제 항목 폼이 아니라 **후기 작성 화면 전체 폼**이었다. `GET /reviews/course-issue-form`(미배포)을 없애고 `GET /places/{placeId}/review-form`으로 1/2·2/2 단계 문항을 모두 내려준다(제목에 코스명). 스펙 013의 "후기 폼 API 미제공" 결정을 뒤집는다. 난이도·혼잡도·연습 방법 enum에 시안 문구 라벨 추가. 저장·검증·V30은 변경 없음 |
 | 2026-10-29 | **Approved** | 승인 — 기타 직접 입력 제출 키는 폼에 담지 않는다(신고 사유 폼과 통일), 초기 선택값 없음(추천 여부만 보임). 기존 브랜치에 커밋 1개로 추가한다 |
 | 2026-10-29 | **Implemented** | 후기 작성 폼 구현 — `ReviewFormResponse`·`GET /places/{placeId}/review-form`, 난이도·혼잡도·연습 방법 enum 라벨, `course-issue-form` 삭제 |
+| 2026-11-08 | Implemented | [스펙 025](025-course-report.md) 반영 — 문제 항목 저장처를 **후기 → 코스 신고**(`course_report`, review_id 연결)로 옮겼다(V32에서 `review_course_issue`·`review.course_issue_detail` 이관 후 삭제). 후기 API 요청·응답 형태는 그대로. `CourseIssue`는 `domain.place`로 이동. 주차장 후기 작성·폼 조회 400 |
 
 ## 배경 / 목적
 

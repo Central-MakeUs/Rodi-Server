@@ -2,7 +2,10 @@ package cmc.rodi.domain.review.service;
 
 import cmc.rodi.domain.member.entity.Member;
 import cmc.rodi.domain.member.repository.MemberRepository;
+import cmc.rodi.domain.place.entity.Course;
+import cmc.rodi.domain.place.entity.CourseReport;
 import cmc.rodi.domain.place.entity.Place;
+import cmc.rodi.domain.place.repository.CourseReportRepository;
 import cmc.rodi.domain.place.repository.PlaceRepository;
 import cmc.rodi.domain.practice.repository.MemberPracticeRepository;
 import cmc.rodi.domain.review.dto.ReviewCreateResponse;
@@ -22,6 +25,7 @@ import java.time.LocalDateTime;
 import java.util.Arrays;
 import java.util.Comparator;
 import lombok.RequiredArgsConstructor;
+import org.hibernate.Hibernate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -44,13 +48,17 @@ public class ReviewService {
     /** 작성 시 "인증된 후기" 판정에만 쓰는 읽기 전용 참조(마이페이지→북마크와 같은 도메인 간 조회 패턴). */
     private final MemberPracticeRepository memberPracticeRepository;
 
-    /** 후기 작성. 같은 장소에 여러 번 쓸 수 있다. 레벨 없는 회원(온보딩 미완료)은 작성 불가. */
+    /** '별로에요' 문제 항목 저장처(스펙 025). 신고 도메인 로직은 엔티티가 갖고, 여기서는 후기와 생명주기만 맞춘다. */
+    private final CourseReportRepository courseReportRepository;
+
+    /**
+     * 후기 작성. 코스에만 쓸 수 있고 같은 코스에 여러 번 쓸 수 있다. 레벨 없는 회원(온보딩 미완료)은 작성 불가.
+     *
+     * <p>별로에요면 코스 문제 항목을 이 후기에 연결된 코스 신고로 저장한다(스펙 025) — 관리자가 직접 신고와 한 곳에서 본다.
+     */
     @Transactional
     public ReviewCreateResponse create(Long placeId, Long memberId, ReviewRequest request) {
-        Place place =
-                placeRepository
-                        .findById(placeId)
-                        .orElseThrow(() -> new BusinessException(ErrorCode.ENTITY_NOT_FOUND));
+        Course course = findCourse(placeId);
         Member member = findMember(memberId);
         if (member.getLevel() == null) {
             throw new BusinessException(ReviewErrorCode.LEVEL_REQUIRED);
@@ -58,7 +66,7 @@ public class ReviewService {
 
         Review review =
                 Review.builder()
-                        .place(place)
+                        .place(course)
                         .member(member)
                         .recommended(request.recommended())
                         .difficulty(request.difficulty())
@@ -66,22 +74,39 @@ public class ReviewService {
                         .practiceMethod(request.practiceMethod())
                         .content(request.content())
                         .caution(request.caution())
-                        .courseIssues(request.courseIssues())
-                        .courseIssueDetail(request.courseIssueDetail())
                         .memberLevel(member.getLevel()) // 작성 시점 레벨 스냅샷
                         // 현재 레벨에서 인증받았을 때만 배지가 붙는다 — 레벨이 오르면 다시 인증해야 한다
                         .verifiedVisit(
                                 memberPracticeRepository.existsByMemberIdAndPlaceIdAndVerifiedLevel(
                                         memberId, placeId, member.getLevel()))
                         .build();
-        return new ReviewCreateResponse(reviewRepository.save(review).getId());
+        Long reviewId = reviewRepository.save(review).getId();
+        if (!request.recommended()) {
+            courseReportRepository.save(
+                    CourseReport.fromReview(
+                            course,
+                            member,
+                            reviewId,
+                            request.courseIssues(),
+                            request.courseIssueDetail()));
+        }
+        return new ReviewCreateResponse(reviewId);
     }
 
-    /** 후기 수정(전체 교체). 본인 후기이고 작성 당시 레벨 = 현재 레벨일 때만 가능. */
+    /**
+     * 후기 수정(전체 교체). 본인 후기이고 작성 당시 레벨 = 현재 레벨일 때만 가능.
+     *
+     * <p>연결된 코스 신고도 맞춘다 — 별로에요→추천해요면 삭제, 추천해요→별로에요면 생성, 별로에요끼리는 항목 교체. 코스 아닌 장소의 기존 후기(주차장 후기 차단 이전
+     * 데이터)는 신고를 둘 수 없어 별로에요로 바꿀 수 없다.
+     */
     @Transactional
     public void update(Long reviewId, Long memberId, ReviewRequest request) {
         Review review = findReview(reviewId);
         requireOwner(review, memberId);
+        Course course = courseOf(review);
+        if (!request.recommended() && course == null) {
+            throw new BusinessException(ReviewErrorCode.COURSE_ONLY);
+        }
         if (!review.isEditableAt(findMember(memberId).getLevel())) {
             throw new BusinessException(ReviewErrorCode.LEVEL_CHANGED);
         }
@@ -91,12 +116,11 @@ public class ReviewService {
                 request.congestion(),
                 request.practiceMethod(),
                 request.content(),
-                request.caution(),
-                request.courseIssues(),
-                request.courseIssueDetail());
+                request.caution());
+        syncCourseReport(review, course, request);
     }
 
-    /** 후기 삭제. 본인 후기면 레벨과 무관하게 삭제한다(좋아요·신고는 FK CASCADE로 함께 제거). */
+    /** 후기 삭제. 본인 후기면 레벨과 무관하게 삭제한다(후기 신고·연결된 코스 신고는 FK CASCADE로 함께 제거). */
     @Transactional
     public void delete(Long reviewId, Long memberId) {
         Review review = findReview(reviewId);
@@ -118,13 +142,9 @@ public class ReviewService {
                         .toList());
     }
 
-    /** 후기 작성 폼(스펙 024). 작성·수정 화면 공용이며 1단계 제목에 코스명이 들어간다. 없는 장소면 404(작성과 같은 판정). */
+    /** 후기 작성 폼(스펙 024). 작성·수정 화면 공용이며 1단계 제목에 코스명이 들어간다. 없는 장소면 404, 주차장이면 400(작성과 같은 판정). */
     public ReviewFormResponse getReviewForm(Long placeId) {
-        Place place =
-                placeRepository
-                        .findById(placeId)
-                        .orElseThrow(() -> new BusinessException(ErrorCode.ENTITY_NOT_FOUND));
-        return ReviewFormResponse.of(place.getName());
+        return ReviewFormResponse.of(findCourse(placeId).getName());
     }
 
     /**
@@ -149,6 +169,54 @@ public class ReviewService {
         if (reviewReportRepository.countByReviewId(reviewId) >= HIDE_THRESHOLD) {
             review.hide(LocalDateTime.now());
         }
+    }
+
+    /** 수정 후 연결된 코스 신고를 후기 상태에 맞춘다. */
+    private void syncCourseReport(Review review, Course course, ReviewRequest request) {
+        CourseReport report = courseReportRepository.findByReviewId(review.getId()).orElse(null);
+        if (request.recommended()) {
+            if (report != null) {
+                courseReportRepository.delete(report);
+            }
+            return;
+        }
+        if (report != null) {
+            report.replaceIssues(request.courseIssues(), request.courseIssueDetail());
+            return;
+        }
+        courseReportRepository.save(
+                CourseReport.fromReview(
+                        course,
+                        review.getMember(),
+                        review.getId(),
+                        request.courseIssues(),
+                        request.courseIssueDetail()));
+    }
+
+    /** 후기를 쓴 장소가 코스면 그 코스, 아니면(주차장 후기 차단 이전 데이터) null. */
+    private static Course courseOf(Review review) {
+        return asCourse(review.getPlace());
+    }
+
+    /** 후기는 코스에만 쓴다(스펙 025). 없는 장소는 404, 주차장은 400. */
+    private Course findCourse(Long placeId) {
+        Place place =
+                placeRepository
+                        .findById(placeId)
+                        .orElseThrow(() -> new BusinessException(ErrorCode.ENTITY_NOT_FOUND));
+        Course course = asCourse(place);
+        if (course == null) {
+            throw new BusinessException(ReviewErrorCode.COURSE_ONLY);
+        }
+        return course;
+    }
+
+    /**
+     * 장소가 코스면 코스로, 아니면 null. 영속성 컨텍스트에 이미 지연 로딩 프록시(Place 타입)로 올라와 있으면 {@code findById}도 그 프록시를
+     * 돌려주므로 실제 타입은 풀어서 본다.
+     */
+    private static Course asCourse(Place place) {
+        return Hibernate.unproxy(place) instanceof Course course ? course : null;
     }
 
     private Review findReview(Long reviewId) {
