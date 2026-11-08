@@ -12,8 +12,11 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import cmc.rodi.domain.place.dto.CourseRegisterRequest;
 import cmc.rodi.domain.place.dto.CourseRegisterResponse;
+import cmc.rodi.domain.place.dto.CourseReportRequest;
 import cmc.rodi.domain.place.entity.ApprovalStatus;
+import cmc.rodi.domain.place.entity.CourseIssue;
 import cmc.rodi.domain.place.service.CourseQueryService;
+import cmc.rodi.domain.place.service.CourseReportService;
 import cmc.rodi.domain.place.service.CourseService;
 import cmc.rodi.global.auth.jwt.JwtAuthenticationFilter;
 import cmc.rodi.global.auth.resolver.CurrentMemberArgumentResolver;
@@ -36,8 +39,9 @@ import org.springframework.security.authentication.UsernamePasswordAuthenticatio
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.ResultActions;
 
-/** 코스 등록 요청 검증(스펙 014) — 경로 구성·연습유형 개수·글자수 제약이 400으로 걸리는지. */
+/** 코스 등록 요청 검증(스펙 014) — 경로 구성·연습유형 개수·글자수 제약이 400으로 걸리는지. 코스 신고 요청 검증(스펙 025). */
 @WebMvcTest(
         controllers = CourseController.class,
         excludeFilters =
@@ -57,6 +61,7 @@ class CourseControllerTest {
 
     @MockitoBean CourseService courseService;
     @MockitoBean CourseQueryService courseQueryService;
+    @MockitoBean CourseReportService courseReportService;
 
     @AfterEach
     void clearContext() {
@@ -296,5 +301,82 @@ class CourseControllerTest {
                 .andExpect(jsonPath("$.data.inputs.description.maxLength").value(30))
                 .andExpect(jsonPath("$.data.inputs.caution.maxLength").value(100))
                 .andExpect(jsonPath("$.data.inputs.caution.minLength").doesNotExist());
+    }
+
+    private ResultActions report(String body) throws Exception {
+        authenticate(7L);
+        return mockMvc.perform(
+                post("/api/v1/courses/12/report")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(body));
+    }
+
+    @Test
+    @DisplayName("신고: 200 + 중복 항목을 합치고 기타 입력을 정리해 위임")
+    void 신고() throws Exception {
+        report(
+                        """
+                        { "courseIssues": ["OTHER", "CONSTRUCTION", "OTHER"], "detail": "  입구가 잠겨 있어요 " }
+                        """)
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.isSuccess").value(true));
+
+        verify(courseReportService)
+                .report(
+                        eq(12L),
+                        eq(7L),
+                        eq(
+                                new CourseReportRequest(
+                                        List.of(CourseIssue.OTHER, CourseIssue.CONSTRUCTION),
+                                        "입구가 잠겨 있어요")));
+    }
+
+    @Test
+    @DisplayName("신고: 기타가 아니면 detail을 버린다(30자를 넘어도 400이 아니다)")
+    void 신고_기타_아니면_detail_무시() throws Exception {
+        report(
+                        """
+                        { "courseIssues": ["CONSTRUCTION"], "detail": "%s" }
+                        """
+                                .formatted("가".repeat(31)))
+                .andExpect(status().isOk());
+
+        verify(courseReportService)
+                .report(
+                        eq(12L),
+                        eq(7L),
+                        eq(new CourseReportRequest(List.of(CourseIssue.CONSTRUCTION), null)));
+    }
+
+    @Test
+    @DisplayName("신고: 항목 누락·빈 배열·알 수 없는 코드, 기타인데 입력 없음·공백, 30자 초과는 400")
+    void 신고_검증_실패() throws Exception {
+        List<String> bodies =
+                List.of(
+                        "{}",
+                        "{ \"courseIssues\": [] }",
+                        "{ \"courseIssues\": [\"UNKNOWN\"] }",
+                        "{ \"courseIssues\": [\"OTHER\"] }",
+                        "{ \"courseIssues\": [\"OTHER\"], \"detail\": \"   \" }",
+                        "{ \"courseIssues\": [\"OTHER\"], \"detail\": \"%s\" }"
+                                .formatted("가".repeat(31)));
+        for (String body : bodies) {
+            report(body)
+                    .andExpect(status().isBadRequest())
+                    .andExpect(jsonPath("$.isSuccess").value(false));
+        }
+
+        verify(courseReportService, never()).report(any(), any(), any());
+    }
+
+    @Test
+    @DisplayName("신고: 기타 입력은 사용자가 보는 글자 수로 센다(이모지 30자는 통과)")
+    void 신고_기타_30자_이모지() throws Exception {
+        report(
+                        """
+                        { "courseIssues": ["OTHER"], "detail": "%s" }
+                        """
+                                .formatted("👍".repeat(30)))
+                .andExpect(status().isOk());
     }
 }

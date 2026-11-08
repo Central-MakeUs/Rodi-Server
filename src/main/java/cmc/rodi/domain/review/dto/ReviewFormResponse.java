@@ -9,8 +9,6 @@ import cmc.rodi.global.common.form.FormOption;
 import cmc.rodi.global.common.form.FormType;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import io.swagger.v3.oas.annotations.media.Schema;
-import java.util.Arrays;
-import java.util.Comparator;
 import java.util.List;
 import java.util.function.Function;
 import java.util.stream.IntStream;
@@ -109,18 +107,14 @@ public record ReviewFormResponse(
                                                 null, // 길이 제한 없음
                                                 recommendedOnly,
                                                 null),
+                                        // 코스 신고 폼과 같은 정의를 쓴다(스펙 025)
                                         select(
-                                                "courseIssues",
+                                                CourseIssue.QUESTION_CODE,
                                                 5,
                                                 FormType.MULTI_SELECT,
-                                                "해당 코스에 어떤 문제가 있나요?",
+                                                CourseIssue.QUESTION_TITLE,
                                                 notRecommendedOnly,
-                                                Arrays.stream(CourseIssue.values())
-                                                        .sorted(
-                                                                Comparator.comparingInt(
-                                                                        CourseIssue::getOrder))
-                                                        .map(CourseIssue::toOption)
-                                                        .toList()))),
+                                                CourseIssue.formOptions()))),
                         new Step(
                                 2,
                                 null, // 시안에 단계 제목 없음

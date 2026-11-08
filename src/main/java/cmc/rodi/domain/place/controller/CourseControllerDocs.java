@@ -3,8 +3,10 @@ package cmc.rodi.domain.place.controller;
 import cmc.rodi.domain.place.dto.CourseRegisterRequest;
 import cmc.rodi.domain.place.dto.CourseRegisterResponse;
 import cmc.rodi.domain.place.dto.CourseRegistrationFormResponse;
+import cmc.rodi.domain.place.dto.CourseReportRequest;
 import cmc.rodi.domain.place.dto.MyCourseItem;
 import cmc.rodi.domain.place.entity.ApprovalStatus;
+import cmc.rodi.global.common.form.FormResponse;
 import cmc.rodi.global.common.pagination.CursorPage;
 import cmc.rodi.global.common.response.ApiResponse;
 import io.swagger.v3.oas.annotations.Operation;
@@ -108,4 +110,66 @@ public interface CourseControllerDocs {
     ApiResponse<Void> delete(
             @Parameter(description = "코스 id") Long courseId,
             @Parameter(hidden = true) Long memberId);
+
+    /**
+     * 신고 폼의 실제 응답. 공용 {@code FormResponse} 스키마를 다른 폼과 나눠 쓰는데 springdoc은 스키마 단위로 example을 그리므로, 폼별
+     * 예시는 엔드포인트에서 준다.
+     */
+    String REPORT_FORM_EXAMPLE =
+            """
+            {
+              "isSuccess": true,
+              "code": "COMMON_200",
+              "message": "요청에 성공했습니다.",
+              "data": {
+                "questionId": "courseIssues",
+                "type": "MULTI_SELECT",
+                "title": "해당 코스에 어떤 문제가 있나요?",
+                "required": true,
+                "options": [
+                  { "code": "VEHICLE_RESTRICTED", "label": "차량 진입이 제한된 장소예요", "order": 1, "requiresTextInput": false },
+                  { "code": "ROAD_INFO_MISMATCH", "label": "도로 정보가 실제와 달라요", "order": 2, "requiresTextInput": false },
+                  { "code": "CONSTRUCTION", "label": "공사·통제 등으로 현재 주행할 수 없어요", "order": 3, "requiresTextInput": false },
+                  { "code": "NOT_FOR_PRACTICE", "label": "연습 코스로 적합하지 않아요", "order": 4, "requiresTextInput": false },
+                  { "code": "OTHER", "label": "기타", "order": 5, "requiresTextInput": true,
+                    "textInputPlaceholder": "이유를 작성해주세요.", "textInputMaxLength": 30 }
+                ]
+              }
+            }
+            """;
+
+    @Operation(
+            summary = "코스 신고 폼 조회",
+            description =
+                    """
+                    코스 신고 화면의 문항·선택지를 내려준다(복수 선택). 후기 작성 폼에서 '별로에요'를 고르면 나오는
+                    `courseIssues` 문항과 **같은 정의**라 두 화면 문구가 항상 같다.
+
+                    - `OTHER`(기타)를 고르면 직접 입력이 필수이고, 제출 키는 `detail`이다(최대 30자).
+                    """)
+    @io.swagger.v3.oas.annotations.responses.ApiResponse(
+            responseCode = "200",
+            content =
+                    @Content(
+                            mediaType = "application/json",
+                            schema = @Schema(ref = "#/components/schemas/ApiResponseFormResponse"),
+                            examples =
+                                    @ExampleObject(name = "코스 신고 폼", value = REPORT_FORM_EXAMPLE)))
+    ApiResponse<FormResponse> getReportForm();
+
+    @Operation(
+            summary = "코스 신고",
+            description =
+                    """
+                    코스의 문제를 신고한다. 접수·보관만 하고 코스 노출은 바꾸지 않는다.
+
+                    - 같은 코스를 다시 신고하면 **멱등하게 200**(첫 신고 유지).
+                    - 본인이 등록한 코스는 400 `COURSE_400_1`.
+                    - 없는 id·주차장 id·남의 미승인 코스는 404 `COURSE_404_1`, 삭제된 코스는 404 `COURSE_404_2`.
+                    - 항목 누락·빈 배열, 기타인데 `detail` 없음, `detail` 30자 초과는 400 `COMMON_400`.
+                    """)
+    ApiResponse<Void> report(
+            @Parameter(description = "코스 id") Long courseId,
+            @Parameter(hidden = true) Long memberId,
+            CourseReportRequest request);
 }

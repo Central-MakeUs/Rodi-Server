@@ -1,6 +1,9 @@
 package cmc.rodi.domain.place.entity;
 
 import cmc.rodi.global.common.form.FormOption;
+import java.util.Arrays;
+import java.util.Comparator;
+import java.util.List;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 
@@ -19,6 +22,11 @@ public enum CourseIssue {
     CONSTRUCTION("공사·통제 등으로 현재 주행할 수 없어요", 3),
     NOT_FOR_PRACTICE("연습 코스로 적합하지 않아요", 4),
     OTHER("기타", 5);
+
+    /** 문항 코드·제목. 코스 신고 폼과 후기 작성 폼의 문제 항목 문항이 함께 쓴다(두 화면 문구가 같아야 한다). */
+    public static final String QUESTION_CODE = "courseIssues";
+
+    public static final String QUESTION_TITLE = "해당 코스에 어떤 문제가 있나요?";
 
     /** 직접 입력 안내 문구·상한(OTHER 전용). 상한은 grapheme 기준(스펙 018). */
     public static final String TEXT_INPUT_PLACEHOLDER = "이유를 작성해주세요.";
@@ -39,5 +47,13 @@ public enum CourseIssue {
                 ? FormOption.withTextInput(
                         name(), label, order, TEXT_INPUT_PLACEHOLDER, TEXT_INPUT_MAX_LENGTH)
                 : FormOption.of(name(), label, order);
+    }
+
+    /** 문제 항목 문항의 선택지(order 오름차순). 코스 신고 폼·후기 작성 폼이 같은 목록을 쓴다. */
+    public static List<FormOption> formOptions() {
+        return Arrays.stream(values())
+                .sorted(Comparator.comparingInt(CourseIssue::getOrder))
+                .map(CourseIssue::toOption)
+                .toList();
     }
 }
