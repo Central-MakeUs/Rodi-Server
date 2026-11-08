@@ -8,17 +8,22 @@ import cmc.rodi.domain.member.entity.Level;
 import cmc.rodi.domain.member.entity.Member;
 import cmc.rodi.domain.member.repository.MemberRepository;
 import cmc.rodi.domain.place.entity.Course;
+import cmc.rodi.domain.place.entity.CourseIssue;
+import cmc.rodi.domain.place.entity.CourseReport;
+import cmc.rodi.domain.place.entity.Parking;
+import cmc.rodi.domain.place.repository.CourseReportRepository;
 import cmc.rodi.domain.place.repository.CourseRepository;
+import cmc.rodi.domain.place.repository.ParkingRepository;
 import cmc.rodi.domain.review.dto.ReviewDetailResponse;
 import cmc.rodi.domain.review.dto.ReviewFormResponse;
 import cmc.rodi.domain.review.dto.ReviewFormResponse.Question;
 import cmc.rodi.domain.review.dto.ReviewFormResponse.Step;
 import cmc.rodi.domain.review.dto.ReviewRequest;
 import cmc.rodi.domain.review.entity.Congestion;
-import cmc.rodi.domain.review.entity.CourseIssue;
 import cmc.rodi.domain.review.entity.Difficulty;
 import cmc.rodi.domain.review.entity.PracticeMethod;
 import cmc.rodi.domain.review.entity.Review;
+import cmc.rodi.domain.review.exception.ReviewErrorCode;
 import cmc.rodi.domain.review.repository.ReviewRepository;
 import cmc.rodi.domain.review.service.ReviewQueryService;
 import cmc.rodi.domain.review.service.ReviewService;
@@ -30,6 +35,7 @@ import cmc.rodi.support.TestcontainersConfiguration;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.PersistenceContext;
 import java.util.List;
+import java.util.Optional;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.locationtech.jts.geom.Coordinate;
@@ -40,7 +46,7 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.annotation.Import;
 import org.springframework.transaction.annotation.Transactional;
 
-/** '별로에요' 코스 문제 항목(스펙 024) — 추천 여부에 따른 저장 분기, 수정 시 반대쪽 값 삭제, 상세 응답, 후기 작성 폼. */
+/** '별로에요' 코스 문제 항목(스펙 024·025) — 추천 여부에 따른 저장 분기, 코스 신고 저장·동기화, 상세 응답, 후기 작성 폼, 주차장 차단. */
 @SpringBootTest
 @Transactional
 @Import(TestcontainersConfiguration.class)
@@ -51,7 +57,9 @@ class ReviewCourseIssueIntegrationTest {
     @Autowired ReviewService reviewService;
     @Autowired ReviewQueryService reviewQueryService;
     @Autowired ReviewRepository reviewRepository;
+    @Autowired CourseReportRepository courseReportRepository;
     @Autowired CourseRepository courseRepository;
+    @Autowired ParkingRepository parkingRepository;
     @Autowired MemberRepository memberRepository;
     @PersistenceContext EntityManager em;
 
@@ -101,8 +109,13 @@ class ReviewCourseIssueIntegrationTest {
         return reviewRepository.findById(reviewId).orElseThrow();
     }
 
+    /** 후기에 연결된 코스 신고(스펙 025). reload 뒤에 부른다. */
+    private Optional<CourseReport> reportOf(Long reviewId) {
+        return courseReportRepository.findByReviewId(reviewId);
+    }
+
     @Test
-    @DisplayName("별로에요는 문제 항목·기타 입력만 저장하고 난이도·혼잡도·주의사항은 버린다")
+    @DisplayName("별로에요는 문제 항목·기타 입력을 코스 신고로 저장하고 난이도·혼잡도·주의사항은 버린다")
     void 별로에요_작성() {
         Course course = seedCourse();
         Member me = seedMember("bad@kakao.com");
@@ -118,10 +131,13 @@ class ReviewCourseIssueIntegrationTest {
                         .reviewId();
 
         Review saved = reload(id);
-        assertThat(saved.isRecommended()).isFalse();
-        assertThat(saved.getCourseIssues())
+        CourseReport report = reportOf(id).orElseThrow();
+        assertThat(report.getCourse().getId()).isEqualTo(course.getId());
+        assertThat(report.getReporter().getId()).isEqualTo(me.getId());
+        assertThat(report.getIssues())
                 .containsExactlyInAnyOrder(CourseIssue.ROAD_INFO_MISMATCH, CourseIssue.OTHER);
-        assertThat(saved.getCourseIssueDetail()).isEqualTo("입구 차단봉이 내려가 있어요");
+        assertThat(report.getDetail()).isEqualTo("입구 차단봉이 내려가 있어요");
+        assertThat(saved.isRecommended()).isFalse();
         assertThat(saved.getDifficulty()).isNull();
         assertThat(saved.getCongestion()).isNull();
         assertThat(saved.getCaution()).isNull();
@@ -144,11 +160,12 @@ class ReviewCourseIssueIntegrationTest {
                                 notRecommended(List.of(CourseIssue.CONSTRUCTION), "기타가 아님"))
                         .reviewId();
 
-        assertThat(reload(id).getCourseIssueDetail()).isNull();
+        reload(id);
+        assertThat(reportOf(id).orElseThrow().getDetail()).isNull();
     }
 
     @Test
-    @DisplayName("추천해요로 보낸 문제 항목은 저장하지 않는다")
+    @DisplayName("추천해요로 보낸 문제 항목은 저장하지 않는다(코스 신고 없음)")
     void 추천해요_문제_항목_버림() {
         Course course = seedCourse();
         Member me = seedMember("good@kakao.com");
@@ -166,13 +183,12 @@ class ReviewCourseIssueIntegrationTest {
         Long id = reviewService.create(course.getId(), me.getId(), request).reviewId();
 
         Review saved = reload(id);
-        assertThat(saved.getCourseIssues()).isEmpty();
-        assertThat(saved.getCourseIssueDetail()).isNull();
+        assertThat(reportOf(id)).isEmpty();
         assertThat(saved.getDifficulty()).isEqualTo(Difficulty.EASY);
     }
 
     @Test
-    @DisplayName("별로에요 → 추천해요로 수정하면 문제 항목·기타 입력이 지워지고 난이도·혼잡도가 저장된다")
+    @DisplayName("별로에요 → 추천해요로 수정하면 연결된 코스 신고가 지워지고 난이도·혼잡도가 저장된다")
     void 수정_별로에요에서_추천해요로() {
         Course course = seedCourse();
         Member me = seedMember("flip1@kakao.com");
@@ -189,15 +205,14 @@ class ReviewCourseIssueIntegrationTest {
 
         Review updated = reload(id);
         assertThat(updated.isRecommended()).isTrue();
-        assertThat(updated.getCourseIssues()).isEmpty();
-        assertThat(updated.getCourseIssueDetail()).isNull();
+        assertThat(reportOf(id)).isEmpty();
         assertThat(updated.getDifficulty()).isEqualTo(Difficulty.EASY);
         assertThat(updated.getCongestion()).isEqualTo(Congestion.NORMAL);
         assertThat(updated.getCaution()).isEqualTo("주말엔 붐벼요");
     }
 
     @Test
-    @DisplayName("추천해요 → 별로에요로 수정하면 난이도·혼잡도·주의사항이 지워지고 문제 항목이 저장된다")
+    @DisplayName("추천해요 → 별로에요로 수정하면 난이도·혼잡도·주의사항이 지워지고 코스 신고가 생긴다")
     void 수정_추천해요에서_별로에요로() {
         Course course = seedCourse();
         Member me = seedMember("flip2@kakao.com");
@@ -208,14 +223,15 @@ class ReviewCourseIssueIntegrationTest {
 
         Review updated = reload(id);
         assertThat(updated.isRecommended()).isFalse();
-        assertThat(updated.getCourseIssues()).containsExactly(CourseIssue.VEHICLE_RESTRICTED);
+        assertThat(reportOf(id).orElseThrow().getIssues())
+                .containsExactly(CourseIssue.VEHICLE_RESTRICTED);
         assertThat(updated.getDifficulty()).isNull();
         assertThat(updated.getCongestion()).isNull();
         assertThat(updated.getCaution()).isNull();
     }
 
     @Test
-    @DisplayName("별로에요끼리 수정하면 문제 항목이 통째로 교체된다")
+    @DisplayName("별로에요끼리 수정하면 같은 코스 신고의 문제 항목이 통째로 교체된다")
     void 수정_문제_항목_교체() {
         Course course = seedCourse();
         Member me = seedMember("swap@kakao.com");
@@ -228,13 +244,16 @@ class ReviewCourseIssueIntegrationTest {
                                         List.of(CourseIssue.CONSTRUCTION, CourseIssue.OTHER), "막힘"))
                         .reviewId();
         reload(id);
+        Long reportId = reportOf(id).orElseThrow().getId();
 
         reviewService.update(
                 id, me.getId(), notRecommended(List.of(CourseIssue.NOT_FOR_PRACTICE), null));
 
-        Review updated = reload(id);
-        assertThat(updated.getCourseIssues()).containsExactly(CourseIssue.NOT_FOR_PRACTICE);
-        assertThat(updated.getCourseIssueDetail()).isNull();
+        reload(id);
+        CourseReport report = reportOf(id).orElseThrow();
+        assertThat(report.getId()).isEqualTo(reportId);
+        assertThat(report.getIssues()).containsExactly(CourseIssue.NOT_FOR_PRACTICE);
+        assertThat(report.getDetail()).isNull();
     }
 
     @Test
@@ -357,5 +376,85 @@ class ReviewCourseIssueIntegrationTest {
                 .isInstanceOf(BusinessException.class)
                 .extracting(e -> ((BusinessException) e).getErrorCode())
                 .isEqualTo(ErrorCode.ENTITY_NOT_FOUND);
+    }
+
+    private Parking seedParking() {
+        return parkingRepository.save(
+                Parking.builder()
+                        .name("주차장")
+                        .location(GEO.createPoint(new Coordinate(127.0, 37.5)))
+                        .build());
+    }
+
+    private static void assertCourseOnly(Runnable action) {
+        assertThatThrownBy(action::run)
+                .isInstanceOf(BusinessException.class)
+                .extracting(e -> ((BusinessException) e).getErrorCode())
+                .isEqualTo(ReviewErrorCode.COURSE_ONLY);
+    }
+
+    @Test
+    @DisplayName("후기를 삭제하면 연결된 코스 신고도 지워진다")
+    void 삭제시_코스_신고_삭제() {
+        Course course = seedCourse();
+        Member me = seedMember("delete@kakao.com");
+        Long id =
+                reviewService
+                        .create(
+                                course.getId(),
+                                me.getId(),
+                                notRecommended(List.of(CourseIssue.CONSTRUCTION), null))
+                        .reviewId();
+        reload(id);
+
+        reviewService.delete(id, me.getId());
+        em.flush();
+        em.clear();
+
+        assertThat(reportOf(id)).isEmpty();
+    }
+
+    @Test
+    @DisplayName("주차장에는 후기를 쓸 수 없고 후기 작성 폼도 받을 수 없다(400 REVIEW_400_2)")
+    void 주차장_후기_차단() {
+        Parking parking = seedParking();
+        Member me = seedMember("parking@kakao.com");
+
+        assertCourseOnly(() -> reviewService.create(parking.getId(), me.getId(), recommended()));
+        assertCourseOnly(() -> reviewService.getReviewForm(parking.getId()));
+        assertThat(reviewRepository.count()).isZero();
+    }
+
+    @Test
+    @DisplayName("차단 이전의 주차장 후기는 추천해요로는 수정되지만 별로에요로는 바꿀 수 없다")
+    void 기존_주차장_후기_수정() {
+        Parking parking = seedParking();
+        Member me = seedMember("old-parking@kakao.com");
+        Long id =
+                reviewRepository
+                        .save(
+                                Review.builder()
+                                        .place(parking)
+                                        .member(me)
+                                        .recommended(true)
+                                        .difficulty(Difficulty.EASY)
+                                        .congestion(Congestion.QUIET)
+                                        .practiceMethod(PracticeMethod.SOLO)
+                                        .memberLevel(Level.ROOKIE)
+                                        .build())
+                        .getId();
+        reload(id);
+
+        reviewService.update(id, me.getId(), recommended());
+        assertCourseOnly(
+                () ->
+                        reviewService.update(
+                                id,
+                                me.getId(),
+                                notRecommended(List.of(CourseIssue.CONSTRUCTION), null)));
+
+        Review saved = reload(id);
+        assertThat(saved.isRecommended()).isTrue();
+        assertThat(reportOf(id)).isEmpty();
     }
 }

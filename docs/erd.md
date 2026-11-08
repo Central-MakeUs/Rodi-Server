@@ -29,6 +29,10 @@ erDiagram
     member ||--o{ review : "작성"
     review ||--o{ review_report : ""
     member ||--o{ review_report : "신고"
+    course ||--o{ course_report : ""
+    member ||--o{ course_report : "신고"
+    review ||--o| course_report : "별로에요"
+    course_report ||--o{ course_report_issue : ""
     member ||--o{ member_block : "차단"
     member ||--o{ member_practice : "연습 목록"
     place ||--o{ member_practice : ""
@@ -164,8 +168,8 @@ erDiagram
         bigint place_id FK "장소(코스·주차장 공통)"
         bigint member_id FK "작성자"
         boolean is_recommended "추천/비추천"
-        varchar difficulty "체감 난이도(VERY_EASY…VERY_HARD)"
-        varchar congestion "혼잡도(QUIET/NORMAL/CROWDED)"
+        varchar difficulty "체감 난이도(VERY_EASY…VERY_HARD). 추천해요만, 별로에요는 null"
+        varchar congestion "혼잡도(QUIET/NORMAL/CROWDED). 추천해요만, 별로에요는 null"
         varchar practice_method "SOLO|ACCOMPANIED"
         varchar content "후기 내용(선택, 최대 150자). null=평가만 남긴 후기"
         text caution "주의사항(선택)"
@@ -184,6 +188,21 @@ erDiagram
         text detail "상세 설명(선택)"
         timestamptz created_at
         timestamptz updated_at
+    }
+
+    course_report {
+        bigint id PK
+        bigint course_id FK "신고 대상 코스"
+        bigint reporter_id FK "신고자(별로에요 신고는 후기 작성자)"
+        bigint review_id FK "별로에요 후기(null=직접 신고), unique"
+        text detail "기타 직접 입력(OTHER일 때만, 30자)"
+        timestamptz created_at
+        timestamptz updated_at
+    }
+
+    course_report_issue {
+        bigint course_report_id FK "코스 신고"
+        varchar issue "코스 문제 항목(CourseIssue)"
     }
 
     member_block {
@@ -232,6 +251,7 @@ erDiagram
 | `review.congestion` | QUIET(한산) / NORMAL(보통) / CROWDED(복잡) |
 | `review.practice_method` | SOLO(혼자 연습) / ACCOMPANIED(동승자 연습) |
 | `review.member_level` | `member.level` 재사용(작성 당시 스냅샷) |
+| `course_report_issue.issue` | VEHICLE_RESTRICTED(차량 진입 제한) / ROAD_INFO_MISMATCH(도로 정보 불일치) / CONSTRUCTION(공사·통제) / NOT_FOR_PRACTICE(연습 코스로 부적합) / OTHER(기타, 직접 입력 필수) |
 | `review_report.reason` | SPAM(스팸·광고) / ABUSE(욕설·음란성·혐오) / IRRELEVANT(코스와 무관) / FALSE_INFO(허위정보) / OTHER(기타, 직접 입력 필수) |
 
 > `member.level`: **클라이언트가** 운전 경험 점수(0~14)를 5단계로 변환해 전송(Q1 `3~9년`/`10년 이상`→NAVIGATOR 강제 포함). 서버는 enum 검증 후 `member.level`에 저장(점수는 미저장). 상세: [스펙 004-onboarding](specs/004-onboarding.md).
@@ -251,8 +271,10 @@ erDiagram
 | `course_caution` | 코스 주의사항(1:N). 칩 형태 문구를 `seq` 순서로 저장. |
 | `waypoint` | 코스 경유지(1:N). 출발/경유/목적지 + 순서 + 좌표. |
 | `bookmark` | 북마크. 회원 ↔ place(코스·주차장 공통). `(member_id, place_id)` 유니크. |
-| `review` | 장소 후기(place 1:N, 코스·주차장 공통). 추천여부·난이도·혼잡도·연습방법·내용·주의사항 + **작성 당시 레벨 스냅샷**(`member_level`). 유니크 제약 없음(같은 장소 여러 번 작성 가능). 신고 5명 누적 시 `hidden_at`으로 비공개(작성자 본인에게만 보임). |
+| `review` | 코스 후기(place 1:N — 새 후기는 코스만, 기존 주차장 후기는 유지). 추천해요는 난이도·혼잡도·주의사항을 받고, 별로에요의 코스 문제 항목은 `course_report`에 저장한다(스펙 025). 추천여부·난이도·혼잡도·연습방법·내용·주의사항 + **작성 당시 레벨 스냅샷**(`member_level`). 유니크 제약 없음(같은 장소 여러 번 작성 가능). 신고 5명 누적 시 `hidden_at`으로 비공개(작성자 본인에게만 보임). |
 | `review_report` | 후기 신고. `(review_id, reporter_id)` 유니크(중복 신고 멱등). **5명 누적 시 `review.hidden_at` 설정**(자동 비공개). |
+| `course_report` | 코스 신고. 직접 신고(`review_id` null)와 별로에요 후기에서 온 신고(`review_id`)를 함께 담는다. 접수·보관만(코스 노출 영향 없음). |
+| `course_report_issue` | 코스 신고 문제 항목(1:N, 복수 선택). `CourseIssue` enum을 varchar로 저장. |
 | `member_block` | 회원 차단(단방향). `(blocker_id, blocked_id)` 유니크. 차단자의 후기 목록에서만 상대 후기 제외(요약 집계엔 영향 없음). |
 
 ## 주요 제약·인덱스
@@ -266,6 +288,9 @@ erDiagram
 - `bookmark` unique `(member_id, place_id)` · index `place_id`
 - `review` index `(place_id, created_at DESC, id DESC)`(목록 커서) · `(place_id, member_level)`(레벨 필터·요약) · `(member_id)`
 - `review_report` unique `(review_id, reporter_id)`
+- `review` `CHECK (NOT is_recommended OR (difficulty IS NOT NULL AND congestion IS NOT NULL))`
+- `course_report` unique `(review_id)`(후기당 1건) · partial unique `(course_id, reporter_id) WHERE review_id IS NULL`(직접 신고 1건)
+- `course_report_issue` PK `(course_report_id, issue)` · `CHECK (issue IN (...CourseIssue))`
 - `member_block` unique `(blocker_id, blocked_id)` · `CHECK (blocker_id <> blocked_id)`
 
 ## 추후 (미확정)

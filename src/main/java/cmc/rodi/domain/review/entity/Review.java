@@ -4,9 +4,7 @@ import cmc.rodi.domain.member.entity.Level;
 import cmc.rodi.domain.member.entity.Member;
 import cmc.rodi.domain.place.entity.Place;
 import cmc.rodi.global.common.entity.BaseEntity;
-import jakarta.persistence.CollectionTable;
 import jakarta.persistence.Column;
-import jakarta.persistence.ElementCollection;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
@@ -18,9 +16,6 @@ import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
 import java.time.LocalDateTime;
-import java.util.Collection;
-import java.util.LinkedHashSet;
-import java.util.Set;
 import lombok.AccessLevel;
 import lombok.Builder;
 import lombok.Getter;
@@ -84,22 +79,6 @@ public class Review extends BaseEntity {
     @Column(columnDefinition = "text")
     private String caution;
 
-    /**
-     * 코스 문제 항목(복수 선택, '별로에요' 후기 전용 — 스펙 024). review_course_issue(review_id, issue)에 enum 이름으로
-     * 저장한다.
-     *
-     * <p>저장만 하고 목록·요약에는 내리지 않아(운영 참고용) 본인 상세 조회에서만 읽는다 — 목록 배치 로딩이 필요 없다.
-     */
-    @ElementCollection
-    @CollectionTable(name = "review_course_issue", joinColumns = @JoinColumn(name = "review_id"))
-    @Column(name = "issue", length = 30)
-    @Enumerated(EnumType.STRING)
-    private Set<CourseIssue> courseIssues = new LinkedHashSet<>();
-
-    /** 코스 문제 '기타' 직접 입력(선택). 길이는 grapheme 기준이라 {@code text}로 두고 요청 검증이 책임진다(content와 같은 이유). */
-    @Column(name = "course_issue_detail", columnDefinition = "text")
-    private String courseIssueDetail;
-
     /** 작성 당시 회원 레벨(스냅샷). 회원 레벨이 바뀌어도 불변. */
     @Enumerated(EnumType.STRING)
     @Column(name = "member_level", nullable = false, length = 20)
@@ -127,15 +106,13 @@ public class Review extends BaseEntity {
             PracticeMethod practiceMethod,
             String content,
             String caution,
-            Collection<CourseIssue> courseIssues,
-            String courseIssueDetail,
             Level memberLevel,
             boolean verifiedVisit) {
         this.place = place;
         this.member = member;
         this.practiceMethod = practiceMethod;
         this.content = blankToNull(content);
-        rate(recommended, difficulty, congestion, caution, courseIssues, courseIssueDetail);
+        rate(recommended, difficulty, congestion, caution);
         this.memberLevel = memberLevel;
         this.verifiedVisit = verifiedVisit;
     }
@@ -150,44 +127,28 @@ public class Review extends BaseEntity {
             Congestion congestion,
             PracticeMethod practiceMethod,
             String content,
-            String caution,
-            Collection<CourseIssue> courseIssues,
-            String courseIssueDetail) {
+            String caution) {
         this.practiceMethod = practiceMethod;
         this.content = blankToNull(content);
-        rate(recommended, difficulty, congestion, caution, courseIssues, courseIssueDetail);
+        rate(recommended, difficulty, congestion, caution);
     }
 
     /**
-     * 1단계 평가(스펙 024). 추천해요는 난이도·혼잡도·주의사항을, 별로에요는 코스 문제 항목을 받고 <b>반대쪽 값은 버린다</b> — 화면에서 선택을 바꿔도 앱이
-     * 이전 값을 지워 보낼 필요가 없고, 저장된 후기는 항상 한쪽 값만 가진다. 기타 직접 입력은 {@link CourseIssue#OTHER}를 골랐을 때만 남긴다.
+     * 1단계 평가(스펙 024). 추천해요는 난이도·혼잡도·주의사항을 받고, 별로에요는 <b>셋 다 버린다</b> — 화면에서 선택을 바꿔도 앱이 이전 값을 지워 보낼
+     * 필요가 없다. 별로에요의 코스 문제 항목은 후기가 아니라 코스 신고({@code course_report})에 저장한다(스펙 025).
      */
     private void rate(
-            boolean recommended,
-            Difficulty difficulty,
-            Congestion congestion,
-            String caution,
-            Collection<CourseIssue> courseIssues,
-            String courseIssueDetail) {
+            boolean recommended, Difficulty difficulty, Congestion congestion, String caution) {
         this.recommended = recommended;
-        this.courseIssues.clear(); // 컬렉션 참조는 유지한다 — Hibernate가 추적하는 PersistentSet이다
         if (recommended) {
             this.difficulty = difficulty;
             this.congestion = congestion;
             this.caution = blankToNull(caution);
-            this.courseIssueDetail = null;
             return;
         }
         this.difficulty = null;
         this.congestion = null;
         this.caution = null;
-        if (courseIssues != null) {
-            this.courseIssues.addAll(courseIssues);
-        }
-        this.courseIssueDetail =
-                this.courseIssues.contains(CourseIssue.OTHER)
-                        ? blankToNull(courseIssueDetail)
-                        : null;
     }
 
     public boolean isOwnedBy(Long memberId) {

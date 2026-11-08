@@ -12,13 +12,13 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import cmc.rodi.domain.place.entity.CourseIssue;
 import cmc.rodi.domain.review.dto.ReviewCreateResponse;
 import cmc.rodi.domain.review.dto.ReviewDetailResponse;
 import cmc.rodi.domain.review.dto.ReviewFormResponse;
 import cmc.rodi.domain.review.dto.ReviewListRequest;
 import cmc.rodi.domain.review.dto.ReviewRequest;
 import cmc.rodi.domain.review.entity.Congestion;
-import cmc.rodi.domain.review.entity.CourseIssue;
 import cmc.rodi.domain.review.entity.Difficulty;
 import cmc.rodi.domain.review.entity.PracticeMethod;
 import cmc.rodi.domain.review.service.ReviewQueryService;

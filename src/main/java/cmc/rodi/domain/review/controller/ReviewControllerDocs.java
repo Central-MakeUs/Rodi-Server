@@ -58,15 +58,17 @@ public interface ReviewControllerDocs {
                             + " 흐름 규칙: 기본 선택값이 없어 처음엔 추천 여부만 보이고, showWhen 문항은 조건 선택지를 골랐을 때만 노출된다"
                             + "(추천해요 → 난이도·혼잡도·주의사항, 별로에요 → 코스 문제 항목). 숨겨진 문항은 required여도 입력하지 않는다."
                             + " 코스 문제 항목의 OTHER(기타)는 requiresTextInput=true이며 입력값은 courseIssueDetail로 보낸다."
-                            + " 수정 화면 값은 후기 상세로 채운다. 없는 장소면 404. JWT 필요.")
+                            + " 코스 문제 항목 문항은 코스 신고 폼(GET /courses/report-form)과 같은 정의다."
+                            + " 수정 화면 값은 후기 상세로 채운다. 없는 장소면 404, 주차장이면 400 REVIEW_400_2. JWT 필요.")
     ApiResponse<ReviewFormResponse> getReviewForm(@Parameter(description = "장소 id") Long placeId);
 
     @Operation(
             summary = "후기 작성",
             description =
-                    "장소(코스·주차장)에 후기를 남긴다. 작성 당시 회원 레벨을 서버가 스냅샷으로 저장하며, 같은 장소에 여러 번 쓸 수 있다."
+                    "코스에 후기를 남긴다(주차장은 400 REVIEW_400_2). 작성 당시 회원 레벨을 서버가 스냅샷으로 저장하며, 같은 코스에 여러 번 쓸 수 있다."
                             + " 1단계 평가는 추천 여부에 따라 갈린다 — 추천해요(true)는 difficulty·congestion 필수(caution 선택),"
-                            + " 별로에요(false)는 courseIssues 1개 이상 필수(OTHER를 고르면 courseIssueDetail 필수, 30자 이하)."
+                            + " 별로에요(false)는 courseIssues 1개 이상 필수(OTHER를 고르면 courseIssueDetail 필수, 30자 이하)이며,"
+                            + " 문제 항목은 후기가 아니라 이 후기에 연결된 코스 신고로 접수된다."
                             + " 반대쪽 값은 에러 없이 무시한다. practiceMethod는 항상 필수이고"
                             + " content는 선택이라 글 없이 평가만 남길 수 있다(공백만 보내면 없는 것으로 저장)."
                             + " 레벨이 없는 회원(온보딩 미완료)은 409. JWT 필요.")
@@ -157,7 +159,7 @@ public interface ReviewControllerDocs {
             summary = "후기 수정",
             description =
                     "본인 후기를 전체 교체한다. 작성과 같은 바디·검증을 쓰며, 전체 교체라 content·caution을 비워 보내면"
-                            + " 기존 값이 지워진다. 추천↔비추천을 바꾸면 반대쪽 평가 값(난이도·혼잡도·주의사항 또는 코스 문제 항목)이 지워진다. 작성 당시 레벨과 현재 레벨이 다르면 409, 타인 후기면 403. JWT 필요.")
+                            + " 기존 값이 지워진다. 추천↔비추천을 바꾸면 반대쪽 평가 값(난이도·혼잡도·주의사항 또는 연결된 코스 신고)이 지워지고, 추천해요→별로에요면 코스 신고가 생긴다. 주차장 후기(차단 이전 데이터)는 별로에요로 바꿀 수 없다(400 REVIEW_400_2). 작성 당시 레벨과 현재 레벨이 다르면 409, 타인 후기면 403. JWT 필요.")
     ApiResponse<Void> updateReview(
             @Parameter(description = "후기 id") Long reviewId,
             @Parameter(hidden = true) Long memberId,
@@ -165,7 +167,7 @@ public interface ReviewControllerDocs {
 
     @Operation(
             summary = "후기 삭제",
-            description = "본인 후기를 삭제한다(레벨 무관). 신고도 함께 제거된다. 타인 후기면 403. JWT 필요.")
+            description = "본인 후기를 삭제한다(레벨 무관). 후기 신고·연결된 코스 신고도 함께 제거된다. 타인 후기면 403. JWT 필요.")
     ApiResponse<Void> deleteReview(
             @Parameter(description = "후기 id") Long reviewId,
             @Parameter(hidden = true) Long memberId);

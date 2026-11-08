@@ -1,16 +1,15 @@
 package cmc.rodi.domain.review.dto;
 
+import cmc.rodi.domain.place.entity.CourseIssue;
 import cmc.rodi.domain.review.entity.Congestion;
-import cmc.rodi.domain.review.entity.CourseIssue;
 import cmc.rodi.domain.review.entity.Difficulty;
 import cmc.rodi.domain.review.entity.PracticeMethod;
 import cmc.rodi.domain.review.entity.Review;
 import cmc.rodi.global.common.form.FormOption;
 import cmc.rodi.global.common.form.FormType;
+import cmc.rodi.global.common.form.ShowWhen;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import io.swagger.v3.oas.annotations.media.Schema;
-import java.util.Arrays;
-import java.util.Comparator;
 import java.util.List;
 import java.util.function.Function;
 import java.util.stream.IntStream;
@@ -36,7 +35,13 @@ public record ReviewFormResponse(
 
     public static final String NOT_RECOMMENDED = "false";
 
-    /** 화면 한 페이지. 시안에 제목이 없는 단계는 {@code title}을 생략한다. */
+    /**
+     * 화면 한 페이지. 시안에 제목이 없는 단계는 {@code title}을 생략한다.
+     *
+     * <p>스키마 이름을 따로 준다 — 온보딩 폼에도 같은 이름의 {@code Step}·{@code Question}·{@code ShowWhen}이 있는데
+     * springdoc은 클래스 단순 이름으로 스키마를 만들어, 이름이 겹치면 한쪽이 다른 쪽을 덮어쓴다(온보딩 문서에서 skippable 등이 사라졌었다).
+     */
+    @Schema(name = "ReviewFormStep")
     @JsonInclude(JsonInclude.Include.NON_NULL)
     public record Step(
             @Schema(description = "단계 순서(1부터)") int order,
@@ -44,6 +49,7 @@ public record ReviewFormResponse(
             @Schema(description = "문항(order 오름차순)") List<Question> questions) {}
 
     /** 문항 하나. 값이 없는 선택 속성은 생략한다(NON_NULL). */
+    @Schema(name = "ReviewFormQuestion")
     @JsonInclude(JsonInclude.Include.NON_NULL)
     public record Question(
             @Schema(description = "문항 코드 = 작성 요청의 필드명") String code,
@@ -55,11 +61,6 @@ public record ReviewFormResponse(
             @Schema(description = "최대 글자 수(TEXT만, 제한 없으면 생략)") Integer maxLength,
             @Schema(description = "조건부 노출(없으면 항상 노출)") ShowWhen showWhen,
             @Schema(description = "선택지(order 오름차순, TEXT면 생략)") List<FormOption> options) {}
-
-    /** {@code question} 문항에서 {@code anyOf} 중 하나라도 골랐을 때만 보인다. */
-    public record ShowWhen(
-            @Schema(description = "조건 문항 코드") String question,
-            @Schema(description = "이 중 하나라도 고르면 노출") List<String> anyOf) {}
 
     /**
      * 후기 작성 화면 정의를 만든다. 1단계 제목에 코스명이 들어가며, 추천해요 쪽 문항(난이도·혼잡도·주의사항)과 별로에요 쪽 문항(코스 문제 항목)은 {@code
@@ -109,18 +110,14 @@ public record ReviewFormResponse(
                                                 null, // 길이 제한 없음
                                                 recommendedOnly,
                                                 null),
+                                        // 코스 신고 폼과 같은 정의를 쓴다(스펙 025)
                                         select(
-                                                "courseIssues",
+                                                CourseIssue.QUESTION_CODE,
                                                 5,
                                                 FormType.MULTI_SELECT,
-                                                "해당 코스에 어떤 문제가 있나요?",
+                                                CourseIssue.QUESTION_TITLE,
                                                 notRecommendedOnly,
-                                                Arrays.stream(CourseIssue.values())
-                                                        .sorted(
-                                                                Comparator.comparingInt(
-                                                                        CourseIssue::getOrder))
-                                                        .map(CourseIssue::toOption)
-                                                        .toList()))),
+                                                CourseIssue.formOptions()))),
                         new Step(
                                 2,
                                 null, // 시안에 단계 제목 없음

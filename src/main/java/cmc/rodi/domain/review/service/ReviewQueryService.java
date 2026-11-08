@@ -3,6 +3,7 @@ package cmc.rodi.domain.review.service;
 import cmc.rodi.domain.member.entity.Level;
 import cmc.rodi.domain.member.entity.Member;
 import cmc.rodi.domain.member.repository.MemberRepository;
+import cmc.rodi.domain.place.repository.CourseReportRepository;
 import cmc.rodi.domain.place.repository.PlaceRepository;
 import cmc.rodi.domain.review.dto.MyReviewItem;
 import cmc.rodi.domain.review.dto.ReviewDetailResponse;
@@ -44,6 +45,9 @@ public class ReviewQueryService {
     private final ReviewRepository reviewRepository;
     private final PlaceRepository placeRepository;
     private final MemberRepository memberRepository;
+
+    /** 상세의 '별로에요' 코스 문제 항목은 후기에 연결된 코스 신고에서 읽는다(스펙 025). */
+    private final CourseReportRepository courseReportRepository;
 
     /** 장소 후기 목록. 최신순(created_at DESC, id DESC) keyset 커서로 이어진다. */
     @Transactional(readOnly = true)
@@ -122,7 +126,10 @@ public class ReviewQueryService {
         if (!review.isOwnedBy(memberId)) {
             throw new BusinessException(ReviewErrorCode.NOT_REVIEW_OWNER);
         }
-        return ReviewDetailResponse.of(review, findMember(memberId).getLevel());
+        return ReviewDetailResponse.of(
+                review,
+                findMember(memberId).getLevel(),
+                courseReportRepository.findByReviewId(reviewId).orElse(null));
     }
 
     /**

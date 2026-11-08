@@ -1,8 +1,9 @@
 package cmc.rodi.domain.review.dto;
 
 import cmc.rodi.domain.member.entity.Level;
+import cmc.rodi.domain.place.entity.CourseIssue;
+import cmc.rodi.domain.place.entity.CourseReport;
 import cmc.rodi.domain.review.entity.Congestion;
-import cmc.rodi.domain.review.entity.CourseIssue;
 import cmc.rodi.domain.review.entity.Difficulty;
 import cmc.rodi.domain.review.entity.PracticeMethod;
 import cmc.rodi.domain.review.entity.Review;
@@ -40,10 +41,13 @@ public record ReviewDetailResponse(
         @Schema(description = "작성 시각") LocalDateTime createdAt) {
 
     /**
-     * 후기 엔티티를 상세 응답으로 바꾼다. 코스 문제 항목은 폼과 같은 order 순으로 정렬해 수정 화면이 그대로 채울 수 있게 하고, 수정 가능 여부는 조회자의 현재
-     * 레벨로 판정한다.
+     * 후기 엔티티를 상세 응답으로 바꾼다. 코스 문제 항목은 후기에 연결된 코스 신고에서 읽어(스펙 025) 폼과 같은 order 순으로 정렬해 수정 화면이 그대로 채울 수
+     * 있게 하고, 수정 가능 여부는 조회자의 현재 레벨로 판정한다.
+     *
+     * @param courseReport 이 후기에 연결된 코스 신고(추천해요 후기는 null)
      */
-    public static ReviewDetailResponse of(Review review, Level currentLevel) {
+    public static ReviewDetailResponse of(
+            Review review, Level currentLevel, CourseReport courseReport) {
         return new ReviewDetailResponse(
                 review.getId(),
                 review.getPlace().getId(),
@@ -51,10 +55,12 @@ public record ReviewDetailResponse(
                 review.isRecommended(),
                 review.getDifficulty(),
                 review.getCongestion(),
-                review.getCourseIssues().stream()
-                        .sorted(Comparator.comparingInt(CourseIssue::getOrder))
-                        .toList(),
-                review.getCourseIssueDetail(),
+                courseReport == null
+                        ? List.of()
+                        : courseReport.getIssues().stream()
+                                .sorted(Comparator.comparingInt(CourseIssue::getOrder))
+                                .toList(),
+                courseReport == null ? null : courseReport.getDetail(),
                 review.getPracticeMethod(),
                 review.getContent(),
                 review.getCaution(),
