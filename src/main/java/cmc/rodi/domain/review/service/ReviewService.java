@@ -101,7 +101,12 @@ public class ReviewService {
      */
     @Transactional
     public void update(Long reviewId, Long memberId, ReviewRequest request) {
-        Review review = findReview(reviewId);
+        // 후기 행을 잠가 [연결 신고 확인 → 생성·교체·삭제]를 같은 후기의 동시 수정끼리 직렬화한다.
+        // 잠금이 없으면 둘 다 "신고 없음"으로 보고 생성하다 unique(review_id)에 걸려 500이 난다.
+        Review review =
+                reviewRepository
+                        .findByIdForUpdate(reviewId)
+                        .orElseThrow(() -> new BusinessException(ErrorCode.ENTITY_NOT_FOUND));
         requireOwner(review, memberId);
         Course course = courseOf(review);
         if (!request.recommended() && course == null) {
