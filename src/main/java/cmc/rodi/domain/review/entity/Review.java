@@ -2,6 +2,7 @@ package cmc.rodi.domain.review.entity;
 
 import cmc.rodi.domain.member.entity.Level;
 import cmc.rodi.domain.member.entity.Member;
+import cmc.rodi.domain.place.entity.CourseIssue;
 import cmc.rodi.domain.place.entity.Place;
 import cmc.rodi.global.common.entity.BaseEntity;
 import jakarta.persistence.CollectionTable;

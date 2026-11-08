@@ -1,14 +1,15 @@
-package cmc.rodi.domain.review.entity;
+package cmc.rodi.domain.place.entity;
 
 import cmc.rodi.global.common.form.FormOption;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 
 /**
- * '별로에요' 후기의 코스 문제 항목(복수 선택, 스펙 024). 화면 문구·순서를 서버가 들고 있다가 코스 문제 항목 폼으로 그대로 내려준다(앱 배포 없이 문구 변경 가능).
+ * 코스 문제 항목(복수 선택). 코스 신고와 '별로에요' 후기가 같은 선택지를 쓴다(스펙 024·025). 화면 문구·순서를 서버가 들고 있다가 폼으로 그대로 내려준다(앱 배포
+ * 없이 문구 변경 가능).
  *
  * <p>{@link #OTHER}만 직접 입력을 받으며, 그때 상세 내용이 필수다. 값을 추가하면 DB CHECK({@code
- * ck_review_course_issue_issue})도 함께 바꾼다.
+ * ck_review_course_issue_issue}·{@code ck_course_report_issue_issue})도 함께 바꾼다.
  */
 @Getter
 @RequiredArgsConstructor

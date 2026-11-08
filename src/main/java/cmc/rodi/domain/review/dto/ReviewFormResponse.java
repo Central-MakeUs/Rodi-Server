@@ -1,7 +1,7 @@
 package cmc.rodi.domain.review.dto;
 
+import cmc.rodi.domain.place.entity.CourseIssue;
 import cmc.rodi.domain.review.entity.Congestion;
-import cmc.rodi.domain.review.entity.CourseIssue;
 import cmc.rodi.domain.review.entity.Difficulty;
 import cmc.rodi.domain.review.entity.PracticeMethod;
 import cmc.rodi.domain.review.entity.Review;
