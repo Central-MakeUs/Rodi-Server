@@ -1,11 +1,14 @@
 package cmc.rodi.domain.place.dto;
 
+import cmc.rodi.domain.member.entity.PracticeType;
 import cmc.rodi.global.exception.BusinessException;
 import cmc.rodi.global.exception.ErrorCode;
+import java.util.List;
 
 /**
  * 현위치 목록(#2) 요청 파라미터. 뷰포트(SW/NE) + 현위치(lat/lng) + 페이지 크기·커서. 공개 API라 잘못된 입력이 페이지네이션·공간쿼리에 닿기 전에
  * 400으로 막는다: size 1~100, 위도 [-90,90]·경도 [-180,180], SW는 NE 이하(위경도 범위 밖은 geography 캐스트에서 500이 남).
+ * {@code practiceTypes}는 필터(스펙 019) — 비어 있으면 필터 없음.
  */
 public record PlaceListRequest(
         double swLat,
@@ -15,11 +18,26 @@ public record PlaceListRequest(
         double lat,
         double lng,
         int size,
-        String cursor) {
+        String cursor,
+        List<PracticeType> practiceTypes) {
 
     private static final int MAX_SIZE = 100;
 
+    /** 필터 없는 요청. */
+    public PlaceListRequest(
+            double swLat,
+            double swLng,
+            double neLat,
+            double neLng,
+            double lat,
+            double lng,
+            int size,
+            String cursor) {
+        this(swLat, swLng, neLat, neLng, lat, lng, size, cursor, List.of());
+    }
+
     public PlaceListRequest {
+        practiceTypes = PracticeTypeParams.normalize(practiceTypes);
         if (size < 1 || size > MAX_SIZE) {
             throw new BusinessException(ErrorCode.INVALID_INPUT_VALUE);
         }

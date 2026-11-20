@@ -26,13 +26,26 @@ import org.hibernate.type.SqlTypes;
 @Table(name = "member")
 public class Member extends BaseEntity {
 
+    /** 운전 목표 최대 길이(사용자가 보는 글자 수 = grapheme cluster). */
+    public static final int DRIVING_GOAL_MAX_LENGTH = 30;
+
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    /** 닉네임은 가입 시 후보 풀에서 무작위로 부여한다(회원 간 유일). */
-    @Column(unique = true, length = 30)
+    /**
+     * 닉네임은 가입 시 후보 풀에서 무작위로 부여한다. 회원 간 유일하며 영문 대소문자는 구분하지 않는다 — DB의 {@code lower(nickname)} 유니크
+     * 인덱스(V28)가 보장한다. 표현식 인덱스라 JPA {@code unique}로는 나타낼 수 없어 스키마는 Flyway가 관리한다.
+     */
+    @Column(length = 30)
     private String nickname;
+
+    /**
+     * 사용자가 마지막으로 닉네임을 직접 바꾼 시각(스펙 020 변경 제한). 가입 때 자동 부여는 기록하지 않아 첫 변경은 제한이 없고, 대소문자만 바꾼 것도 기록하지
+     * 않는다.
+     */
+    @Column(name = "nickname_changed_at")
+    private LocalDateTime nicknameChangedAt;
 
     @Column(length = 255)
     private String email;
@@ -42,8 +55,13 @@ public class Member extends BaseEntity {
     @Column(length = 20)
     private Level level;
 
-    /** 운전 목표(마이페이지 노출). 온보딩 추가 정보라 선택(NULL 가능). */
-    @Column(name = "driving_goal", length = 30)
+    /**
+     * 운전 목표(마이페이지 노출). 온보딩 추가 정보라 선택(NULL 가능).
+     *
+     * <p>길이 제한은 <b>grapheme cluster 기준</b>이라 컬럼 폭으로 강제할 수 없다(스펙 018) — 30자여도 코드포인트로는 210자를 넘길 수 있어
+     * {@code text}로 두고 {@code @GraphemeSize}가 책임진다.
+     */
+    @Column(name = "driving_goal", columnDefinition = "text")
     private String drivingGoal;
 
     /** 누적 인정 주행거리(m). 레벨 승급 기준이며 <b>차감되지 않는다</b> — 연습기록을 지워도 그대로다(스펙 012). */
@@ -51,12 +69,12 @@ public class Member extends BaseEntity {
     private long totalDistanceMeters;
 
     /**
-     * 홈 정렬 필터(스펙 007). 회원이 선택한 연습유형 집합(카테고리는 클라 전용이라 풀린 값만 저장). NULL/빈 값 = 필터 없음(거리순). 인증된 목록·검색에서만
-     * 적용된다.
+     * 홈 정렬 기준(스펙 007·019). 회원이 선택한 연습유형 집합(카테고리는 클라 전용이라 풀린 값만 저장). 인증된 목록·검색에서 매칭 place를 앞에 둔다(필터가
+     * 아니라 정렬 — 필터는 요청 파라미터). NULL = 정렬 없음(거리순).
      */
     @JdbcTypeCode(SqlTypes.JSON)
-    @Column(name = "filter_tags", columnDefinition = "jsonb")
-    private List<PracticeType> filterTags;
+    @Column(name = "sort_tags", columnDefinition = "jsonb")
+    private List<PracticeType> sortTags;
 
     /** 코스 등록 튜토리얼 완료 시각(스펙 017). NULL이면 아직 보지 않았다. */
     @Column(name = "course_tutorial_completed_at")
@@ -94,6 +112,33 @@ public class Member extends BaseEntity {
     /** 가입 시 후보 풀에서 고른 닉네임을 부여한다. */
     public void assignNickname(String nickname) {
         this.nickname = nickname;
+    }
+
+    /**
+     * 사용자가 고른 닉네임으로 바꾼다. 형식·금칙어·중복·변경 제한 판정은 {@code NicknameService}가 끝낸 값이어야 한다.
+     *
+     * <p>지금 닉네임과 대소문자만 다르거나 같으면 변경으로 세지 않아 변경 시각을 남기지 않는다(30일 제한을 새로 시작·연장하지 않는다).
+     */
+    public void changeNickname(String nickname, LocalDateTime now) {
+        boolean counted = !isSameNicknameIgnoringCase(nickname);
+        this.nickname = nickname;
+        if (counted) {
+            this.nicknameChangedAt = now;
+        }
+    }
+
+    /** 지금 닉네임과 영문 대소문자를 무시하고 같은지 — 중복 판정과 같은 기준이며, 같으면 변경 제한에 세지 않는다. */
+    public boolean isSameNicknameIgnoringCase(String candidate) {
+        return nickname != null && nickname.equalsIgnoreCase(candidate);
+    }
+
+    /** 다음 닉네임 변경 가능 시각 — 마지막 변경 시각 + {@code cooldown}. 지금 바꿀 수 있으면(아직 바꾼 적 없거나 기간이 지남) null. */
+    public LocalDateTime nicknameChangeableAt(LocalDateTime now, Duration cooldown) {
+        if (nicknameChangedAt == null) {
+            return null;
+        }
+        LocalDateTime changeableAt = nicknameChangedAt.plus(cooldown);
+        return now.isBefore(changeableAt) ? changeableAt : null;
     }
 
     /**
@@ -140,10 +185,9 @@ public class Member extends BaseEntity {
         this.drivingGoal = (drivingGoal == null || drivingGoal.isBlank()) ? null : drivingGoal;
     }
 
-    /** 홈 정렬 필터 전체 교체. 빈 값이면 필터 없음(null)으로 지운다. */
-    public void updateFilterTags(List<PracticeType> filterTags) {
-        this.filterTags =
-                (filterTags == null || filterTags.isEmpty()) ? null : List.copyOf(filterTags);
+    /** 홈 정렬 기준 전체 교체. 빈 값이면 정렬 없음(null)으로 지운다. */
+    public void updateSortTags(List<PracticeType> sortTags) {
+        this.sortTags = (sortTags == null || sortTags.isEmpty()) ? null : List.copyOf(sortTags);
     }
 
     /** 코스 등록 튜토리얼 완료. 여러 번 호출해도 최초 완료 시각을 유지한다. */

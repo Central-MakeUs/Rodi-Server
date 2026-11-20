@@ -45,7 +45,7 @@ class MemberProfileServiceIntegrationTest {
     @DisplayName("마이페이지 요약: 닉네임·레벨·추천태그·목표 + 저장한 장소 수(place 조합)")
     void 마이페이지_요약() {
         Member member = memberRepository.save(Member.createBySocial("mp@kakao.com"));
-        member.assignNickname("성난 초보");
+        member.assignNickname("성난_초보");
         member.applyOnboarding(Level.ROOKIE, "골목길에 익숙해지기");
         memberRepository.save(member);
 
@@ -60,7 +60,7 @@ class MemberProfileServiceIntegrationTest {
 
         MyPageResponse res = memberProfileService.getMyPage(member.getId());
 
-        assertThat(res.nickname()).isEqualTo("성난 초보");
+        assertThat(res.nickname()).isEqualTo("성난_초보");
         assertThat(res.level()).isEqualTo(Level.ROOKIE);
         assertThat(res.recommendationTags()).containsExactly("U_TURN", "INTERSECTION", "PARKING");
         assertThat(res.drivingGoal()).isEqualTo("골목길에 익숙해지기");
@@ -103,7 +103,8 @@ class MemberProfileServiceIntegrationTest {
     void 운전목표_수정() {
         Member member = memberRepository.save(Member.createBySocial("goal@kakao.com"));
 
-        memberProfileService.update(member.getId(), new MemberUpdateRequest("고속도로 합류 연습"));
+        memberProfileService.update(
+                member.getId(), MemberUpdateRequest.ofDrivingGoal("고속도로 합류 연습"));
 
         Member found = memberRepository.findById(member.getId()).orElseThrow();
         assertThat(found.getDrivingGoal()).isEqualTo("고속도로 합류 연습");
@@ -116,7 +117,8 @@ class MemberProfileServiceIntegrationTest {
         member.applyOnboarding(Level.SEED, "기존 목표");
         memberRepository.save(member);
 
-        memberProfileService.update(member.getId(), new MemberUpdateRequest("  ")); // 공백=빈값
+        memberProfileService.update(
+                member.getId(), MemberUpdateRequest.ofDrivingGoal("  ")); // 공백=빈값
 
         Member found = memberRepository.findById(member.getId()).orElseThrow();
         assertThat(found.getDrivingGoal()).isNull();
@@ -126,7 +128,9 @@ class MemberProfileServiceIntegrationTest {
     @DisplayName("없는 회원 수정 시 404")
     void 없는_회원_404() {
         assertThatThrownBy(
-                        () -> memberProfileService.update(999_999L, new MemberUpdateRequest("목표")))
+                        () ->
+                                memberProfileService.update(
+                                        999_999L, MemberUpdateRequest.ofDrivingGoal("목표")))
                 .isInstanceOf(BusinessException.class);
     }
 }

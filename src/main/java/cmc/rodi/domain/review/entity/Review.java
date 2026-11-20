@@ -33,6 +33,7 @@ import lombok.NoArgsConstructor;
 @Table(name = "review")
 public class Review extends BaseEntity {
 
+    /** 후기 내용 최대 길이(사용자가 보는 글자 수 = grapheme cluster, 스펙 018). */
     public static final int MAX_CONTENT_LENGTH = 150;
 
     @Id
@@ -51,20 +52,27 @@ public class Review extends BaseEntity {
     @Column(name = "is_recommended", nullable = false)
     private boolean recommended;
 
+    /** 체감 난이도. 추천 후기는 필수, '별로에요' 후기는 받지 않는다(스펙 024 — 기존 비추천 후기에는 값이 남아 있다). */
     @Enumerated(EnumType.STRING)
-    @Column(nullable = false, length = 20)
+    @Column(length = 20)
     private Difficulty difficulty;
 
+    /** 혼잡도. 난이도와 같은 규칙. */
     @Enumerated(EnumType.STRING)
-    @Column(nullable = false, length = 20)
+    @Column(length = 20)
     private Congestion congestion;
 
     @Enumerated(EnumType.STRING)
     @Column(name = "practice_method", nullable = false, length = 20)
     private PracticeMethod practiceMethod;
 
-    /** 후기 내용(선택). 글 없이 평가만 남길 수 있다 — 빈 문자열은 저장하지 않고 null로 정규화한다. */
-    @Column(length = MAX_CONTENT_LENGTH)
+    /**
+     * 후기 내용(선택). 글 없이 평가만 남길 수 있다 — 빈 문자열은 저장하지 않고 null로 정규화한다.
+     *
+     * <p>길이 제한은 <b>grapheme cluster 기준</b>이라 컬럼 폭으로 강제할 수 없다(스펙 018) — 150자여도 코드포인트로는 그보다 길어질 수 있어
+     * {@code text}로 두고 {@code @GraphemeSize}가 책임진다.
+     */
+    @Column(columnDefinition = "text")
     private String content;
 
     /** 주의사항(선택, 길이 제한 없음). */
@@ -102,17 +110,17 @@ public class Review extends BaseEntity {
             boolean verifiedVisit) {
         this.place = place;
         this.member = member;
-        this.recommended = recommended;
-        this.difficulty = difficulty;
-        this.congestion = congestion;
         this.practiceMethod = practiceMethod;
         this.content = blankToNull(content);
-        this.caution = blankToNull(caution);
+        rate(recommended, difficulty, congestion, caution);
         this.memberLevel = memberLevel;
         this.verifiedVisit = verifiedVisit;
     }
 
-    /** 후기 내용 교체(전체 수정). 레벨·작성자·대상 장소는 바뀌지 않는다. 내용을 비워 보내면 지워진다(PUT은 전체 교체). */
+    /**
+     * 후기 내용 교체(전체 수정). 레벨·작성자·대상 장소는 바뀌지 않는다. 내용을 비워 보내면 지워진다(PUT은 전체 교체). 추천↔비추천을 바꾸면 반대쪽 평가 값은
+     * 지워진다.
+     */
     public void update(
             boolean recommended,
             Difficulty difficulty,
@@ -120,12 +128,27 @@ public class Review extends BaseEntity {
             PracticeMethod practiceMethod,
             String content,
             String caution) {
-        this.recommended = recommended;
-        this.difficulty = difficulty;
-        this.congestion = congestion;
         this.practiceMethod = practiceMethod;
         this.content = blankToNull(content);
-        this.caution = blankToNull(caution);
+        rate(recommended, difficulty, congestion, caution);
+    }
+
+    /**
+     * 1단계 평가(스펙 024). 추천해요는 난이도·혼잡도·주의사항을 받고, 별로에요는 <b>셋 다 버린다</b> — 화면에서 선택을 바꿔도 앱이 이전 값을 지워 보낼
+     * 필요가 없다. 별로에요의 코스 문제 항목은 후기가 아니라 코스 신고({@code course_report})에 저장한다(스펙 025).
+     */
+    private void rate(
+            boolean recommended, Difficulty difficulty, Congestion congestion, String caution) {
+        this.recommended = recommended;
+        if (recommended) {
+            this.difficulty = difficulty;
+            this.congestion = congestion;
+            this.caution = blankToNull(caution);
+            return;
+        }
+        this.difficulty = null;
+        this.congestion = null;
+        this.caution = null;
     }
 
     public boolean isOwnedBy(Long memberId) {

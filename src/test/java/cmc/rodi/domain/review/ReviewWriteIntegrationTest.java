@@ -80,7 +80,9 @@ class ReviewWriteIntegrationTest {
                 Congestion.NORMAL,
                 PracticeMethod.ACCOMPANIED,
                 content,
-                "주말 오후엔 자전거가 많습니다.");
+                "주말 오후엔 자전거가 많습니다.",
+                null,
+                null);
     }
 
     /** 재인증을 확인하려면 같은 항목을 두 번 방문해야 하는데, 10분 쿨다운이 두 번째 호출을 흡수한다. */
@@ -311,6 +313,8 @@ class ReviewWriteIntegrationTest {
                                         Congestion.NORMAL,
                                         PracticeMethod.SOLO,
                                         null,
+                                        null,
+                                        null,
                                         null))
                         .reviewId();
         Long blankId =
@@ -324,6 +328,8 @@ class ReviewWriteIntegrationTest {
                                         Congestion.NORMAL,
                                         PracticeMethod.SOLO,
                                         "   ",
+                                        null,
+                                        null,
                                         null))
                         .reviewId();
         reviewRepository.flush(); // NOT NULL이 남아 있으면 여기서 터진다
@@ -348,10 +354,12 @@ class ReviewWriteIntegrationTest {
                 reviewId,
                 me.getId(),
                 new ReviewRequest(
-                        false,
+                        true,
                         Difficulty.HARD,
                         Congestion.CROWDED,
                         PracticeMethod.SOLO,
+                        null,
+                        null,
                         null,
                         null));
         reviewRepository.flush();

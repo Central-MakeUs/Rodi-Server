@@ -61,7 +61,14 @@ class ReviewListIntegrationTest {
 
     private static ReviewRequest request(String content) {
         return new ReviewRequest(
-                true, Difficulty.EASY, Congestion.NORMAL, PracticeMethod.SOLO, content, null);
+                true,
+                Difficulty.EASY,
+                Congestion.NORMAL,
+                PracticeMethod.SOLO,
+                content,
+                null,
+                null,
+                null);
     }
 
     private CursorPage<ReviewItem> list(

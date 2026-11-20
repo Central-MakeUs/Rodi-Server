@@ -75,6 +75,8 @@ class PracticeIntegrationTest {
                 Congestion.QUIET,
                 PracticeMethod.SOLO,
                 "연습 목록 테스트용 후기",
+                null,
+                null,
                 null);
     }
 

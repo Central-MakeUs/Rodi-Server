@@ -17,7 +17,7 @@ import org.springframework.stereotype.Component;
 
 /**
  * 닉네임 부여. 후보 풀은 리소스 파일(한 줄에 하나)을 기동 시 메모리에 로드해 불변으로 보관하고, 가입 시 미사용 후보에서 무작위로 하나 고른다. 유일성의 최종 방어선은
- * {@code member.nickname} UNIQUE 제약이다(별도 후보 테이블 없음).
+ * {@code lower(nickname)} 유니크 인덱스다(별도 후보 테이블 없음).
  */
 @Component
 public class NicknameAssigner {

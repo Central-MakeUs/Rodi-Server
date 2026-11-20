@@ -3,11 +3,14 @@ package cmc.rodi.domain.place.controller;
 import cmc.rodi.domain.place.dto.CourseRegisterRequest;
 import cmc.rodi.domain.place.dto.CourseRegisterResponse;
 import cmc.rodi.domain.place.dto.CourseRegistrationFormResponse;
+import cmc.rodi.domain.place.dto.CourseReportRequest;
 import cmc.rodi.domain.place.dto.MyCourseItem;
 import cmc.rodi.domain.place.entity.ApprovalStatus;
 import cmc.rodi.domain.place.service.CourseQueryService;
+import cmc.rodi.domain.place.service.CourseReportService;
 import cmc.rodi.domain.place.service.CourseService;
 import cmc.rodi.global.auth.resolver.CurrentMember;
+import cmc.rodi.global.common.form.FormResponse;
 import cmc.rodi.global.common.pagination.CursorPage;
 import cmc.rodi.global.common.response.ApiResponse;
 import cmc.rodi.global.exception.BusinessException;
@@ -26,7 +29,7 @@ import org.springframework.web.bind.annotation.RestController;
 /**
  * 사용자 코스 API. 문서 스펙은 {@link CourseControllerDocs}.
  *
- * <p>코스는 등록·폼·내 목록·삭제라는 자체 오퍼레이션 묶음을 가지므로 장소 조회({@link PlaceController})와 분리한다. 엔티티가 {@code
+ * <p>코스는 등록·폼·내 목록·삭제·신고라는 자체 오퍼레이션 묶음을 가지므로 장소 조회({@link PlaceController})와 분리한다. 엔티티가 {@code
  * domain.place}에 있어 패키지는 함께 둔다. 목록은 회원 소유라 {@code /members/me/courses}, 개별 조작은 대상 자체를 가리키는 {@code
  * /courses/{courseId}}에 둔다(연습 목록과 같은 규칙).
  */
@@ -39,6 +42,7 @@ public class CourseController implements CourseControllerDocs {
 
     private final CourseService courseService;
     private final CourseQueryService courseQueryService;
+    private final CourseReportService courseReportService;
 
     @Override
     @PostMapping("/courses")
@@ -70,6 +74,22 @@ public class CourseController implements CourseControllerDocs {
     @DeleteMapping("/courses/{courseId}")
     public ApiResponse<Void> delete(@PathVariable Long courseId, @CurrentMember Long memberId) {
         courseService.delete(courseId, memberId);
+        return ApiResponse.success(null);
+    }
+
+    @Override
+    @GetMapping("/courses/report-form")
+    public ApiResponse<FormResponse> getReportForm() {
+        return ApiResponse.success(courseReportService.getReportForm());
+    }
+
+    @Override
+    @PostMapping("/courses/{courseId}/report")
+    public ApiResponse<Void> report(
+            @PathVariable Long courseId,
+            @CurrentMember Long memberId,
+            @Valid @RequestBody CourseReportRequest request) {
+        courseReportService.report(courseId, memberId, request);
         return ApiResponse.success(null);
     }
 }
